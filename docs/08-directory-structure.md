@@ -49,125 +49,75 @@ lienmark/
 │   │   │                                    see 02-mvp-scope.md §1 & 20-adversarial-input-defense.md §2
 │   │   ├── research/
 │   │   │   ├── agent.py
-│   │   │   ├── parallel_client.py        # THE required hackathon artifact — this file is
-│   │   │   │                                where a judge doing a quick code review should be
-│   │   │   │                                able to immediately find and verify the real,
-│   │   │   │                                live Parallel Search API integration
+│   │   │   ├── parallel_client.py        # THE required hackathon artifact — live Parallel SDK integration
+│   │   │   ├── multi_tool_router.py      # dynamic multi-tool selection (Parallel Search API vs Task API) —
+│   │   │   │                                see 04-prd.md §5.3 & 09-agent-orchestration.md §4
 │   │   │   └── query_builder.py           # builds minimal, non-identifying search terms —
-│   │   │                                    the code-level enforcement of the confidentiality
-│   │   │                                    requirement in 04-prd.md §5.6
+│   │   │                                    the code-level enforcement of confidentiality in 04-prd.md §5.6
 │   │   ├── ledger/
 │   │   │   ├── agent.py
 │   │   │   └── append_only_store.py       # enforces create-only writes at the application
-│   │   │                                    layer, on top of the Firestore security rules
-│   │   │                                    enforcement described in 06-data-schema.md §3
+│   │   │                                    layer, on top of Firestore security rules (06-data-schema.md §3)
 │   │   ├── risk_scoring/
 │   │   │   ├── agent.py
-│   │   │   ├── deterministic_rules.py     # rule-based scoring logic — NOT an LLM freehand
-│   │   │   │                                judgment; this file is where the "deterministic,
-│   │   │   │                                multi-step agent" hackathon requirement is
-│   │   │   │                                literally satisfied in code
-│   │   │   └── conflict_arbitration.py    # multi-source conflict resolution — the code
-│   │   │                                    behind the demo's centerpiece moment
+│   │   │   ├── deterministic_rules.py     # rule-based scoring logic — NOT an LLM freehand judgment
+│   │   │   └── conflict_arbitration.py    # multi-source conflict resolution — the code behind the demo centerpiece
 │   │   ├── report/
 │   │   │   ├── agent.py
 │   │   │   └── report_formatter.py
-│   │   └── discovery/                     # autonomous proactive re-review poller — the 6th
-│   │       ├── agent.py                       agent module enforcing goal-driven initiative
-│   │       └── poller.py                      without human triggering (02-mvp-scope.md §1)
+│   │   └── discovery/                     # autonomous proactive re-review poller — 6th agent module (02-mvp-scope.md §1)
+│   │       ├── agent.py
+│   │       └── poller.py
 │   ├── orchestration/
-│   │   ├── pipeline.py                    # top-level agent orchestration / control flow —
-│   │   │                                    the file that wires all agents together
-│   │   │                                    in the sequence described in 09-agent-orchestration.md
-│   │   └── agent_builder_config.py        # Google Cloud Agent Builder setup — the other
-│   │                                        hackathon-required integration, alongside Parallel
+│   │   ├── pipeline.py                    # top-level agent orchestration / control flow (09-agent-orchestration.md)
+│   │   └── agent_builder_config.py        # Google Cloud Agent Builder setup — hackathon-required orchestration config
 │   ├── storage/
 │   │   ├── firestore_client.py
-│   │   ├── firestore.rules                # protocol-level create-only rules for ledger_entries —
-│   │   │                                    see 06-data-schema.md §3
-│   │   └── schema.py                      # mirrors docs/06-data-schema.md exactly —
-│   │                                        if these two ever drift apart, the doc is
-│   │                                        wrong and needs to be updated to match the code,
-│   │                                        not the other way around
+│   │   ├── firestore.rules                # protocol-level create-only rules for ledger_entries (06-data-schema.md §3)
+│   │   └── schema.py                      # mirrors docs/06-data-schema.md exactly
 │   ├── config/
 │   │   ├── settings.py                    # loads env vars; contains zero hardcoded secrets
-│   │   └── iam_bindings.py                # documents and enforces the per-agent service
-│   │                                        account mapping from 07-env-vars.md §4 in code,
-│   │                                        not just in documentation
+│   │   └── iam_bindings.py                # enforces per-agent service account mapping (07-env-vars.md §4)
 │   ├── Dockerfile                         # Cloud Run container definition
 │   └── main.py                            # Cloud Run entrypoint
 ├── frontend/
-│   ├── app/                               # Next.js app directory (default choice — see
-│   │   │                                    02-mvp-scope.md §4.1 for the Streamlit
-│   │   │                                    fallback decision point if build time runs short)
-│   │   ├── globals.css                    # CSS Design Token system — dark mode (#0B0F17),
-│   │   │                                    glassmorphism backdrop blur, status keyframe glows
-│   │   ├── page.tsx                       # upload + live claims table — the single
-│   │   │                                    highest-leverage screen in the whole product
+│   ├── app/                               # Next.js app directory
+│   │   ├── globals.css                    # CSS Design Token system — dark mode (#0B0F17), glassmorphism, status glows
+│   │   ├── page.tsx                       # upload + live claims table — primary product view
 │   │   ├── report/[production_id]/page.tsx
 │   │   └── components/
-│   │       ├── ClaimsTable.tsx            # the live-updating demo-critical component —
-│   │       │                                see 02-mvp-scope.md §3 for exactly what
-│   │       │                                behavior this needs to support
+│   │       ├── ClaimsTable.tsx            # live-updating demo-critical component (02-mvp-scope.md §3)
 │   │       ├── ClaimRow.tsx
-│   │       ├── SourceCitation.tsx         # renders the inline, clickable source for
-│   │       │                                every finding — this component exists
-│   │       │                                specifically to make the "no unsourced
-│   │       │                                verdicts" requirement visible, not just true
-│   │       ├── HumanReviewFlag.tsx        # a genuinely distinct visual treatment,
-│   │       │                                not just a red table row — see
-│   │       │                                02-mvp-scope.md §3 for why this needs to
-│   │       │                                read as a real product state
-│   │       ├── DiscoveryNotification.tsx  # proactive resurfacing alert toast component —
-│   │       │                                renders Discovery Agent proactive alerts
-│   │       └── ClarifyingQuestionModal.tsx # interactive modal for human-in-the-loop action —
-│   │                                        see 02-mvp-scope.md §4 & 09-agent-orchestration.md §6
+│   │       ├── SourceCitation.tsx         # inline clickable source citation component
+│   │       ├── HumanReviewFlag.tsx        # distinct visual treatment for human review state
+│   │       ├── DiscoveryNotification.tsx  # proactive resurfacing alert toast component
+│   │       └── ClarifyingQuestionModal.tsx # interactive modal for human-in-the-loop action
 │   ├── lib/
 │   │   └── api_client.ts
 │   └── package.json
 ├── demo/
-│   ├── sample_script.pdf                  # the deliberately-mixed claim set — one clean,
-│   │                                        one high-risk, one engineered to trigger
-│   │                                        conflicting Parallel findings (see
-│   │                                        02-mvp-scope.md §3 for the exact requirement)
-│   ├── sample_script_adversarial.pdf      # script with embedded prompt-injection directions
-│   │                                        for testing defense-in-depth (20-adversarial-input-defense.md)
+│   ├── sample_script.pdf                  # primary test fixture (mixed claim set + conflict arbitration)
+│   ├── sample_script_adversarial.pdf      # adversarial prompt-injection test fixture (20-adversarial-input-defense.md)
 │   ├── parallel_conflict_example.json     # sample conflict JSON payload fixture (11-demo-content.md)
-│   ├── demo_script.md                     # narration script for the 3-minute video,
-│   │                                        matching the shot list in 05-pitch-deck.md
-│   └── failure_trigger.md                 # how to reproduce the graceful-failure demo
-│                                            moment reliably, using DEMO_MODE (see
-│                                            07-env-vars.md §2)
+│   ├── demo_script.md                     # narration script for 3-minute video (05-pitch-deck.md)
+│   └── failure_trigger.md                 # graceful-failure demo trigger mechanism (07-env-vars.md §2)
 ├── tests/
-│   ├── test_ledger_immutability.py        # storage-layer security rule tests
+│   ├── test_intake_agent.py
+│   ├── test_research_agent.py             # unit tests mocking Parallel API calls
+│   ├── test_ledger_immutability.py        # storage-layer create-only security rule tests
 │   ├── test_risk_scoring_determinism.py   # scoring engine determinism tests
 │   ├── test_adversarial_defense.py        # prompt injection trap test fixture
 │   └── test_e2e_pipeline.py               # E2E benchmark pipeline runner under pytest
 ├── scripts/
-│   ├── setup_gcp.sh                       # provisions the GCP project, all per-agent
-│   │                                        service accounts, and their IAM bindings
+│   ├── setup_gcp.sh                       # provisions GCP project, service accounts, IAM bindings
 │   ├── deploy.sh
 │   ├── run_local_demo.sh                  # one-click local runner launching backend + frontend
 │   ├── seed_demo_data.py
 │   ├── test_week0_validation.py           # Week 0 API de-risking script (13-technical-validation.md)
-│   └── verify_integrations.py             # 60-second judge compliance verification helper —
-│                                            see 12-qa-checklist.md §3 & 22-pre-mortem.md §4
+│   └── verify_integrations.py             # 60-second judge compliance verification helper (12-qa-checklist.md §3)
 ├── .github/
 │   └── workflows/
 │       └── ci.yml                         # runs automated test suite on every PR
-└── tests/
-    ├── test_intake_agent.py
-    ├── test_research_agent.py             # mocks Parallel for fast unit tests; a separate
-    │                                        integration test suite should hit the real
-    │                                        API to confirm the live integration actually
-    │                                        works end to end, not just against a mock
-    ├── test_ledger_immutability.py        # explicitly tests that update/delete against
-    │                                        ledger_entries is rejected — using the
-    │                                        Ledger Agent's real service account
-    │                                        credentials, not a superuser bypass
-    └── test_risk_scoring_determinism.py   # explicitly tests same input → same output,
-                                             run multiple times — this is the concrete
-                                             proof behind the "deterministic agent" claim
 ```
 
 ## 2. Rationale for key structural decisions, explained rather than just asserted
