@@ -35,8 +35,11 @@ This is being built first as a submission to **Agentic Cinema: The Blockbuster H
 | 21 | [Agent Prompts](21-agent-prompts.md) | The actual drafted system prompts for every agent | Real starting content for `prompts.py`, not a placeholder |
 | 22 | [Pre-Mortem](22-pre-mortem.md) | Strategic and competitive risks, examined before they happen | Why this might not win even if everything is built correctly |
 | 23 | [Competitor Comparison Matrix](23-competitor-comparison-matrix.md) | A consolidated, scannable comparison table | How Lienmark differs from Vitrina, Filmustage, and enforcement-side tools, in one place |
-| 24 | [Vision & Mission](24-vision-and-mission.md) | The long-term multi-industry expansion picture, beyond entertainment | Which future industries the verification-ledger pattern could extend to, validated honestly — including where the field is genuinely open versus already contested |
-| 25 | [Agentic Maturity Roadmap](25-agentic-maturity-roadmap.md) | An honest assessment of how agentic this actually is, and the path to more | The workflow-vs-agent distinction, where Lienmark really sits, and what to build next without sacrificing the determinism the product depends on |
+| 24 | [Vision & Mission](24-vision-and-mission.md) | The long-term multi-industry expansion picture, beyond entertainment | Which future industries the verification-ledger pattern could extend to |
+| 25 | [Agentic Maturity Roadmap](25-agentic-maturity-roadmap.md) | An honest assessment of how agentic this actually is | Workflow-vs-agent distinction and path to bounded agency |
+| -- | [API Reference](api-reference.md) | Complete REST API specification, JSON payloads, HTTP status codes | Untruncated request/response contracts for backend endpoints |
+| -- | [Installation Guide](installation.md) | Hardware requirements, step-by-step setup commands, troubleshooting matrix | Local dev runner, GCP provisioning, and error resolutions |
+| -- | [Contributing Guidelines](contributing.md) | Code quality standards, testing strategies, trunk-based branching | Linting, pytest coverage, PR workflow, and semantic commits |
 
 ## How these documents relate to each other
 

@@ -81,6 +81,9 @@ Orchestrated natively via **Google Cloud Agent Builder / Gemini Enterprise Agent
 | 23 | [Competitor Comparison Matrix](docs/23-competitor-comparison-matrix.md) | Feature matrix vs. Vitrina, Filmustage, and legal tools |
 | 24 | [Vision & Mission](docs/24-vision-and-mission.md) | Multi-industry verification expansion thesis |
 | 25 | [Agentic Maturity Roadmap](docs/25-agentic-maturity-roadmap.md) | Workflow vs. agentic assessment and roadmap |
+| -- | [API Reference](docs/api-reference.md) | Complete REST API specification, JSON payloads, and status codes |
+| -- | [Installation Guide](docs/installation.md) | System requirements, setup commands, and troubleshooting matrix |
+| -- | [Contributing Guidelines](docs/contributing.md) | Code quality standards, pytest strategies, and branching rules |
 
 ---
 
