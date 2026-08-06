@@ -422,3 +422,46 @@ Lienmark implements 4 core Google Cloud Enterprise architectural patterns:
 ### 11.4 Cloud Logging & BigQuery Agent Thought Tracer (`cloud_logging_tracer.py`)
 - Live observability into agent reasoning steps and tool execution traces via Google Cloud Logging and BigQuery telemetry streams (`backend/agents/orchestration/cloud_logging_tracer.py`).
 
+---
+
+## 12. Entertainment Domain Parameter Reference (17 Production Nuances)
+
+To ensure strict legal and production authenticity, the 6 agent modules enforce 17 explicit domain-specific parameters across their contracts:
+
+```json
+{
+  "domain_parameters": {
+    "licensing_split": "composition | master | dual_required", // Dual Music Clearance Split (§1)
+    "publication_year_pd_eval": "publication_year <= current_year - 95", // Dynamic 95-Year Public Domain (§2)
+    "revision_color": "White | Blue | Pink | Yellow | Green | Goldenrod | Salmon | Cherry", // Industry Revision Colors (§3)
+    "publicity_jurisdiction": "US-CA (70yr) | US-NY (40yr)", // Jurisdiction Publicity Rights (§4)
+    "timecode_fps": "23.976_ndf | 24.0 | 29.97_df | 30.0", // Frame-Rate Drift Guard (§5)
+    "sir_deductible_usd": 25000.0, // E&O Self-Insured Retention Deductible (§6)
+    "fair_use_scorecard": {
+      "factor_1_purpose": 0.85,
+      "factor_2_nature": 0.60,
+      "factor_3_amount": 0.90,
+      "factor_4_market": 0.95
+    }, // 17 U.S.C. § 107 4-Factor Scorecard (§7)
+    "is_brand_disparaged": false, // Trademark Nominative Use vs Disparagement (§8)
+    "generate_exclusion_schedule": true, // E&O Carrier Exclusion Schedule Generator (§9)
+    "pro_work_ids": {
+      "iswc": "T-034.523.901-1",
+      "isrc": "US-AT2-19-00001",
+      "ascap_id": "380192831"
+    }, // PRO Music Work ID Target Resolution (§10)
+    "verification_ttl_days": 30, // 30-Day Clearance Expiration TTL (§11)
+    "licensing_scope": "Festival Rights Only | Worldwide All-Media Perpetual", // Tiered Licensing Scoping (§12)
+    "visual_prominence": {
+      "aggregate_duration_seconds": 1.8,
+      "is_out_of_focus": true
+    }, // 3-Second De Minimis Visual Metric (§13)
+    "is_docudrama_context": true, // First Amendment Docudrama / Biopic Immunity (§14)
+    "drm_protected": false, // DMCA Section 1201 Anti-Circumvention Guard (§15)
+    "performer_prominence": "crowd_background | featured_speaking", // SAG-AFTRA Crowd Release vs Option (§16)
+    "window_stage": "US_Theatrical | EU_Streaming | UK_FreeToAir" // Territorial Distribution Windowing (§17)
+  }
+}
+```
+
+

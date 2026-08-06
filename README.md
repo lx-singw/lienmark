@@ -62,6 +62,25 @@ Insurers (**E&O**) and **completion bond companies** require verifiable, auditab
 > * **FCP XML / DaVinci EDL Conformer**: Parses Hollywood edit decision lists (`timeline_conformer.py`) linking claims directly to video frames.
 > * **Underwriting Partner API Webhook**: Exposes `POST /api/v1/underwriting/bind-policy` (`eo_binder_api.py`) allowing Chubb/Hiscox to programmatically pull certificates and bind policies.
 > * **Post-Production Wrap Checklist**: Generates wrap clearance summaries (`wrap_checklist.py`) verifying 100% claim clearance before distributors (A24, Netflix) release funds.
+> 
+> ### 🏛️ 17 Production-Grade Entertainment Domain Nuances
+> 1. **Dual Music Licensing Split**: Separate Composition (ASCAP/BMI) vs. Master (Label) clearance.
+> 2. **Dynamic 95-Year Public Domain Calculator**: Auto-evaluates 1930 works entering Public Domain in 2026.
+> 3. **Script Revision Colors**: Tracks White $\rightarrow$ Blue $\rightarrow$ Pink $\rightarrow$ Yellow draft deltas in `script_hasher.py`.
+> 4. **Jurisdiction-Aware Publicity Rights**: CA 70-yr post-mortem vs NY 40-yr publicity rights rules.
+> 5. **Timecode Frame-Rate Drift Guard**: Explicit 23.976, 24.0, 29.97 fps parsing in `timeline_conformer.py`.
+> 6. **E&O SIR Deductible Exposure Calculator**: Distinguishes self-insured out-of-pocket risk from insured claims.
+> 7. **17 U.S.C. § 107 4-Factor Fair Use Scorecard**: Structured percentage breakdown across 4 Fair Use factors.
+> 8. **Trademark Nominative Use vs. Disparagement**: Sentiment-aware brand placement risk scoring.
+> 9. **E&O Policy Exclusion Schedule Generator**: Generates `policy_exclusion_schedule.json` for underwriters.
+> 10. **PRO Music Work ID Resolution**: Direct targeting of ISWC, ISRC, and ASCAP/BMI Work IDs.
+> 11. **30-Day Clearance Expiration TTL**: Auto-flags stale clearance entries past 30 days before Picture Lock.
+> 12. **Tiered Licensing Scoping**: Festival Rights Only vs. Worldwide All-Media Perpetual.
+> 13. **3-Second *De Minimis* Visual Metric**: *Ringgold* precedent aggregate timecode & out-of-focus rating.
+> 14. **First Amendment Docudrama Immunity Classifier**: Identifies biographical storytelling protection.
+> 15. **DMCA Section 1201 Anti-Circumvention Guard**: Pre-checks `drm_protected: false` pre-ingestion.
+> 16. **SAG-AFTRA Crowd Release vs. Option Split**: Crowd release forms vs. speaking extra agreements.
+> 17. **Territorial Distribution Windowing Engine**: Sequential release window tracking (Theatrical $\rightarrow$ VOD $\rightarrow$ TV).
 
 ---
 
