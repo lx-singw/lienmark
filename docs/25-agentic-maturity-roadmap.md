@@ -67,6 +67,10 @@ The instinct might be "then maximize agentic autonomy everywhere" — that insti
 26. **Standardized Legal Audit Trail Manifest Exporter**: Generates ISO 27001 / SOC 2 legal audit manifests (`manifest_iso_legal.json` via `legal_audit_exporter.py`) capturing raw API payloads and override rationales.
 27. **Pure Python Statutory Legal Rule Engine**: Codifies 17 U.S.C. § 107 Fair Use matrices into a pure Python engine (`statutory_rule_engine.py`) with zero LLM calls during risk scoring.
 28. **Attorney Override Rejection & Re-Investigation Loop**: Routes rejected attorney findings (`attorney_rejection_router.py`) back to Research Agent with human counsel directives (`attorney_rejection_directive`).
+29. **Attorney Ethics & Conflict-of-Interest Pre-Screening**: Automatically checks law firm records (`ethics_pre_screening.py`) before assigning claims in `AttorneyOverrideModal.tsx` to verify counsel has zero conflict of interest (`conflict_free_attorney: true`).
+30. **RFC 3161 Trusted Cryptographic Timestamping Anchor**: Periodically anchors Firestore SHA-256 hash chains (`anchor_service.py`) to an RFC 3161 compliant Trusted Timestamping Authority or public L2 network (`blockchain_anchor_tx`).
+31. **Statutory Damages Exposure Calculator**: Calculates explicit statutory liability ranges under 17 U.S.C. § 504(c) ($750 to $150,000 per infringement) for uncleared claims (`statutory_exposure_max` via `statutory_damages_calc.py`).
+32. **Automated Attorney Defense Memorandum Exporter**: Automatically compiles attorney sign-offs into a formal **Attorney Defense Memorandum** PDF (`legal_brief_doc.pdf` via `legal_brief_exporter.py`) combining statutory citations and Parallel API snippets for court submission.
 
 ### Phase 2 — Dynamic Pipeline Planning (Sequenced Deliberately)
 

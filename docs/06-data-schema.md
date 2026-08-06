@@ -140,6 +140,9 @@ legal_citation_ref: string (nullable) # legal document, license contract ref, or
 attorney_signature_hash: string (nullable) # dual-key RSA-256 digital signature hash (dual_key_signer.py)
 statutory_rule_eval: object (nullable) # pure Python statutory legal rule evaluation output (statutory_rule_engine.py)
 attorney_rejection_directive: string (nullable) # human counsel instruction on rejection (attorney_rejection_router.py)
+conflict_free_attorney: boolean   # true if counsel ethics pre-screening passed (ethics_pre_screening.py)
+blockchain_anchor_tx: string (nullable) # RFC 3161 TSA / L2 blockchain timestamp anchor (anchor_service.py)
+statutory_exposure_max: float (nullable) # worst-case 17 U.S.C. § 504(c) statutory damages (statutory_damages_calc.py)
 ```
 
 **Worked example 1 (Automated Research Versioning):** imagine claim `clm_7f3a9b` is first researched and comes back `cleared` (version 1, `action_type: agent_finding`). Weeks later, the production is re-evaluated before a distribution deal closes, and a new Parallel search surfaces a fresh dispute over that same song's rights. The correct behavior is **not** to edit the version-1 entry. Instead:

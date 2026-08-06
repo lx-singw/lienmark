@@ -81,12 +81,15 @@ lienmark/
 │   │   │   ├── agent.py
 │   │   │   ├── append_only_store.py       # enforces create-only writes on top of Firestore rules (06-data-schema.md §3)
 │   │   │   ├── dual_key_signer.py        # dual-key RSA-256 attorney digital signature engine (04-prd.md §5.5)
+│   │   │   ├── ethics_pre_screening.py   # attorney conflict-of-interest pre-screening (04-prd.md §5.5)
+│   │   │   ├── anchor_service.py         # RFC 3161 TSA / L2 blockchain timestamp anchor service (04-prd.md §5.5)
 │   │   │   ├── attorney_rejection_router.py # attorney override rejection & re-investigation router (04-prd.md §5.5)
 │   │   │   └── legal_audit_exporter.py   # ISO 27001 / SOC 2 legal audit trail manifest exporter (04-prd.md §5.5)
 │   │   ├── risk_scoring/
 │   │   │   ├── agent.py
 │   │   │   ├── deterministic_rules.py     # rule-based scoring logic — NOT an LLM freehand judgment
 │   │   │   ├── statutory_rule_engine.py   # pure Python statutory legal rule evaluation engine (04-prd.md §5.4)
+│   │   │   ├── statutory_damages_calc.py # 17 U.S.C. § 504(c) statutory damages exposure calculator (04-prd.md §5.4)
 │   │   │   ├── fair_use_analyzer.py      # 4-factor Fair Use & De Minimis defense pre-analyzer (04-prd.md §5.4)
 │   │   │   ├── peer_deliberation.py      # multi-agent 3-persona consensus voting engine (04-prd.md §5.4)
 │   │   │   ├── bond_underwriting_risk.py # completion bond contingency risk calculator (04-prd.md §5.4)
@@ -95,6 +98,7 @@ lienmark/
 │   │   ├── report/
 │   │   │   ├── agent.py
 │   │   │   ├── report_formatter.py
+│   │   │   ├── legal_brief_exporter.py   # formal attorney defense memorandum PDF exporter (04-prd.md §5.5)
 │   │   │   ├── chain_of_title_cert.py    # official E&O title clearance PDF generator (04-prd.md §5.7)
 │   │   │   ├── cue_sheet_exporter.py     # ASCAP/BMI music cue sheet exporter (04-prd.md §5.7)
 │   │   │   ├── eo_binder_api.py          # E&O insurance carrier webhook API integrator (04-prd.md §5.7)
