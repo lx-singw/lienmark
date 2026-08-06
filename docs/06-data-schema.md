@@ -97,6 +97,10 @@ retrieved_at: timestamp
 parallel_query: string           # actual query string sent to Parallel — kept for auditability
 tool_used: enum [parallel_search_api, parallel_task_api] # dynamic multi-tool selection
 multi_hop_depth: integer         # 0 for initial pass, 1+ for self-directed secondary lead chasing
+reflection_attempts: integer     # count of self-correction reflection passes executed (self_correction_loop.py)
+circuit_state: enum [closed, open, half_open] # circuit breaker state for provider fallback (circuit_breaker.py)
+subgoals_completed: array[string] # decomposed sub-goals validated e.g. ["sync_rights", "master_rights"]
+inter_agent_negotiations: array[object] # log of negotiation prompts between Risk Scoring & Research Agents
 consensus_verified: boolean      # true if dual independent query passes yielded identical verdict
 escalation_level: integer        # 1 = standard dashboard toast, 2 = automated email/Slack escalation
 source_authority_tier: enum [official_registry, secondary_news, unverified_blog] # authority weighting

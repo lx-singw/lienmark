@@ -55,6 +55,10 @@ The instinct might be "then maximize agentic autonomy everywhere" — that insti
 14. **Industry Licensing Cost Floor & Budget Calculator**: Research Agent extracts estimated licensing cost ranges (`estimated_licensing_cost_min` / `max`) from industry clearance rate cards, calculating total production clearance exposure for underwriters.
 15. **Multi-Agent Consensus Verification Protocol**: For high-risk claims (risk score >= 0.85), a second independent verification pass is automatically executed; matching dual verdicts earn a `consensus_verified: true` audit stamp.
 16. **GenAI Opt-Out & Likeness Provenance Auditor**: Research Agent queries public model opt-out registries (Spawning.ai / HaveIBeenTrained indices) for synthetic media claims to flag unauthorized artist likenesses (`opt_out_registry_flagged: true`).
+17. **Autonomous Self-Correction & Reflection Feedback Loop**: Research Agent executes internal self-reflection passes (`self_correction_loop.py` on `eval_score < 0.70`), analyzing search failures and reformulating query parameters without human intervention.
+18. **Multi-Agent Inter-Agent Negotiation Protocol**: Risk Scoring Agent dispatches targeted negotiation prompts to Research Agent (`agent_negotiator.py`), requesting specialized secondary queries (`site:copyright.gov`) to resolve evidence contradictions.
+19. **Autonomous Circuit Breaker & Fallback Provider Switch**: Research Agent trips circuit breaker (`circuit_state: open` in `circuit_breaker.py`) upon 5xx network errors, switching to cached public mirrors while maintaining pipeline uptime.
+20. **Goal-Driven Sub-Goal Decomposer & Verification Planner**: Research Agent decomposes complex multi-layered claims into sub-goals (`subgoal_planner.py`: composition sync, master recording, sample clearance), validating each sub-goal independently.
 
 ### Phase 2 — Dynamic Pipeline Planning (Sequenced Deliberately)
 

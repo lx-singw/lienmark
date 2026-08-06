@@ -67,6 +67,10 @@ lienmark/
 │   │   │   ├── parallel_client.py        # THE required hackathon artifact — live Parallel SDK integration
 │   │   │   ├── multi_tool_router.py      # dynamic multi-tool selection (Parallel Search API vs Task API) —
 │   │   │   │                                see 04-prd.md §5.3 & 09-agent-orchestration.md §4
+│   │   │   ├── self_correction_loop.py   # autonomous self-reflection & query strategy reformulator (04-prd.md §5.3)
+│   │   │   ├── agent_negotiator.py       # inter-agent negotiation & secondary extraction router (04-prd.md §5.3)
+│   │   │   ├── circuit_breaker.py        # autonomous circuit breaker & provider fallback switch (04-prd.md §5.3)
+│   │   │   ├── subgoal_planner.py        # goal-driven sub-goal decomposer & verification planner (04-prd.md §5.3)
 │   │   │   ├── consensus_verifier.py     # dual independent query pass verifier (04-prd.md §5.3)
 │   │   │   ├── cost_estimator.py         # industry clearance rate card cost calculator (04-prd.md §5.3)
 │   │   │   └── query_builder.py           # builds minimal, non-identifying search terms (04-prd.md §5.6)

@@ -18,7 +18,11 @@
 ## 🏆 2. Devpost Judging Criteria Alignment
 
 ### 2.1 Technological Implementation (40% Weight)
-* **Agentic Autonomy**: 14 documented Bounded Autonomy capabilities (`04-prd.md` §5).
+* **Agentic Autonomy**: 20 documented Bounded Autonomy capabilities (`04-prd.md` §5).
+* **Autonomous Self-Correction Feedback Loop**: Internal reflection pass (`self_correction_loop.py`) reformulating search strategies on low eval scores.
+* **Inter-Agent Negotiation Protocol**: Peer negotiation between Risk Scoring and Research Agents (`agent_negotiator.py`) to resolve conflicting evidence.
+* **Autonomous Circuit Breaker & Fallback**: Circuit breaker (`circuit_breaker.py`) switching to public mirrors on 5xx errors.
+* **Sub-Goal Verification Planner**: Hierarchical goal decomposition (`subgoal_planner.py`) into sync, master, and sample sub-goals.
 * **Multimodal Visual IP & Logo Detector**: Uses Gemini 3.6 Multimodal Vision to detect background brand logos and extract frame timecodes & bounding boxes (`visual_ip_detector.py`).
 * **FCP XML / DaVinci EDL Timeline Conformer**: Parses professional Hollywood edit decision lists (`timeline_conformer.py`) linking claims directly to video frames.
 * **Decoupled Background Poller**: [`backend/agents/discovery/poller.py`](file:///z:/home/lx_singw/projects/lienmark/backend/agents/discovery/poller.py) runs autonomously, detecting file drops and monitoring aging claims.
