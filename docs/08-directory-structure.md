@@ -139,6 +139,8 @@ lienmark/
 │   │   ├── preset_profiles.json           # 1-click clearance profiles (Indie, Blockbuster, CoPro, GenAI)
 │   │   ├── feature_iam_policy.json        # role-based toggle IAM permissions matrix
 │   │   └── iam_bindings.py                # enforces per-agent service account mapping (07-env-vars.md §4)
+│   ├── secrets/                           # MUST BE GITIGNORED: local dev service accounts (07-env-vars.md §1)
+│   │   └── service-account.json           # local dev Google Cloud credentials
 │   ├── requirements.txt                   # Python deps: parallel-web, google-cloud-firestore, pytest, etc.
 │   ├── Dockerfile                         # Cloud Run container definition
 │   └── main.py                            # Cloud Run entrypoint
