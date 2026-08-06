@@ -368,7 +368,20 @@ Every prior version of this document addressed one failure mode in depth (a Para
 
 **Which of these are actually in MVP scope:** per the definition-of-done discipline already established in `02-mvp-scope.md` §9, not every row above needs to be built before the hackathon deadline — but every row should at minimum have this documented, considered answer, so that if a judge's own testing happens to trigger one of these (e.g., uploading an empty file out of curiosity), the system's behavior is a deliberate, explainable choice rather than an undiscovered crash. Worth treating "malformed PDF" and "empty document" as the two highest-priority additions to actually build, given they're the most likely to be accidentally triggered by anyone poking at the hosted demo beyond the intended happy path.
 
-## 9. Orchestration implementation notes
+## 9. Context-Window & Token Memory Efficiency Architecture
+
+> *"Memory management is the unsexy problem nobody wants to talk about, until the bill arrives."*
+
+In complex multi-agent architectures, naive implementations dump full document texts, complete chat transcripts, or entire ledger histories into the LLM context window on every pass. For a 120-page feature script with 200+ claims, doing full context-window replays on every agent iteration causes exponential token growth, bloated latencies, and ballooning API costs.
+
+Lienmark addresses context growth through a 4-tier memory efficiency architecture:
+
+1. **Minimal Non-Identifying Term Extraction (`04-prd.md` §5.6)**: The Intake Agent compresses full narrative scene text into minimal, non-identifying search terms before passing parameters downstream. This keeps prompt sizes per claim down to <50 tokens.
+2. **Delta-Based Script Draft Retrieval (`04-prd.md` §5.2)**: When re-evaluating a production for a script revision (Draft 3 vs. Draft 2), the Intake Agent executes an automated semantic delta diff, isolating and passing *only newly modified claims* (`is_delta_modified: true`) to the Research Agent.
+3. **Denormalized Production Status Documents (`06-data-schema.md` §2)**: High-level production status is denormalized in Firestore (`productions/{production_id}`). UI components and polling agents query a single lightweight status document (<1 KB) rather than re-aggregating thousands of nested claim documents on every render loop.
+4. **Structured JSON Payload Pruning**: Agent-to-agent communication passes strictly typed, minimal JSON schemas rather than conversational text history, preserving 90%+ of the context window for actual research analysis.
+
+## 10. Orchestration implementation notes
 
 - **Built on Google Cloud Agent Builder / Gemini Enterprise Agent Platform**, per the hackathon's core requirement (see `01-hackathon-scope.md` §2).
 

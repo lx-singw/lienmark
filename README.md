@@ -33,7 +33,10 @@ Insurers (**E&O**) and **completion bond companies** require verifiable, auditab
 > ### 🌐 The Paradigm Shift: From Chatbots to Persistent Autonomous Agents
 > *"Persistent, autonomous agents are becoming the new baseline."*
 > 
-> The era of single-turn chat windows (`Prompt -> Text`) and human-triggered reactive scripts is over. Enterprise software demands standing, persistent agents that run continuously in the background — monitoring production drives, tracking claim lifecycle changes, and surfacing proactive alerts without waiting for human prompts. Lienmark embodies this new baseline through its **Discovery Agent** (`poller.py`), turning legal risk management into a standing, self-updating background process.
+> ### 💡 Token & Context-Window Memory Efficiency
+> *"Memory management is the unsexy problem nobody wants to talk about, until the bill arrives."*
+> 
+> Naive multi-agent systems dump full 100-page script texts and complete audit logs into LLM context windows on every pass, resulting in bloated latencies and massive API bills. Lienmark solves context growth through **delta-based retrieval** (evaluating only modified claims on script revisions), **minimal non-identifying term extraction** (`04-prd.md` §5.6), and **denormalized status documents** (`06-data-schema.md`), maintaining sub-5-second execution speeds without token inflation.
 
 ---
 
