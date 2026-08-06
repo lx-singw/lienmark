@@ -85,6 +85,11 @@ Orchestrated natively via **Google Cloud Agent Builder / Gemini Enterprise Agent
 | -- | [Installation Guide](docs/installation.md) | System requirements, setup commands, and troubleshooting matrix |
 | -- | [Contributing Guidelines](docs/contributing.md) | Code quality standards, pytest strategies, and branching rules |
 | -- | [Security Architecture](docs/security.md) | Threat modeling, authentication lifecycles, and CORS/CSP hardening |
+| -- | [System Architecture](docs/architecture.md) | System architecture, ASCII diagram, and data flow trace |
+| -- | [Project Scope](docs/project-scope.md) | Consolidated 3-tier project scope (Hackathon, MVP, Post-MVP) |
+| -- | [Vision Document](docs/vision.md) | Executive summary, problem statement, and title insurance vision |
+| -- | [PRD Reference](docs/prd.md) | Unnumbered exact-match PRD entry point |
+| -- | [Directory Structure Ref](docs/directory-structure.md) | Unnumbered exact-match directory structure entry point |
 
 ---
 

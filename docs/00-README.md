@@ -41,6 +41,11 @@ This is being built first as a submission to **Agentic Cinema: The Blockbuster H
 | -- | [Installation Guide](installation.md) | Hardware requirements, step-by-step setup commands, troubleshooting matrix | Local dev runner, GCP provisioning, and error resolutions |
 | -- | [Contributing Guidelines](contributing.md) | Code quality standards, testing strategies, trunk-based branching | Linting, pytest coverage, PR workflow, and semantic commits |
 | -- | [Security Architecture](security.md) | Threat modeling, authentication, token lifecycles, and CORS/CSP hardening | 3 architectural attack surfaces, Argon2id/AES-256 encryption, and MPA standards |
+| -- | [System Architecture](architecture.md) | High-level system architecture, ASCII diagram, and data flow trace | Component specs, gateway layer, and end-to-end trace |
+| -- | [Project Scope](project-scope.md) | Consolidated 3-tier project scope | Hackathon (48-hour POC), MVP baseline, and Post-MVP roadmap |
+| -- | [Vision Document](vision.md) | Executive summary, problem statement, value proposition, 3-5 year vision | Mission statement and title insurance model thesis |
+| -- | [PRD Reference](prd.md) | Unnumbered exact-match PRD reference | Direct entry point linking to 04-prd.md |
+| -- | [Directory Structure Ref](directory-structure.md) | Unnumbered exact-match directory structure reference | Direct entry point linking to 08-directory-structure.md |
 
 ## How these documents relate to each other
 

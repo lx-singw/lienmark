@@ -42,7 +42,12 @@ lienmark/
 │   ├── api-reference.md               # complete REST API specifications & untruncated payloads
 │   ├── installation.md                # hardware minimums, setup commands, troubleshooting matrix
 │   ├── contributing.md                # code quality standards, pytest strategies, branching rules
-│   └── security.md                    # threat modeling, auth mechanisms, CORS/CSP hardening
+│   ├── security.md                    # threat modeling, auth mechanisms, CORS/CSP hardening
+│   ├── architecture.md                # system architecture, ASCII diagram, end-to-end data trace
+│   ├── project-scope.md               # consolidated 3-tier project scope (Hackathon, MVP, Post-MVP)
+│   ├── vision.md                      # executive summary, problem statement, title insurance model
+│   ├── prd.md                         # exact-match PRD entry point (links to 04-prd.md)
+│   └── directory-structure.md         # exact-match directory structure entry point (links to 08-directory-structure.md)
 ├── backend/
 │   ├── agents/
 │   │   ├── intake/
