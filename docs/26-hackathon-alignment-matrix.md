@@ -18,7 +18,11 @@
 ## 🏆 2. Devpost Judging Criteria Alignment
 
 ### 2.1 Technological Implementation (40% Weight)
-* **Agentic Autonomy**: 20 documented Bounded Autonomy capabilities (`04-prd.md` §5).
+* **Agentic Autonomy**: 24 documented Bounded Autonomy capabilities (`04-prd.md` §5).
+* **Research Plan Synthesis DAG**: Upfront reasoning DAG plan generator (`research_planner.py`).
+* **Claim Dependency Resolver**: Prerequisite claim ordering & parent-child dependency tree resolver (`claim_dependency_resolver.py`).
+* **Dynamic Tool Synthesis**: Prompt instruction self-adaptation & custom schema generator (`tool_synthesizer.py`).
+* **Multi-Agent Peer Deliberation**: 3-persona consensus voting engine (`peer_deliberation.py`).
 * **Autonomous Self-Correction Feedback Loop**: Internal reflection pass (`self_correction_loop.py`) reformulating search strategies on low eval scores.
 * **Inter-Agent Negotiation Protocol**: Peer negotiation between Risk Scoring and Research Agents (`agent_negotiator.py`) to resolve conflicting evidence.
 * **Autonomous Circuit Breaker & Fallback**: Circuit breaker (`circuit_breaker.py`) switching to public mirrors on 5xx errors.

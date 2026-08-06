@@ -51,7 +51,11 @@ usage_classification: enum [background_instrumental, visual_vocal, feature_music
 visual_bounding_box: object (nullable) # {ymin, xmin, ymax, xmax} coordinates for Multimodal Vision logo detection
 edl_timecode_in: string (nullable)  # SMPTE timecode in e.g. "01:14:22:10" from FCP XML / DaVinci EDL
 edl_timecode_out: string (nullable) # SMPTE timecode out e.g. "01:14:28:15"
+parent_claim_id: string (nullable) # claim ID of prerequisite parent claim (claim_dependency_resolver.py)
 suggested_fair_use_defense: string (nullable) # 4-factor Fair Use defense heuristic (17 U.S.C. § 107)
+query_plan: array[object] (nullable) # reasoning DAG step array (research_planner.py)
+adapted_extraction_schema: object (nullable) # dynamically synthesized prompt schema (tool_synthesizer.py)
+peer_vote_consensus: string (nullable) # e.g. "3/3_unanimous" consensus vote score (peer_deliberation.py)
 estimated_licensing_cost_min: float (nullable) # estimated cost floor for clearance rate cards
 estimated_licensing_cost_max: float (nullable) # estimated cost ceiling
 created_at: timestamp

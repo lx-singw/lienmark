@@ -59,6 +59,10 @@ The instinct might be "then maximize agentic autonomy everywhere" — that insti
 18. **Multi-Agent Inter-Agent Negotiation Protocol**: Risk Scoring Agent dispatches targeted negotiation prompts to Research Agent (`agent_negotiator.py`), requesting specialized secondary queries (`site:copyright.gov`) to resolve evidence contradictions.
 19. **Autonomous Circuit Breaker & Fallback Provider Switch**: Research Agent trips circuit breaker (`circuit_state: open` in `circuit_breaker.py`) upon 5xx network errors, switching to cached public mirrors while maintaining pipeline uptime.
 20. **Goal-Driven Sub-Goal Decomposer & Verification Planner**: Research Agent decomposes complex multi-layered claims into sub-goals (`subgoal_planner.py`: composition sync, master recording, sample clearance), validating each sub-goal independently.
+21. **Autonomous Research Plan Synthesis & Execution Graph**: Research Agent dynamically generates a structured `query_plan` DAG (`research_planner.py`), logging its step-by-step reasoning tree to Firestore before execution.
+22. **Autonomous Claim Dependency & Hierarchy Resolver**: Identifies legal dependencies between claims (`claim_dependency_resolver.py`), dynamically ordering research to resolve prerequisite parent claims (`parent_claim_id`) first.
+23. **Dynamic Tool Synthesis & Prompt Strategy Adapter**: Research Agent dynamically adapts its extraction prompts and schema parameters (`adapted_extraction_schema` in `tool_synthesizer.py`), synthesizing a tailored strategy on the fly.
+24. **Multi-Agent Peer Deliberation & Consensus Voting**: Spawns 3 peer evaluator agents (`peer_deliberation.py` - Conservative Counsel, Litigation Defense, Sync Specialist) to deliberate and vote on final risk classification (`peer_vote_consensus: 3/3`).
 
 ### Phase 2 — Dynamic Pipeline Planning (Sequenced Deliberately)
 

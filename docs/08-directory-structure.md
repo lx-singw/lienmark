@@ -67,6 +67,9 @@ lienmark/
 │   │   │   ├── parallel_client.py        # THE required hackathon artifact — live Parallel SDK integration
 │   │   │   ├── multi_tool_router.py      # dynamic multi-tool selection (Parallel Search API vs Task API) —
 │   │   │   │                                see 04-prd.md §5.3 & 09-agent-orchestration.md §4
+│   │   │   ├── research_planner.py       # autonomous investigation DAG plan synthesizer (04-prd.md §5.3)
+│   │   │   ├── claim_dependency_resolver.py # prerequisite claim hierarchy & dependency resolver (04-prd.md §5.3)
+│   │   │   ├── tool_synthesizer.py        # dynamic extraction prompt & schema strategy adapter (04-prd.md §5.3)
 │   │   │   ├── self_correction_loop.py   # autonomous self-reflection & query strategy reformulator (04-prd.md §5.3)
 │   │   │   ├── agent_negotiator.py       # inter-agent negotiation & secondary extraction router (04-prd.md §5.3)
 │   │   │   ├── circuit_breaker.py        # autonomous circuit breaker & provider fallback switch (04-prd.md §5.3)
@@ -81,6 +84,7 @@ lienmark/
 │   │   │   ├── agent.py
 │   │   │   ├── deterministic_rules.py     # rule-based scoring logic — NOT an LLM freehand judgment
 │   │   │   ├── fair_use_analyzer.py      # 4-factor Fair Use & De Minimis defense pre-analyzer (04-prd.md §5.4)
+│   │   │   ├── peer_deliberation.py      # multi-agent 3-persona consensus voting engine (04-prd.md §5.4)
 │   │   │   ├── bond_underwriting_risk.py # completion bond contingency risk calculator (04-prd.md §5.4)
 │   │   │   ├── conflict_arbitration.py    # multi-source conflict resolution — demo centerpiece
 │   │   │   └── cross_claim_reasoning.py   # production-wide cross-claim relationship evaluation (04-prd.md §5.4)
