@@ -49,6 +49,12 @@ Orchestrated natively via **Google Cloud Agent Builder / Gemini Enterprise Agent
 - **Beat B (Multi-Tool & Multi-Hop Iteration)**: Research Agent selects optimal Parallel tools and autonomously chases secondary leads (subsidiaries, licensees, estates) across search snippets.
 - **Beat C (Mid-Run Claim Discovery & HITL Action)**: Research Agent proposes newly discovered claims mid-run (validated before ledger write) and surfaces context-aware `ClarifyingQuestionModal.tsx` for human legal sign-off.
 
+> [!NOTE]
+> ### 🎯 Architectural Posture: Pragmatic Agency vs. Architectural Purity
+> *The full leap to dynamic planning stays exactly where it belongs: named, reasoned through, and deliberately not attempted under a hackathon clock where it would trade demo reliability for architectural purity.*
+> 
+> Lienmark enforces **Bounded Autonomy ("Flexible Investigation, Deterministic Validation")**: agents possess unconstrained freedom over research strategy, dynamic tool selection (Parallel Search vs. Task API), multi-hop lead chasing, and mid-run claim discovery. However, the core scoring and storage pipeline remains strictly deterministic because a compliance verdict that varies between identical runs would undermine the entire title-insurance trust model. Full dynamic planning is explicitly targeted for Phase 2 (LangGraph migration), protecting 100% demo reliability while maintaining legal-grade auditability.
+
 ---
 
 ## 📁 Full Documentation Index (`docs/`)
