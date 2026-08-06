@@ -151,6 +151,18 @@ flagged_claim_ids: array<string>
 pending_review_claim_ids: array<string>
 ```
 
+### `agent_state_store`
+Checkpoints execution state for the persistent Discovery Agent to survive serverless cold starts.
+
+```
+agent_id: string (doc id e.g. "discovery_poller_01")
+last_polled_at: timestamp
+active_watchers: array<string>         # watched GCS bucket URIs or local folders
+pending_reverifications: array<string> # claim IDs queued for scheduled re-check
+last_heartbeat_at: timestamp
+status: enum [active_listening, polling, recovering, idle]
+```
+
 ## 3. Firestore security rules (the actual enforcement mechanism for §1.1)
 
 The append-only invariant on `ledger_entries` is enforced here, not merely described in this document. A simplified illustration of the rule shape (confirm exact Firestore Security Rules syntax against current documentation before implementation):

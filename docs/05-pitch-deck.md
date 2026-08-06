@@ -167,6 +167,11 @@ Not a demo we'll abandon after judging — this is the first product of a compan
 | 2:30–2:50 | Final Clearance Intelligence & Verification Audit report screen — inline source citations visible, attorney override sign-off section highlighted. |
 | 2:50–3:00 | Close: Name, track, link to 60-second verification CLI script (`python scripts/verify_integrations.py`). |
 
+> [!IMPORTANT]
+> **Key Judge Takeaway: Persistent Agent vs. Legacy Script**
+> * Legacy tools: Human clicks upload $\rightarrow$ static script runs once $\rightarrow$ execution terminates.
+> * **Lienmark Paradigm**: Standing, persistent Discovery Agent (`poller.py` & `heartbeat.py`) continuously listens in background $\rightarrow$ detects file drops $\rightarrow$ monitors aging claims $\rightarrow$ surfaces proactive urgency-routed alerts (`ToastContainer.tsx`).
+
 **Demo data requirement this adds:** the "ambiguous claim" in the mixed demo set (see `02-mvp-scope.md` §3) should specifically be engineered to trigger two conflicting Parallel findings — not just be vague or under-specified. This is a deliberate test-data design choice that has to be built ahead of time, not something you can rely on happening naturally within a 3-minute recording window on a live, unpredictable web search.
 
 **Production notes:**

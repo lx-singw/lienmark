@@ -77,6 +77,7 @@ lienmark/
 │   │   └── discovery/                     # autonomous proactive re-review poller — 6th agent module (02-mvp-scope.md §1)
 │   │       ├── agent.py
 │   │       ├── poller.py
+│   │       ├── heartbeat.py               # 24/7 background agent liveness & health monitor (09-agent-orchestration.md §2.5)
 │   │       └── notification_router.py     # urgency-based notification routing (25-agentic-maturity-roadmap.md §5)
 │   ├── orchestration/
 │   │   ├── pipeline.py                    # top-level agent orchestration / control flow (09-agent-orchestration.md)

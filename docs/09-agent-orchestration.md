@@ -63,11 +63,24 @@ Worth addressing directly, because it's the sharpest possible critique of the or
 - A borderline-confidence `clear` or `licensing_required` verdict, where re-running the Research Agent's query periodically could surface new information (a dispute that's since been filed, a license that's since expired) that the original one-time check couldn't have known about
 - An external signal relevant to a specific logged claim type — for instance, if the claim taxonomy includes a `genai_flag` claim and a new, relevant legal development occurs (the kind of event already tracked in `14-sources-appendix.md`'s Seedance-dispute research), claims of that type across the ledger could be proactively surfaced for re-review
 
-**Output contract (covers all three behaviors):**
+**2.4 Persistent Agent State Store & Cold-Start Recovery.** To ensure the persistent background poller (`backend/agents/discovery/poller.py`) is production-resilient across Cloud Run serverless cold starts or container restarts, execution state is checkpointed to a Firestore `agent_state_store` collection (`06-data-schema.md`). If a polling cycle is interrupted, the Discovery Agent reads `last_polled_at` and `active_watchers` on boot, seamlessly resuming execution without duplicating research calls.
+
+**2.5 Autonomous Agent Liveness & Health Heartbeat (`heartbeat.py`).** A dedicated background heartbeat thread (`backend/agents/discovery/heartbeat.py`) emits periodic liveness signals (`status: active_listening`, `interval_sec: 15`) to GCP Cloud Logging. This provides tangible, log-verifiable proof to insurance underwriters and hackathon judges that the Discovery Agent is actively listening 24/7.
+
+**2.6 World-State Event Trigger Matrix:**
+
+| Trigger Type | World-State Condition | Agent Action | SLA / Frequency |
+|---|---|---|---|
+| `new_document_watched` | New script PDF dropped into watched GCS bucket or local folder | Discovery Agent detects file via `poller.py`, logs `trigger_id`, launches Intake pipeline | Instant (<2s poll) |
+| `stale_review_recheck` | Claim sitting in `needs_human_review` past SLA window without attorney sign-off | Proactively surfaces `ToastContainer.tsx` alert notification to legal dashboard | Every 48h (15s demo mode) |
+| `registry_update_delta` | Periodic re-check against updated ASCAP/BMI/USPTO database indices | Re-executes Parallel Search query; if ownership status shifts, writes versioned ledger entry | Weekly batch run |
+| `signal_triggered_recheck` | Major legal/regulatory change (e.g. Disney/ByteDance GenAI cease-and-desist) | Scans ledger for matching `genai_flag` claims and flags production for attorney re-review | Event-driven webhook |
+
+**Output contract (covers all behaviors):**
 ```json
 {
   "trigger_id": "string",
-  "trigger_type": "new_document_watched | new_document_integrated | scheduled_recheck | signal_triggered_recheck",
+  "trigger_type": "new_document_watched | new_document_integrated | stale_review_recheck | registry_update_delta | signal_triggered_recheck",
   "production_id": "string | null",     // null if this is a genuinely new production
   "source_document_ref": "string | null",  // populated for new_document triggers
   "recheck_claim_ids": ["string"] | null,  // populated for recheck triggers
