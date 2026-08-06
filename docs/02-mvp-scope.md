@@ -109,6 +109,20 @@ To decisively satisfy Devpost's **Technological Implementation** and **Quality o
 These exist because the Design judging criterion explicitly rewards "a complete, coherent product experience," not just correct backend logic (see `01-hackathon-scope.md` §7.2). To ensure Lienmark wows judges in the first 15 seconds against flashier generative AI tools, the UI enforces rich visual polish and dynamic design:
 
 - **Rich Aesthetics & Color Palette**: Sleek dark mode (`#0B0F17` background) with curated HSL accent colors, subtle glassmorphism (`backdrop-filter: blur(12px)` cards), vibrant risk status glows, and Google Fonts typography (Inter / Outfit).
+- **CSS Design Token System (`frontend/app/globals.css`)**:
+  ```css
+  :root {
+    --bg-primary: #0b0f17;
+    --bg-surface: rgba(18, 26, 41, 0.75);
+    --border-glass: rgba(255, 255, 255, 0.08);
+    --accent-emerald: #10b981;  /* Cleared status glow */
+    --accent-amber: #f59e0b;    /* Needs Human Review glow */
+    --accent-rose: #ef4444;     /* Flagged High Risk glow */
+    --accent-cyan: #06b6d4;     /* Parallel Search active indicator */
+    --font-heading: 'Outfit', sans-serif;
+    --font-body: 'Inter', sans-serif;
+  }
+  ```
 - **Live-Updating Claims Table (`ClaimsTable.tsx`)**: Real-time WebSocket/Firestore listener updating claim row entry, status badges, risk score meters, and inline source citations as each Parallel call resolves.
 - **Micro-Animations & Visual Cues**: Pulsating warning badges for `needs_human_review`, smooth CSS slide-in transitions for newly extracted claims, and real-time glowing progress bars during Research Agent query passes.
 - **Proactive Toast Notifications (`ToastContainer.tsx`)**: Glowing notification toasts popping up when the Discovery Agent resurfaces a stale claim or when a background retry completes.

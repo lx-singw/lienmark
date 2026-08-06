@@ -32,10 +32,12 @@ Run this in full, ideally by a teammate who did **not** write the code being che
 - [ ] No secrets committed anywhere in the repo, including git history — run a search across the full commit history for `PARALLEL_API_KEY`, `.env`, and `service-account` as a final check, not just the current file tree (see `07-env-vars.md` §6 for why this matters)
 - [ ] `.env.example` is present and accurate; `.env` itself is absent from the repo
 
-## 5. Automated test suite
+## 5. Automated test suite & Local Runner
 
+- [ ] `./scripts/run_local_demo.sh` executes cleanly from a fresh clone, spinning up backend and frontend environments in <10 seconds
 - [ ] `tests/test_ledger_immutability.py` passes — and specifically, confirm it's actually testing against the real Firestore security rules, not a mock that would pass regardless of whether the rules are correctly configured
 - [ ] `tests/test_risk_scoring_determinism.py` passes, run at least 3 times in a row to build real confidence in the determinism claim, not just once
+- [ ] `tests/test_e2e_pipeline.py` executes end-to-end benchmark tests for both `sample_script.pdf` and `sample_script_adversarial.pdf` cleanly under `pytest`
 - [ ] Full test suite (`pytest`) passes cleanly from a fresh clone with no manual setup beyond what the README documents
 
 ## 6. Demo video

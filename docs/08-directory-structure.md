@@ -100,6 +100,8 @@ lienmark/
 │   ├── app/                               # Next.js app directory (default choice — see
 │   │   │                                    02-mvp-scope.md §4.1 for the Streamlit
 │   │   │                                    fallback decision point if build time runs short)
+│   │   ├── globals.css                    # CSS Design Token system — dark mode (#0B0F17),
+│   │   │                                    glassmorphism backdrop blur, status keyframe glows
 │   │   ├── page.tsx                       # upload + live claims table — the single
 │   │   │                                    highest-leverage screen in the whole product
 │   │   ├── report/[production_id]/page.tsx
@@ -136,12 +138,16 @@ lienmark/
 │   └── failure_trigger.md                 # how to reproduce the graceful-failure demo
 │                                            moment reliably, using DEMO_MODE (see
 │                                            07-env-vars.md §2)
+├── tests/
+│   ├── test_ledger_immutability.py        # storage-layer security rule tests
+│   ├── test_risk_scoring_determinism.py   # scoring engine determinism tests
+│   ├── test_adversarial_defense.py        # prompt injection trap test fixture
+│   └── test_e2e_pipeline.py               # E2E benchmark pipeline runner under pytest
 ├── scripts/
 │   ├── setup_gcp.sh                       # provisions the GCP project, all per-agent
-│   │                                        service accounts, and their IAM bindings —
-│   │                                        should implement the table in
-│   │                                        07-env-vars.md §4 exactly
+│   │                                        service accounts, and their IAM bindings
 │   ├── deploy.sh
+│   ├── run_local_demo.sh                  # one-click local runner launching backend + frontend
 │   ├── seed_demo_data.py
 │   ├── test_week0_validation.py           # Week 0 API de-risking script (13-technical-validation.md)
 │   └── verify_integrations.py             # 60-second judge compliance verification helper —

@@ -15,6 +15,12 @@
 > python scripts/verify_integrations.py
 > ```
 > *(Outputs live Parallel API query response, service account IAM checks, and Firestore append-only ledger write verification in under 5 seconds).*
+> 
+> **One-Click Local Launcher & Test Suite:**
+> ```bash
+> ./scripts/run_local_demo.sh      # Launches backend & frontend demo locally
+> pytest tests/test_e2e_pipeline.py  # Executes end-to-end benchmark test suite
+> ```
 
 ---
 
