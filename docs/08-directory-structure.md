@@ -57,6 +57,7 @@ lienmark/
 │   │   │   ├── claim_extraction.py
 │   │   │   ├── script_hasher.py           # SHA-256 script deduplication calculator (04-prd.md §5.2)
 │   │   │   ├── genai_provenance.py        # opt-out registry & synthetic media auditor (04-prd.md §5.2)
+│   │   │   ├── union_rights_tracker.py    # SAG-AFTRA/WGA option expiration tracker (04-prd.md §5.2)
 │   │   │   └── self_reflection.py        # self-reflection pass & prompt-injection defense —
 │   │   │                                    see 02-mvp-scope.md §1 & 20-adversarial-input-defense.md §2
 │   │   ├── research/
@@ -74,11 +75,14 @@ lienmark/
 │   │   │   ├── agent.py
 │   │   │   ├── deterministic_rules.py     # rule-based scoring logic — NOT an LLM freehand judgment
 │   │   │   ├── fair_use_analyzer.py      # 4-factor Fair Use & De Minimis defense pre-analyzer (04-prd.md §5.4)
+│   │   │   ├── bond_underwriting_risk.py # completion bond contingency risk calculator (04-prd.md §5.4)
 │   │   │   ├── conflict_arbitration.py    # multi-source conflict resolution — demo centerpiece
 │   │   │   └── cross_claim_reasoning.py   # production-wide cross-claim relationship evaluation (04-prd.md §5.4)
 │   │   ├── report/
 │   │   │   ├── agent.py
 │   │   │   ├── report_formatter.py
+│   │   │   ├── chain_of_title_cert.py    # official E&O title clearance PDF generator (04-prd.md §5.7)
+│   │   │   ├── cue_sheet_exporter.py     # ASCAP/BMI music cue sheet exporter (04-prd.md §5.7)
 │   │   │   └── templates/                 # report export templates (Markdown/HTML/PDF) — 04-prd.md §5.7
 │   │   └── discovery/                     # autonomous proactive re-review poller — 6th agent module (02-mvp-scope.md §1)
 │   │       ├── agent.py

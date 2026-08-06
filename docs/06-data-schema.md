@@ -46,6 +46,8 @@ co_occurring_claim_ids: array[string] # claim IDs sharing scene-level proximity 
 genai_provenance_required: boolean # true if synthetic media keywords detected in stage directions
 opt_out_registry_flagged: boolean # true if training opt-out notice found on Spawning.ai/HaveIBeenTrained
 territory_codes: array[string]  # target distribution jurisdictions e.g. ["US", "EU", "UK", "JP"]
+union_option_expires_at: timestamp (nullable) # SAG-AFTRA/WGA option expiration date
+usage_classification: enum [background_instrumental, visual_vocal, feature_music, logo_visual] # PRO code
 suggested_fair_use_defense: string (nullable) # 4-factor Fair Use defense heuristic (17 U.S.C. § 107)
 estimated_licensing_cost_min: float (nullable) # estimated cost floor for clearance rate cards
 estimated_licensing_cost_max: float (nullable) # estimated cost ceiling
@@ -67,6 +69,8 @@ created_at: timestamp
   "genai_provenance_required": false,
   "opt_out_registry_flagged": false,
   "territory_codes": ["US", "EU"],
+  "union_option_expires_at": null,
+  "usage_classification": "background_instrumental",
   "estimated_licensing_cost_min": 15000.0,
   "estimated_licensing_cost_max": 35000.0,
   "created_at": "2026-08-15T14:22:03Z"

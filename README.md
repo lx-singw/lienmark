@@ -42,8 +42,11 @@ Insurers (**E&O**) and **completion bond companies** require verifiable, auditab
 > ### 🛡️ Concurrency Throttling & SHA-256 Script Deduplication
 > An `asyncio.Semaphore(10)` governor in `parallel_client.py` throttles multi-claim research loops, preventing Parallel API rate-limit errors. Meanwhile, `script_hasher.py` computes SHA-256 content hashes to instantly return existing ledger entries for duplicate script drops without wasting search API credits.
 > 
-> ### 🔐 Cryptographic Hash-Chain Ledger Integrity Verification
-> E&O underwriters require proof that historical clearance records were never tampered with. Run `python scripts/verify_ledger_integrity.py` to audit SHA-256 hash chains across Firestore entries in <5 seconds.
+> ### 🎬 Cinema & Entertainment Industry Workflow Artifacts
+> * **Form E&O-2026 Audit Certificate**: Generates official PDF chain-of-title certificates (`chain_of_title_cert.py`) required by E&O insurers (Chubb, Hiscox) before policy binding.
+> * **ASCAP/BMI Music Cue Sheets**: Automatically exports standard music cue sheets (`cue_sheet_exporter.py`) with PRO work codes, eliminating 20+ hours of post-production legal paperwork.
+> * **SAG-AFTRA Option Expiration Tracker**: Tracks actor likeness/voice option dates (`union_rights_tracker.py`), alerting legal 60 days before distribution rights expire.
+> * **Completion Bond Risk Score**: Computes `bond_compliance_score` (%) in `bond_underwriting_risk.py` to prevent uncleared IP from triggering completion bond stop-orders on production drawdowns.
 
 ---
 

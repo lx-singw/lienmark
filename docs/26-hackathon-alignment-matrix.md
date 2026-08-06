@@ -31,6 +31,10 @@
 
 ### 2.3 Potential Impact & Market Feasibility (30% Weight)
 * **Title Insurance Thesis**: Independent clearance verification layer sitting between studios, E&O insurers, and completion bond companies (`docs/17-moat-mechanics.md`).
+* **Official E&O Title Clearance Certificate Generator**: Generates Form E&O-2026 PDF audit certificates with cryptographic hash stamps required by insurers (`backend/agents/report/chain_of_title_cert.py`).
+* **Standardized ASCAP/BMI Music Cue Sheet Exporter**: Exports industry-standard cue sheets (`cue_sheet_exporter.py`) with PRO work codes, saving 20+ hours of post-production legal paperwork.
+* **SAG-AFTRA Guild Residuals & Expiration Tracker**: Tracks actor likeness/voice option expiration dates (`union_rights_tracker.py`), alerting legal 60 days before distribution rights expire.
+* **Completion Bond Underwriting Contingency Risk Score**: Computes `bond_compliance_score` (%) to ensure uncleared IP risk never triggers a bond stop-order on film budget drawdowns (`bond_underwriting_risk.py`).
 * **Unit Economics**: Replaces $250–$700/hr manual entertainment counsel with sub-5-second, $0.15/claim automated research.
 * **Clearance Velocity & Risk Regression Tracking**: Computes `clearance_velocity_score` and `risk_trend` across script revisions (Draft 1 -> Draft 3).
 
