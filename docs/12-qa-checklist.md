@@ -40,7 +40,7 @@ Run this in full, ideally by a teammate who did **not** write the code being che
 
 - [ ] Video is exactly 3 minutes or under — check the actual runtime, don't estimate
 - [ ] Public on YouTube or Vimeo, and confirm the privacy setting from a logged-out browser (an "unlisted" video with the wrong setting, or an accidentally-private one, is a real and common failure mode)
-- [ ] Shows the software actually functioning — a fresh, honest re-watch asking "does this look like a screen recording of real software, or does it look like a scripted trailer" (see `01-hackathon-scope.md` §5 for why this distinction is explicitly called out in the rules)
+- [ ] Shows the software actually functioning — a fresh, honest re-watch asking "does this look like a screen recording of real software, or does it look like a scripted trailer" (see `01-hackathon-scope.md` §6 for why this distinction is explicitly called out in the rules)
 - [ ] English audio, or accurate English subtitles if not
 - [ ] The conflict-arbitration beat (1:45–2:10 in the shot list) is present and clearly explained, not rushed or cut for time
 - [ ] The graceful-failure moment is present and visibly doesn't crash the pipeline
@@ -52,6 +52,10 @@ Run this in full, ideally by a teammate who did **not** write the code being che
 - [ ] All required links (hosted URL, video, repo) are pasted correctly — click each one from the submitted form itself, not from your own bookmarks, to confirm they resolve correctly as submitted
 - [ ] Technologies-used field lists Google Cloud Agent Builder, Gemini, and Parallel explicitly
 - [ ] Submission is completed with real buffer time before the Sep 7, 2:00 PM PDT deadline — not attempted for the first time in the final hour, when a form issue or upload failure has no recovery time
+- [ ] **Team size is at or under the 4-person cap** (`01-hackathon-scope.md` §5) — confirm this explicitly, not just assume it, especially if the team composition shifted at any point during the build
+- [ ] **Every team member is individually registered on the official Devpost portal**, not just the person submitting the form (`01-hackathon-scope.md` §5) — this needs each person to have completed their own registration, and it's worth confirming this a few days before the deadline, not on submission day
+- [ ] **Every team member independently meets the age/eligibility requirement** for their country of residence (`01-hackathon-scope.md` §5) — worth a direct one-line confirmation from each person, not an assumption
+- [ ] **Repo commit history is consistent with the code being written during the hackathon window** (July 27 – September 7, 2026) — per the no-pre-existing-commercial-product rule (`01-hackathon-scope.md` §5); this should already be true given the build timeline, but worth a conscious check rather than an assumption
 
 ## 8. Final sanity pass — read this out loud to the team before hitting submit
 

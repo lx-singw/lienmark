@@ -63,14 +63,48 @@ Docs previously referenced "studios moving from complaints to cease-and-desist a
 - https://www.openculture.com/2018/07/watch-original-tv-coverage-historic-apollo-11-moon-landing-recorded-july-20-1969.html — documents the CBS broadcast with Walter Cronkite as a distinct production layer over the raw NASA feed
 - https://boingboing.net/2022/07/21/copyright-trolls-claim-public-domain-footage-of-apollo-moon-landing-on-youtube.html/amp — a documented, real case of a film archivist's public-domain NASA footage uploads being hit with false ownership claims via YouTube's ContentID system, illustrating exactly the kind of ownership confusion this claim type is meant to demonstrate
 
+## Sources for the Vision & Mission document's future-vertical research
+
+**AI training data provenance — validated as a genuinely open, regulation-driven vertical:**
+- https://scalevise.com/resources/eu-ai-act-2026-changes/ (EU AI Act 2026 training-data disclosure mandate)
+- https://www.njbusiness-attorney.com/training-data-legal-risk-ai-founders/ (data provenance as the line between defensible and exposed AI startups)
+- https://aigovernancedesk.com/ai-training-data-copyright-rules/ (source verification workflow categories, June 2026)
+
+**Real estate deed-fraud monitoring — confirmed real, large, but already contested by entrenched players:**
+- https://www.financialcontent.com/article/publisher/First%20American%20Title%20Insurance%20Company (First American's free title monitoring/fraud-alert service, $13.7B in 2024 cyber-enabled losses per FBI)
+- https://www.inman.com/2026/04/20/over-half-of-states-have-no-laws-on-the-books-to-protect-homeowners-from-title-fraud/ (EquityProtect, a funded, award-winning competitor already in this space)
+- https://www.titlebarrier.com/blog/home-title-theft (a second active competitor, Title Barrier — notably, its own founder cautions the risk is sometimes oversold)
+
+## Re-verification pass — confirming no drift, and one new binding rule set surfaced
+
+A second check against live coverage confirmed every core requirement unchanged (deadline, prize structure, judging criteria, Parallel Search API requirement), and surfaced three previously-uncaptured binding rules — a 4-person team cap, an age/eligibility requirement, and a no-pre-existing-product rule — now reflected in `01-hackathon-scope.md` §5 and `12-qa-checklist.md` §7. It also surfaced a direct, independent validation of the Discovery Agent architecture decision: <cite index="11-1">this hackathon forces developers to think in terms of real operational workflows rather than superficial chat interactions — if an entry simply waits for a user to type a question and spits out a paragraph of text, it is missing the brief entirely; the goal is autonomous software that delivers tangible, end-to-end commercial value.</cite>
+- https://techau.com.au/google-agentic-cinema-a-blockbuster-hackathon-for-ai-developers/ (team cap, eligibility, the autonomous-vs-reactive validation quote)
+
+## Confirmed hackathon logistics — sourced
+
+**The hackathon is fully asynchronous with no live pitch or Q&A round**, and judges are explicitly watching for error-recovery robustness, not just a polished interface — both facts materially shaped `15-judge-qna-prep.md` and the emphasis on the graceful-failure demo moment throughout this package.
+- https://www.edtechinnovationhub.com/news/google-cloud-opens-75000-agentic-cinema-hackathon-for-gemini-powered-media-tools (confirms submission-only judging, no live component, and the GMT+1 deadline equivalence)
+- https://techau.com.au/google-agentic-cinema-a-blockbuster-hackathon-for-ai-developers/ (source of the "a pretty interface with broken backend logic will not survive the evaluation process" quote)
+
+## Previously flagged as unverified — now checked, all three confirmed
+
+The following claims were flagged in the original version of this appendix as "plausible but not yet re-verified." They've now been checked against live sources. All three hold up — one is even stronger than originally stated.
+
+**Filmustage — confirmed, and more specific than originally claimed.** It's not just "AI-assisted budgeting" — it's a named, branded AI Production Agent called "AI Dude" that operates across script breakdown, scheduling, budgeting, and VFX planning, and is explicitly marketed as detecting production risks before they become problems. This makes the competitive-landscape argument in `03-post-mvp-scope.md` §2 *stronger* than originally written, not just verified.
+- https://filmustage.com/blog/how-ai-agents-are-rewiring-film-pre-production/
+- https://filmustage.com/budgeting/
+- https://filmustage.com/enterprise/
+
+**Vitrina — confirmed, and larger than originally described.** Covers 360,000+ companies, 1.3 million titles, and 3 million+ contacts, and is explicitly trusted by Apple TV, Netflix, and Warner Bros. This is a well-resourced, credible competitor for deal/vendor intelligence — worth knowing its actual scale before citing it dismissively in any pitch, since a judge could easily check this and find it's a bigger, more established player than "Vitrina is deal/vendor intelligence" implies on its own.
+- https://vitrina.ai/
+- https://vitrina.ai/about-us/
+
+**The "38% formal vendor scoring" statistic — confirmed, with one caveat worth stating plainly.** The figure is real and traces to a specific claim: only 38% of productions report using a formal scoring framework when selecting VFX vendors, per an industry survey Animation World Network published in 2024. **Caveat:** this is a secondary citation — found via a Vitrina.ai blog post that cites the original AWN survey; the primary AWN source itself was not independently pulled and confirmed in this pass. Treat the figure as reliable but not independently primary-sourced if it comes up in a rigorous follow-up question.
+- https://vitrina.ai/blog/co-production-partnerships-financing-models-global-guide/ (citing Animation World Network, 2024)
+
 ## Not yet independently re-verified in this pass — flagged honestly
 
-The following claims were used earlier in this conversation's research but were not re-confirmed with fresh, saved URLs in this appendix-building pass (the original search results were not retained). They should be treated as **plausible but not yet re-verified** until someone runs a fresh check:
-
-- The specific competitive-landscape claims about Filmustage, Vitrina, MUSO, Corsearch, Friend MTS, AiPlex, CAMB.AI, TRAILR.ai, and other named competitors in `03-post-mvp-scope.md` §2
-- The specific "38% of productions use a formal vendor scoring framework" statistic used in the DriftLock/Overrun second-product-line reasoning
-
-**Recommended action:** re-run a verification pass on these specific claims before they're used in any external-facing pitch material (as opposed to internal planning docs), using the same standard applied in this document — a real, checkable URL for every specific number or named-competitor claim.
+As of this update, no claims remain in this category — the three items previously flagged (Filmustage, Vitrina, and the 38% vendor-scoring statistic) are now confirmed above. This section is kept as a standing placeholder: any *new* specific factual claim added to the docs in the future that hasn't yet been checked against a real source belongs here until it is.
 
 ## How to keep this appendix honest going forward
 

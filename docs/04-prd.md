@@ -22,6 +22,18 @@ Meanwhile, the risk landscape is actively worsening, not staying static:
 
 No existing tool actively, autonomously researches and verifies rights status against current, live sources. The tools that exist in adjacent spaces (see §8 for the specific competitive comparison) help a production *document* clearance decisions that a human has already manually made — none of them independently go and check ownership, licensing status, or dispute history, and none of them maintain an auditable, tamper-evident record of that research over time.
 
+### 1.1 Market sizing — a real, sourced estimate, not a placeholder
+
+This calculation exists specifically to close a gap: earlier versions of this document described the problem qualitatively but never converted it into an actual market-size number, which is exactly the kind of concrete figure a judge evaluating "Potential Impact" would want and previously had no way to get. The inputs below are each independently sourced (full citations in `14-sources-appendix.md`) and the arithmetic is conservative, not optimistic:
+
+- **857 English-language film and scripted TV productions were released by U.S.-based companies in 2024** (FilmLA/Variety) — a real, current anchor number, not an estimate pulled from general knowledge
+- **200+ distinct rights claims typical per mid-budget production** (established via the manual-clearance research documented elsewhere in this PRD)
+- **~$300 average resolution cost per claim** — a conservative blend, given the corrected $250-700/hour counsel rate (§1) applied against a realistic mix of quick lookups and full-hour deep research per claim
+
+**857 productions × 200 claims × $300/claim ≈ $51.4M/year** in current manual clearance-research spend, among U.S.-based major productions alone — before counting the growing international English-language production share (the UK alone represents a growing 8.8%+ of global production volume by the same source), and before counting the broader universe of documentaries, streaming originals, and mid-tier productions not captured in the "major release" figure this estimate is anchored to.
+
+**This is deliberately a conservative floor, not a ceiling** — worth stating that framing explicitly when presenting it, since it invites a credible follow-up ("even by a conservative estimate...") rather than a number that reads as inflated.
+
 ## 2. Product vision
 
 ### 2.1 One-line description
@@ -55,7 +67,7 @@ The hackathon's own promotional language frames three roles for participants: **
 
 ### 4.1 Hackathon success
 - 1st place in the Parallel track (primary, explicit goal)
-- A working demonstration that genuinely satisfies all four judging criteria on their own terms, not just superficially — see `01-hackathon-scope.md` §6 for the detailed mapping
+- A working demonstration that genuinely satisfies all four judging criteria on their own terms, not just superficially — see `01-hackathon-scope.md` §7 for the detailed mapping
 - A repo and video that could plausibly be shown to a real completion bond company or insurer post-hackathon without embarrassment — this is a useful internal bar, because it's a higher standard than "good enough to win a hackathon" and building to it tends to also satisfy the hackathon bar as a side effect
 
 ### 4.2 Company success (post-hackathon, directional — these will need real baselines once there's actual usage data)

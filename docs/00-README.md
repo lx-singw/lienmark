@@ -25,7 +25,18 @@ This is being built first as a submission to **Agentic Cinema: The Blockbuster H
 | 11 | [Demo Content](11-demo-content.md) | The actual script excerpt, claims, and narration used in the demo | The real content the demo runs against, and why each claim was specifically chosen |
 | 12 | [QA Checklist](12-qa-checklist.md) | Pre-submission verification, run against production before submitting | Exactly what to check, line by line, before hitting submit |
 | 13 | [Technical Validation](13-technical-validation.md) | De-risking findings for Parallel and Gemini, plus the Agent Builder code gap | What's actually been tested, what's still assumed, and the exact Week 0 test plan |
-| 14 | [Sources Appendix](14-sources-appendix.md) | Every specific factual claim, with a real checkable source | Verification for any number, date, or named competitor used elsewhere in the package — includes two corrections |
+| 14 | [Sources Appendix](14-sources-appendix.md) | Every specific factual claim, with a real checkable source | Verification for any number, date, or named competitor used elsewhere in the package |
+| 15 | [Judge Q&A Prep](15-judge-qna-prep.md) | Anticipated tough questions and prepared answers | What to preemptively address in the video/repo, given judging is fully asynchronous with no live Q&A |
+| 16 | [Liability & Trust Posture](16-liability-and-trust-posture.md) | Lienmark's own risk exposure, not just its customers' | What a sophisticated buyer or judge would ask about data security, retention, and liability boundaries |
+| 17 | [Moat Mechanics](17-moat-mechanics.md) | The specific, mechanical answer to "why can't this be cloned" | What's actually defensible (accumulated ledger data, switching costs) versus what isn't (the code itself) |
+| 18 | [Company Formation Readiness](18-company-formation-readiness.md) | IP assignment, entity formation, trademark/domain next steps | How to treat this as real pre-seed groundwork, not just a hackathon entry |
+| 19 | [Executive Summary](19-executive-summary.md) | One-page leave-behind covering the entire thesis | The 60-second version, if that's all someone has time for |
+| 20 | [Adversarial Input Defense](20-adversarial-input-defense.md) | Prompt injection risk and layered defenses | What happens if an uploaded document tries to manipulate the extraction agent |
+| 21 | [Agent Prompts](21-agent-prompts.md) | The actual drafted system prompts for every agent | Real starting content for `prompts.py`, not a placeholder |
+| 22 | [Pre-Mortem](22-pre-mortem.md) | Strategic and competitive risks, examined before they happen | Why this might not win even if everything is built correctly |
+| 23 | [Competitor Comparison Matrix](23-competitor-comparison-matrix.md) | A consolidated, scannable comparison table | How Lienmark differs from Vitrina, Filmustage, and enforcement-side tools, in one place |
+| 24 | [Vision & Mission](24-vision-and-mission.md) | The long-term multi-industry expansion picture, beyond entertainment | Which future industries the verification-ledger pattern could extend to, validated honestly — including where the field is genuinely open versus already contested |
+| 25 | [Agentic Maturity Roadmap](25-agentic-maturity-roadmap.md) | An honest assessment of how agentic this actually is, and the path to more | The workflow-vs-agent distinction, where Lienmark really sits, and what to build next without sacrificing the determinism the product depends on |
 
 ## How these documents relate to each other
 

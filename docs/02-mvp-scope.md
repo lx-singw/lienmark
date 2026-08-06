@@ -8,7 +8,25 @@ Before the feature list, it's worth being explicit about the story the MVP has t
 
 ## 2. In-scope: the five-agent core pipeline
 
-### 2.1 Intake Agent
+### 2.1 Discovery Agent — the genuinely autonomous trigger, not just a reactive pipeline
+
+**What it does:** decides *when* a verification run happens, rather than requiring a human to manually initiate every run. Full architectural reasoning in `09-agent-orchestration.md` §2.
+
+**Revised after an honest self-check, worth stating directly:** an earlier version of this scope only included the secondary re-verification behavior and deferred document discovery entirely to Phase 2. That was a mistake — it left the demo's *primary, opening action* still human-triggered (upload a file, pipeline reacts), which is close to exactly the failure mode the hackathon's own coverage names as missing the brief (see `25-agentic-maturity-roadmap.md` §7). The corrected scope below fixes the more important half first.
+
+**In scope for MVP, in priority order:**
+
+1. **A genuinely autonomous document watcher (`09-agent-orchestration.md` §2.1) — build this first, it matters more than item 2.** A real, independently-running polling loop or webhook listener watches a designated location and starts a clearance run when a new document appears, with no human clicking a "process this" action. **Hard requirement for this to count as real:** the watcher must be architecturally decoupled from the act of the file arriving — it would fire the same way regardless of what put the file there. A drag-and-drop UI that directly invokes the pipeline via a click handler is the old pattern with new styling, not a fix, and shouldn't be built even though it would look similar on screen.
+2. **The autonomous re-verification behavior (`09-agent-orchestration.md` §2.3)** — any claim sitting in `needs_human_review` past a defined window (compressed to a short, demo-visible interval) triggers the Discovery Agent to proactively resurface it, without a human asking. Still valuable, still worth building, but secondary — it's a flourish on a run that item 1 is what actually makes agent-initiated from the start.
+
+**Why item 1 belongs in MVP scope, not deferred, and why the earlier reasoning for deferring it was wrong:** deferring it assumed a real customer's document system was required — but a demo-scale watcher needs neither a real customer nor much engineering, and it's simpler to build than item 2. Given the judging criteria explicitly reward "true agentic behavior" and the hackathon's own coverage explicitly names "waits for a user to [act] and spits out a response" as missing the brief entirely, this is the single highest-leverage item in the entire MVP scope, not a nice-to-have layered on top of the "real" pipeline.
+
+**Acceptance criteria:**
+- The demo opens by showing a file being placed in the watched location — framed as an ordinary business action (saving a script to a shared drive), not as "operating the tool" — and the pipeline visibly starting on its own, with no upload button clicked on camera
+- The watcher process can be shown (in the repo, or briefly in the video) to be a real, independent loop/listener, not client-side code that directly triggers the pipeline on a UI event
+- After the Apollo 11 conflict claim (see `11-demo-content.md`) is routed to human review, the Discovery Agent should — after a short, visible interval — proactively surface a notification-style UI moment ("this claim has been pending review — resurfacing for attention") without any human clicking anything to request it
+
+### 2.2 Intake Agent
 
 **What it does:** Accepts a script excerpt or edit timeline (text/PDF upload), reads it using Gemini's native multimodal capability (no separate OCR/parsing step needed), and extracts every rights-triggering claim into a structured list.
 
@@ -25,8 +43,9 @@ Before the feature list, it's worth being explicit about the story the MVP has t
 - Given a 3-5 page script excerpt with a deliberately mixed set of claim types, the agent extracts all of them without missing an obvious one and without duplicating a claim
 - No `extracted_description` field exceeds roughly 15-20 words or includes plot/character/emotional context beyond what's needed to identify the specific rights-triggering element
 - A claim that can't be confidently typed or minimally described is flagged `needs_clarification: true` rather than the agent guessing (see §7, ambiguous input handling)
+- **A self-reflection pass runs after the first extraction** — a second pass checking the initial claim list against the source document for anything missed — and this pass is demonstrably capable of catching at least one deliberately hard-to-spot claim in a test document that the first pass alone missed (see `25-agentic-maturity-roadmap.md` §5 for why this is worth building rather than treating extraction as single-shot)
 
-### 2.2 Research Agent
+### 2.3 Research Agent
 
 **What it does:** For each claim produced by the Intake Agent, issues a live call to Parallel's Search API and returns a sourced finding.
 
@@ -38,8 +57,9 @@ Before the feature list, it's worth being explicit about the story the MVP has t
 - Given N claims from the Intake Agent, the demo run visibly shows N independent Parallel calls, not one batched query
 - At least one call in the demo run is engineered to fail or time out, and the agent handles it by writing a `call_status: failed` finding rather than raising an unhandled exception (see §5, failure handling)
 - At least one claim in the demo set is engineered to return **genuinely conflicting findings from two distinct sources** — this is required, not optional, because it's the input the Risk Scoring Agent's arbitration logic needs to have something real to arbitrate on camera (see §2.4 and the Pitch Deck's demo shot list)
+- **Reformulate-and-retry works as a bounded, genuine iteration, not a rename of the network-failure retry.** Given a claim whose first query returns a thin or low-confidence result, the agent autonomously issues one reformulated follow-up query before finalizing — capped at one reformulation per claim, and demonstrably a *different* query, not a repeat of the first (see `09-agent-orchestration.md` §4 for the full distinction from network-retry logic)
 
-### 2.3 Ledger Agent
+### 2.4 Ledger Agent
 
 **What it does:** Writes every claim and finding to an append-only, versioned record. This is the architectural expression of the entire product's governance thesis — see PRD §5.5 for why this matters beyond the hackathon.
 
@@ -49,7 +69,7 @@ Before the feature list, it's worth being explicit about the story the MVP has t
 - A dedicated test (`tests/test_ledger_immutability.py`) attempts an update and a delete against the ledger collection using the Ledger Agent's actual service account credentials, and both attempts must fail
 - Given a claim whose status changes between two pipeline runs (e.g., a re-check surfaces a new dispute), the ledger shows both the old and new entries, with the old one correctly marked `superseded_by` the new one's ID — the full history remains queryable, nothing is silently overwritten
 
-### 2.4 Risk Scoring Agent
+### 2.5 Risk Scoring Agent
 
 **What it does:** Converts ledger entries into a deterministic, explainable confidence score per claim, and arbitrates when the Research Agent has surfaced conflicting findings.
 
@@ -59,11 +79,14 @@ Before the feature list, it's worth being explicit about the story the MVP has t
 
 **Human-in-the-loop threshold:** any claim scoring below a configurable confidence threshold (`RISK_CONFIDENCE_THRESHOLD`, default 0.7 — see `07-env-vars.md`), or any claim where `conflict_detected = true`, is routed to `needs_human_review` rather than auto-resolved. This is a deliberate product decision, not a limitation: no completion bond company or insurer would trust a compliance product that claims 100% automated certainty on every claim (see PRD §5.4 for the full reasoning).
 
+**Human-in-the-loop as a callable action, not only a passive flag.** Rather than only marking a claim `needs_human_review` and stopping, the agent should be able to generate a specific, answerable clarifying question when it hits genuine ambiguity (not just a generic "please review" flag), and incorporate a human's answer back into the run once provided. This is a meaningfully more agentic pattern than a passive terminal state — see `09-agent-orchestration.md` §6 for the full behavior and `25-agentic-maturity-roadmap.md` for why this distinction matters to the broader "is this really agentic" question.
+
 **Acceptance criteria:**
 - Running the same claim/finding input through the scoring function multiple times produces identical output every time (`tests/test_risk_scoring_determinism.py`)
 - The demo's engineered-conflict claim (see §2.2) visibly triggers the arbitration path, and the resulting output shows both sources and the reasoning for the verdict, not just a final number
+- When the engineered-conflict claim triggers human review, the system generates a specific question referencing both conflicting sources by name — not a generic "please review this claim" message — demonstrating the callable-action behavior, not just the passive flag
 
-### 2.5 Report Agent
+### 2.6 Report Agent
 
 **What it does:** Produces the final, human-readable clearance report — the actual artifact a real buyer (an insurer, a bond company reviewer) would need to see to trust the output.
 
@@ -78,7 +101,7 @@ Before the feature list, it's worth being explicit about the story the MVP has t
 
 ## 3. In-scope: demo-critical UI features
 
-These exist because the Design judging criterion explicitly rewards "a complete, coherent product experience," not just correct backend logic (see `01-hackathon-scope.md` §6.2). Cutting these under time pressure directly costs points on a named judging axis — protect this scope deliberately.
+These exist because the Design judging criterion explicitly rewards "a complete, coherent product experience," not just correct backend logic (see `01-hackathon-scope.md` §7.2). Cutting these under time pressure directly costs points on a named judging axis — protect this scope deliberately.
 
 - **Live-updating claims table**: claim → status → risk score → source, updating in the UI as each Parallel call resolves in real time. This is the single highest-leverage visual for judges — it turns an invisible backend pipeline into something they watch happen, rather than something they have to take on faith.
 - **The deliberately-mixed demo claim set**: one clean/clear claim, one disputed/high-risk claim, and one claim specifically engineered to return conflicting ownership findings from two different sources — so live Parallel calls visibly produce different verdicts on camera, and the arbitration step is demonstrated, not just described.
@@ -93,7 +116,7 @@ These exist because the Design judging criterion explicitly rewards "a complete,
 - Firestore for claims/findings/ledger storage — chosen specifically for hackathon-timeline speed; see `03-post-mvp-scope.md` for the planned Postgres migration once real product usage demands it
 - Cloud Run for hosting the backend and frontend
 - Secret Manager for the Parallel API key and any other credentials — no secrets in code or committed `.env` files, ever (see `07-env-vars.md`)
-- Per-agent service account separation implementing least-privilege IAM: only the Research Agent's service account may call Parallel; only the Ledger Agent's service account may write to the ledger collection (see `07-env-vars.md` for the full mapping table). This is not decorative — it's a literal, code-level implementation of the hackathon's own "Studio Head enforcing Cloud IAM security" framing (see `01-hackathon-scope.md` §6.4 and the Pitch Deck).
+- Per-agent service account separation implementing least-privilege IAM: only the Research Agent's service account may call Parallel; only the Ledger Agent's service account may write to the ledger collection (see `07-env-vars.md` for the full mapping table). This is not decorative — it's a literal, code-level implementation of the hackathon's own "Studio Head enforcing Cloud IAM security" framing (see `01-hackathon-scope.md` §7.4 and the Pitch Deck).
 - Public GitHub repo with a complete OSS license visible at the repo root — MIT recommended specifically because it's the simplest, most permissive option and creates the least friction for a judge doing a quick review
 
 ### 4.1 Frontend decision point — make this call deliberately, not by default

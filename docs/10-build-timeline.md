@@ -26,7 +26,7 @@ This is a working plan, not a wishlist — every week ends with something demons
 
 **Goal by end of week:** claims go in one end, sourced findings come out the other, for real, against the real Parallel API.
 
-- Mon-Tue: Intake Agent — claim extraction logic, `claim_extraction.py`, the confidentiality length/content check on `extracted_description` (see `09-agent-orchestration.md` §2)
+- Mon-Tue: Intake Agent — claim extraction logic, `claim_extraction.py`, the confidentiality length/content check on `extracted_description` (see `09-agent-orchestration.md` §3)
 - Tue-Wed: Test Intake Agent against the real demo script content from `10-demo-content.md` — confirm it extracts exactly the claims expected, not more, not fewer
 - Wed-Thu: Research Agent — `parallel_client.py` (the hackathon-required integration file), `query_builder.py`
 - Thu-Fri: Wire Intake → Research together; confirm real, live Parallel calls happen per claim; build and test the failure-handling path (`call_status: failed`)

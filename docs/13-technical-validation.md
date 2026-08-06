@@ -22,13 +22,13 @@ This document records what's been genuinely validated so far, what's still assum
 
 **Test 3 — token/length limits.** Confirm the actual context window and file-size behavior for the specific Gemini model string being used (see `07-env-vars.md` — the model string there is a placeholder pending confirmation against current docs). A multi-page script excerpt should comfortably fit, but this needs to be confirmed against the *current* model's actual limits, not assumed from general knowledge that may be stale.
 
-**Test 4 — the ambiguous-input path.** Deliberately feed a vague, underspecified claim (e.g., "a popular song plays" with no title) and confirm the Intake Agent's `needs_clarification: true` behavior (see `09-agent-orchestration.md` §2) actually triggers, rather than the model confidently guessing a specific song. This is the test that validates the ambiguous-input handling requirement is real, not just documented.
+**Test 4 — the ambiguous-input path.** Deliberately feed a vague, underspecified claim (e.g., "a popular song plays" with no title) and confirm the Intake Agent's `needs_clarification: true` behavior (see `09-agent-orchestration.md` §3) actually triggers, rather than the model confidently guessing a specific song. This is the test that validates the ambiguous-input handling requirement is real, not just documented.
 
 **If any of these tests fail or behave unexpectedly**, the fix is almost certainly a prompt-engineering iteration on `backend/agents/intake/prompts.py`, not an architecture change — but this needs actual test cycles, which means it needs to happen early (Week 1), not discovered during Week 4 integration.
 
 ## 3. The Agent Builder / Gemini code asymmetry — addressed here
 
-Until now, only the Parallel side of the required dual integration had illustrative code (see `09-agent-orchestration.md` §3). The hackathon's rule that integration must be "imported and called in code, not README-only" applies equally to Google Cloud — this section exists specifically to close that gap with an equivalent illustrative example.
+Until now, only the Parallel side of the required dual integration had illustrative code (see `09-agent-orchestration.md` §4). The hackathon's rule that integration must be "imported and called in code, not README-only" applies equally to Google Cloud — this section exists specifically to close that gap with an equivalent illustrative example.
 
 **Illustrative shape for the Intake Agent's Gemini call** (confirm exact current SDK/method names against live Google Cloud Agent Builder documentation before implementation — this is illustrative of the pattern, not a copy-paste-ready snippet):
 
@@ -66,7 +66,7 @@ def extract_claims(document_bytes: bytes, mime_type: str) -> list[Claim]:
 
 **Where this should live in the real repo:** `backend/agents/intake/agent.py`, per `08-directory-structure.md`. Worth calling this file out explicitly in the README's "Required integrations" section alongside `parallel_client.py` (see `08-directory-structure.md` §3), so a judge checking Google Cloud usage has exactly as easy a time finding it as they do finding the Parallel integration.
 
-**Agent Builder orchestration specifically** (as distinct from a raw Gemini SDK call) still needs its own concrete example once the team decides between native ADK patterns and LangGraph (see `09-agent-orchestration.md` §7) — that decision should happen early in Week 1, since it shapes how every agent's code is structured, not just the Intake Agent's.
+**Agent Builder orchestration specifically** (as distinct from a raw Gemini SDK call) still needs its own concrete example once the team decides between native ADK patterns and LangGraph (see `09-agent-orchestration.md` §9) — that decision should happen early in Week 1, since it shapes how every agent's code is structured, not just the Intake Agent's.
 
 ## 4. Summary — what's genuinely de-risked vs. what still needs Week 0 testing
 

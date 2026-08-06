@@ -22,13 +22,31 @@ lienmark/
 │   ├── 06-data-schema.md
 │   ├── 07-env-vars.md
 │   ├── 08-directory-structure.md
-│   └── 09-agent-orchestration.md
+│   ├── 09-agent-orchestration.md
+│   ├── 10-build-timeline.md
+│   ├── 11-demo-content.md
+│   ├── 12-qa-checklist.md
+│   ├── 13-technical-validation.md
+│   ├── 14-sources-appendix.md
+│   ├── 15-judge-qna-prep.md
+│   ├── 16-liability-and-trust-posture.md
+│   ├── 17-moat-mechanics.md
+│   ├── 18-company-formation-readiness.md
+│   ├── 19-executive-summary.md
+│   ├── 20-adversarial-input-defense.md
+│   ├── 21-agent-prompts.md
+│   ├── 22-pre-mortem.md
+│   ├── 23-competitor-comparison-matrix.md
+│   ├── 24-vision-and-mission.md
+│   └── 25-agentic-maturity-roadmap.md
 ├── backend/
 │   ├── agents/
 │   │   ├── intake/
 │   │   │   ├── agent.py
 │   │   │   ├── prompts.py
-│   │   │   └── claim_extraction.py
+│   │   │   ├── claim_extraction.py
+│   │   │   └── self_reflection.py        # self-reflection pass & prompt-injection defense —
+│   │   │                                    see 02-mvp-scope.md §1 & 20-adversarial-input-defense.md §2
 │   │   ├── research/
 │   │   │   ├── agent.py
 │   │   │   ├── parallel_client.py        # THE required hackathon artifact — this file is
@@ -51,17 +69,22 @@ lienmark/
 │   │   │   │                                literally satisfied in code
 │   │   │   └── conflict_arbitration.py    # multi-source conflict resolution — the code
 │   │   │                                    behind the demo's centerpiece moment
-│   │   └── report/
-│   │       ├── agent.py
-│   │       └── report_formatter.py
+│   │   ├── report/
+│   │   │   ├── agent.py
+│   │   │   └── report_formatter.py
+│   │   └── discovery/                     # autonomous proactive re-review poller — the 6th
+│   │       ├── agent.py                       agent module enforcing goal-driven initiative
+│   │       └── poller.py                      without human triggering (02-mvp-scope.md §1)
 │   ├── orchestration/
 │   │   ├── pipeline.py                    # top-level agent orchestration / control flow —
-│   │   │                                    the file that wires all five agents together
+│   │   │                                    the file that wires all agents together
 │   │   │                                    in the sequence described in 09-agent-orchestration.md
 │   │   └── agent_builder_config.py        # Google Cloud Agent Builder setup — the other
 │   │                                        hackathon-required integration, alongside Parallel
 │   ├── storage/
 │   │   ├── firestore_client.py
+│   │   ├── firestore.rules                # protocol-level create-only rules for ledger_entries —
+│   │   │                                    see 06-data-schema.md §3
 │   │   └── schema.py                      # mirrors docs/06-data-schema.md exactly —
 │   │                                        if these two ever drift apart, the doc is
 │   │                                        wrong and needs to be updated to match the code,
@@ -71,6 +94,7 @@ lienmark/
 │   │   └── iam_bindings.py                # documents and enforces the per-agent service
 │   │                                        account mapping from 07-env-vars.md §4 in code,
 │   │                                        not just in documentation
+│   ├── Dockerfile                         # Cloud Run container definition
 │   └── main.py                            # Cloud Run entrypoint
 ├── frontend/
 │   ├── app/                               # Next.js app directory (default choice — see
@@ -88,29 +112,43 @@ lienmark/
 │   │       │                                every finding — this component exists
 │   │       │                                specifically to make the "no unsourced
 │   │       │                                verdicts" requirement visible, not just true
-│   │       └── HumanReviewFlag.tsx        # a genuinely distinct visual treatment,
-│   │                                        not just a red table row — see
-│   │                                        02-mvp-scope.md §3 for why this needs to
-│   │                                        read as a real product state
-│   └── lib/
-│       └── api_client.ts
+│   │       ├── HumanReviewFlag.tsx        # a genuinely distinct visual treatment,
+│   │       │                                not just a red table row — see
+│   │       │                                02-mvp-scope.md §3 for why this needs to
+│   │       │                                read as a real product state
+│   │       ├── DiscoveryNotification.tsx  # proactive resurfacing alert toast component —
+│   │       │                                renders Discovery Agent proactive alerts
+│   │       └── ClarifyingQuestionModal.tsx # interactive modal for human-in-the-loop action —
+│   │                                        see 02-mvp-scope.md §4 & 09-agent-orchestration.md §6
+│   ├── lib/
+│   │   └── api_client.ts
+│   └── package.json
 ├── demo/
 │   ├── sample_script.pdf                  # the deliberately-mixed claim set — one clean,
 │   │                                        one high-risk, one engineered to trigger
 │   │                                        conflicting Parallel findings (see
 │   │                                        02-mvp-scope.md §3 for the exact requirement)
+│   ├── sample_script_adversarial.pdf      # script with embedded prompt-injection directions
+│   │                                        for testing defense-in-depth (20-adversarial-input-defense.md)
+│   ├── parallel_conflict_example.json     # sample conflict JSON payload fixture (11-demo-content.md)
 │   ├── demo_script.md                     # narration script for the 3-minute video,
 │   │                                        matching the shot list in 05-pitch-deck.md
 │   └── failure_trigger.md                 # how to reproduce the graceful-failure demo
 │                                            moment reliably, using DEMO_MODE (see
 │                                            07-env-vars.md §2)
 ├── scripts/
-│   ├── setup_gcp.sh                       # provisions the GCP project, all five per-agent
+│   ├── setup_gcp.sh                       # provisions the GCP project, all per-agent
 │   │                                        service accounts, and their IAM bindings —
 │   │                                        should implement the table in
 │   │                                        07-env-vars.md §4 exactly
 │   ├── deploy.sh
-│   └── seed_demo_data.py
+│   ├── seed_demo_data.py
+│   ├── test_week0_validation.py           # Week 0 API de-risking script (13-technical-validation.md)
+│   └── verify_integrations.py             # 60-second judge compliance verification helper —
+│                                            see 12-qa-checklist.md §3 & 22-pre-mortem.md §4
+├── .github/
+│   └── workflows/
+│       └── ci.yml                         # runs automated test suite on every PR
 └── tests/
     ├── test_intake_agent.py
     ├── test_research_agent.py             # mocks Parallel for fast unit tests; a separate
@@ -128,13 +166,17 @@ lienmark/
 
 ## 2. Rationale for key structural decisions, explained rather than just asserted
 
-- **`agents/` is split by responsibility, not by generic "utils" grouping.** Each agent is a fully self-contained module with its own prompts and logic, directly mirroring the five-agent architecture described in `04-prd.md` and `09-agent-orchestration.md`. This makes it trivial for anyone — a judge doing a fast code review, a future engineer joining the project, or the current team six weeks from now — to find exactly what code implements what claim in the PRD, without having to trace logic scattered across generic shared files.
+- **`agents/` is split by responsibility, not by generic "utils" grouping.** Each agent is a fully self-contained module with its own prompts and logic, directly mirroring the architecture described in `04-prd.md` and `09-agent-orchestration.md`. This includes `discovery/`, which implements the proactive re-review poller (`02-mvp-scope.md` §1) to demonstrate true autonomous initiative rather than purely reactive execution.
 
 - **`research/parallel_client.py` is deliberately isolated into its own file, not inlined into `agent.py`.** This single file is what satisfies the hackathon's hardest, most specific requirement (see `01-hackathon-scope.md` §4: "imported and called in code, not README-only"). Keeping it isolated means it's easy to point a judge directly at exactly the file that proves compliance, rather than making them read through a larger, mixed-purpose file to find the relevant lines.
 
-- **`ledger/append_only_store.py` is its own file, not inline logic inside `agent.py`.** The immutability guarantee is the single core governance claim of the entire product — it deserves to be independently readable, independently testable (see `tests/test_ledger_immutability.py`), and independently auditable by someone who wants to verify the claim without reading unrelated agent logic.
+- **`ledger/append_only_store.py` and `storage/firestore.rules` work together for immutability.** The immutability guarantee is the single core governance claim of the entire product — application-layer enforcement in `append_only_store.py` is backed by protocol-level security rules in `firestore.rules` (`06-data-schema.md` §3). It deserves to be independently readable, independently testable (`tests/test_ledger_immutability.py`), and independently auditable.
 
-- **`demo/` is a first-class top-level directory, not an afterthought bolted on in the final week.** Given that the Design judging criterion explicitly rewards "a complete, coherent product experience" (see `01-hackathon-scope.md` §6.2), the demo data and the failure-trigger mechanism are treated as real engineering deliverables with their own directory and their own files, planned for from the start — not scrambled together the night before recording.
+- **`intake/self_reflection.py` isolates prompt-injection defenses and extraction reflection.** Prompt injection is a major risk for LLM-driven compliance tools (`20-adversarial-input-defense.md`). Keeping self-reflection and instruction-hierarchy defenses isolated makes the Technological Implementation story clean and checkable.
+
+- **`demo/` is a first-class top-level directory, not an afterthought bolted on in the final week.** Given that the Design judging criterion explicitly rewards "a complete, coherent product experience" (see `01-hackathon-scope.md` §6.2), the demo data, adversarial fixtures (`sample_script_adversarial.pdf`), and the failure-trigger mechanism are treated as real engineering deliverables with their own directory and their own files, planned for from the start — not scrambled together the night before recording.
+
+- **`scripts/verify_integrations.py` provides a 60-second compliance check.** As noted in `22-pre-mortem.md` §4 and `12-qa-checklist.md` §3, judges reviewing asynchronously need an immediate, foolproof path to verify required API calls without debugging environment issues.
 
 - **`config/iam_bindings.py` exists specifically to make the least-privilege design real and checkable in code**, rather than leaving it as something only described in `07-env-vars.md`. A judge or future security reviewer should be able to open this one file and see the actual permission boundaries enforced, not have to trust that the documentation matches an implementation they can't easily locate.
 

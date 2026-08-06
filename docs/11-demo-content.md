@@ -34,7 +34,7 @@ He doesn't look away from the screen.
 
 ## 2. Expected Intake Agent output
 
-Per the extraction rules in `09-agent-orchestration.md` §2 — minimal, non-identifying, no plot/emotional context carried through:
+Per the extraction rules in `09-agent-orchestration.md` §3 — minimal, non-identifying, no plot/emotional context carried through:
 
 ```json
 [
@@ -75,7 +75,7 @@ Per the extraction rules in `09-agent-orchestration.md` §2 — minimal, non-ide
 Debussy died in 1918; the composition itself has been in the public domain for decades in essentially every jurisdiction (copyright term is life of the author plus 70 years in most countries, meaning this passed into the public domain around 1988). This should resolve cleanly and quickly — a good "clean" demo beat, and it's chosen specifically because it's *verifiably, unambiguously* true, not a convenient assumption. **Validation note:** confirm during the Week 0 spike test that Parallel's search actually surfaces this clearly, since the demo depends on this resolving fast and clean on camera.
 
 ### `clm_002` — Apollo 11 moon landing broadcast footage (the engineered-conflict claim)
-This is a real, well-documented rights ambiguity, not a contrived one — which matters, because it makes the demo's conflict-arbitration beat honest rather than gamed. The underlying facts: raw NASA-originated footage of the moon landing is a U.S. government work and is public domain under 17 U.S.C. § 105. However, the *broadcast* footage most people actually picture — with network commentary, graphics, and camera coverage decisions layered on by CBS (Walter Cronkite's coverage) or another network — is separately copyrighted by that network, since the broadcast itself is a distinct copyrightable work from the underlying government footage it's built on. A real Parallel search on "Apollo 11 moon landing broadcast footage ownership" is plausible to surface both facts from different sources — one emphasizing the NASA/public-domain angle, one emphasizing the network-broadcast-copyright angle — which is exactly the kind of genuine disagreement the Risk Scoring Agent's arbitration logic is built to catch and explain (see `09-agent-orchestration.md` §5).
+This is a real, well-documented rights ambiguity, not a contrived one — which matters, because it makes the demo's conflict-arbitration beat honest rather than gamed. The underlying facts: raw NASA-originated footage of the moon landing is a U.S. government work and is public domain under 17 U.S.C. § 105. However, the *broadcast* footage most people actually picture — with network commentary, graphics, and camera coverage decisions layered on by CBS (Walter Cronkite's coverage) or another network — is separately copyrighted by that network, since the broadcast itself is a distinct copyrightable work from the underlying government footage it's built on. A real Parallel search on "Apollo 11 moon landing broadcast footage ownership" is plausible to surface both facts from different sources — one emphasizing the NASA/public-domain angle, one emphasizing the network-broadcast-copyright angle — which is exactly the kind of genuine disagreement the Risk Scoring Agent's arbitration logic is built to catch and explain (see `09-agent-orchestration.md` §6).
 
 **This is the claim the whole demo's centerpiece moment depends on — treat it as the highest-priority item to validate early**, not late. If live Parallel results don't naturally produce this split during the Week 0-1 spike test, the fallback (documented honestly, not hidden) is to phrase the extracted claim in a way likely to surface both angles, or to pre-identify the two specific source URLs during demo-content prep and confirm the query reliably returns them before committing to this as the recorded take.
 
@@ -106,19 +106,25 @@ Matches `05-pitch-deck.md`'s timing exactly — this is the words-to-say version
 **[0:15–0:30]** *(architecture slide)*
 "Five agents: Intake extracts every rights-triggering claim. Research verifies each one live against the web using Parallel's Search API. Ledger logs everything immutably. Risk Scoring arbitrates and scores. Report produces a sourced, auditable output."
 
-**[0:30–1:45]** *(live run, narrating as it happens)*
+**[0:30–0:45]** *(the watcher beat — the answer to 'does this just wait for a human')*
+"This is where a production already keeps its scripts — nothing special, just a shared folder. Watch: I'll drop this scene in... and there — nobody clicked run. The Discovery Agent noticed the new file and started processing on its own."
+
+**[0:45–1:45]** *(live run, narrating as it happens)*
 "Here's a real scene — a diner, a jukebox playing Debussy, a TV showing Apollo 11 footage, a Coca-Cola bottle, a pack of Marlboros in the background. Watch the claims table populate live... Clair de Lune resolves clean — Debussy's been public domain for decades... Coca-Cola comes back flagged, licensing required... and here — the Marlboro claim — a research call just failed. Watch what happens: it doesn't crash the pipeline, it routes to manual review and keeps going."
 
 **[1:45–2:10]** *(the arbitration beat)*
 "Now the interesting one: Apollo 11 footage. A single-pass agent would've grabbed the first result — 'NASA footage, public domain' — and stopped there. But the raw footage and the network broadcast of it are legally distinct. Lienmark's arbitration step catches both: NASA's footage is public domain, but this appears to be the CBS broadcast, which is separately copyrighted. Both sources logged, conflict flagged, routed to a human — because a real clearance decision here needs a person, not a guess."
 
-**[2:10–2:35]** *(final report)*
+**[2:10–2:25]** *(the Discovery Agent beat — the answer to 'is this really agentic')*
+"Watch this claim sit in review for a moment... and there — nobody clicked anything. The Discovery Agent noticed it was still pending and resurfaced it on its own. That's the difference between a pipeline that reacts when told to, and one that's actually pursuing a goal — keeping this production's clearance status current, without being asked."
+
+**[2:25–2:45]** *(final report)*
 "Every finding here links to its actual source — nothing in this report is a verdict without a citation."
 
-**[2:35–2:50]** *(vision line)*
+**[2:45–2:55]** *(vision line)*
 "This is the title insurance model, applied to entertainment — unglamorous, but the record everyone has to check before a deal closes."
 
-**[2:50–3:00]** *(close)*
+**[2:55–3:00]** *(close)*
 "Lienmark. Parallel track. Thanks for watching."
 
 ## 6. `demo/failure_trigger.md` — how the simulated failure actually works

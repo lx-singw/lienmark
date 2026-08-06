@@ -2,7 +2,7 @@
 
 ## 1. Principles, and why each one is non-negotiable
 
-- **No secrets in code, ever.** Not as a "temporary for the demo" exception, not hardcoded "just to get the hackathon build working faster" — this is the kind of shortcut that's easy to take under deadline pressure and easy to forget to undo before the repo goes public. Given the repo *must* be public for submission (see `01-hackathon-scope.md` §5), a hardcoded API key isn't just bad practice, it's a real, immediate security incident the moment the repo is pushed.
+- **No secrets in code, ever.** Not as a "temporary for the demo" exception, not hardcoded "just to get the hackathon build working faster" — this is the kind of shortcut that's easy to take under deadline pressure and easy to forget to undo before the repo goes public. Given the repo *must* be public for submission (see `01-hackathon-scope.md` §6), a hardcoded API key isn't just bad practice, it's a real, immediate security incident the moment the repo is pushed.
 - **No secrets in `.env` files committed to the repo, ever.** Actual credential values live only in **Google Secret Manager**. Local `.env` files reference secret names for local development convenience only, and must be listed in `.gitignore` from the very first commit — not added after someone notices the omission.
 - **Each agent's service account should only have access to the secrets it actually needs.** This is the same least-privilege principle from `04-prd.md` §5.9, applied specifically to credential access — the Research Agent's service account should be able to read the Parallel API key; no other agent's service account should be able to.
 

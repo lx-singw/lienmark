@@ -1,0 +1,30 @@
+# Liability & Trust Posture
+
+This document addresses a gap that existed across the entire prior documentation set: every doc describes how Lienmark helps *other* companies manage rights and compliance risk, but none of them addressed Lienmark's *own* risk exposure as a company making clearance-adjacent claims. Given the product sits directly adjacent to legal and insurance decision-making, this isn't a nice-to-have — it's the kind of question a sophisticated buyer (or judge) would ask early, and not having an answer ready would be a real credibility gap.
+
+## 1. The core liability boundary — restated as a hard product rule, not just a PRD note
+
+`04-prd.md` §7 already establishes this as a non-goal: *"Lienmark surfaces risk and research to support a human decision; it does not replace an entertainment lawyer's final clearance judgment."* This document exists to make that boundary operational, not just aspirational:
+
+- **Every report output must carry this boundary in the artifact itself**, not just in a separate terms-of-service document a buyer might not read closely. The Report Agent's output (`09-agent-orchestration.md` §7) should include a standing disclaimer line on every generated report: something to the effect of *"This report reflects automated research as of [timestamp] and is intended to inform, not replace, professional legal clearance review."*
+- **No language anywhere in the product, marketing, or pitch materials should use the word "certify," "guarantee," or "approve"** in reference to a claim's clearance status. "Cleared" (as already used throughout the schema) is a defensible, accurate description of what the system found; "certified" or "approved" implies a legal warranty the system isn't making and shouldn't imply it's making, even informally in a pitch.
+
+## 2. The irony worth naming directly, not avoiding
+
+A company whose product helps insurers underwrite E&O risk for other people's productions will itself eventually need its own E&O-style coverage once it's a real business — for the risk that Lienmark's own research is wrong and a customer relies on it to their detriment. This is worth stating plainly in any real investor conversation rather than leaving unaddressed, both because it's true and because volunteering it signals the team has thought past the pitch into real operational risk. **This is not a hackathon-relevant concern** (a hackathon demo carries no real liability), but it belongs in this documentation package because the stated ambition (per the original framing of this whole project) is to use the hackathon as a genuine pre-seed step toward a real company — and a real company in this specific adjacency needs this on its radar from day one, not discovered later.
+
+## 3. Data security and retention posture — what a real buyer would ask in the first serious conversation
+
+`04-prd.md` §5.6 already establishes the confidentiality requirement (minimal, non-identifying search terms sent to Parallel). This section extends that into the broader data-handling questions a security-conscious insurer or studio would ask:
+
+- **Where does the original uploaded script/cut actually live, and for how long?** Per `06-data-schema.md` §1.3, the full source document lives in Cloud Storage, access-restricted, never duplicated into any collection that gets logged or transmitted elsewhere. A real retention policy needs a concrete answer: recommended default is to retain the original document only as long as the production remains active in the system, with a defined deletion window (e.g., 90 days after a customer's account closes or a production is marked complete) rather than indefinite retention by default.
+- **Encryption at rest and in transit:** Cloud Storage and Firestore both support encryption at rest by default under Google Cloud; this should be explicitly confirmed as enabled (not just assumed) and stated as such in any real security questionnaire response, since "we use Google Cloud" is not by itself a complete answer — a buyer's security team will ask for specifics.
+- **Who can access the raw source document, internally?** Per the least-privilege IAM design (`07-env-vars.md` §4), only the Intake Agent's service account reads the source document — no human team member should have standing access to customer scripts outside of a documented, logged, exceptional-access process (e.g., debugging a reported extraction error). This should be a real operational policy once there are real customers, not just an IAM configuration detail.
+- **GDPR/CCPA-adjacent consideration:** claims of type `real_person` (per `06-data-schema.md` §2) involve processing information about named individuals, which could touch personal-data regulations depending on jurisdiction and whether the "real person" is a private individual versus a public figure. This is a genuinely open legal question worth a real privacy-counsel review once the company is operating with real customer data — flagged here so it isn't silently missed, not resolved here, since resolving it properly requires actual legal expertise this document can't substitute for.
+
+## 4. What this means for the hackathon submission specifically
+
+None of the above needs to be *built* for the hackathon MVP — it's out of scope per `02-mvp-scope.md` §8 (no real customer data, synthetic demo content only). But two small additions are worth making to the hackathon submission specifically, because they're cheap and they preemptively answer a sophisticated judge's likely question:
+
+1. **Add the standing disclaimer line to the Report Agent's output** (see §1 above) — this is a few words of template text, not a feature, and it demonstrates the team has thought about the product's real-world liability boundary rather than only its technical capability.
+2. **Have the answer to "what if Lienmark is wrong" ready in the judge Q&A prep** (`15-judge-qna-prep.md` already includes this) — pointing back to this document's reasoning if a more detailed answer is ever needed.

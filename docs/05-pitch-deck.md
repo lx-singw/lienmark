@@ -67,16 +67,17 @@ Most teams will lean into one of these. Lienmark's actual product thesis *is* th
 
 ---
 
-## Slide 6 — How it works (the five agents)
+## Slide 6 — How it works (six agents, not five — one of them decides when to act)
 
 **On screen:**
+0. **Discovery** — autonomously decides when a run should happen, including proactively resurfacing a stalled claim without being asked — the genuinely agentic entry point, not a human clicking upload
 1. **Intake** — extracts every rights-triggering claim from a script or cut, generates minimal non-identifying search terms
 2. **Research** — live Parallel Search API call per claim, verifies ownership/licensing/dispute status
 3. **Ledger** — writes every claim + finding to an immutable, versioned record
 4. **Risk Scoring** — deterministic, rule-based scoring on top of LLM-extracted facts; arbitrates conflicting sources; routes uncertain claims to human review
 5. **Report** — every finding sourced and cited, cleared/flagged/pending-review clearly separated
 
-**Speaker notes:** Keep this slide brief in narration — it's a map for what's about to be shown live, not a place to over-explain. The full technical detail behind each agent lives in `09-agent-orchestration.md`; this slide should say just enough that the live demo makes immediate sense, then get out of the way.
+**Speaker notes:** Keep this slide brief in narration — it's a map for what's about to be shown live, not a place to over-explain. Worth a half-beat of emphasis on Discovery specifically, though, since it's the direct answer to the sharpest question this architecture invites: "if a human has to upload the file, is this really agentic?" Full technical detail behind each agent lives in `09-agent-orchestration.md`; this slide should say just enough that the live demo makes immediate sense, then get out of the way.
 
 ---
 
@@ -117,6 +118,8 @@ The real-estate title insurance model, applied to entertainment. Unglamorous, ma
 ## Slide 8b — How this makes money
 
 **On screen:**
+A conservative market floor: **857 major English-language productions/year (U.S.-based) × 200+ claims × ~$300/claim ≈ $51M/year** in current manual clearance spend — before counting international volume or the broader indie/documentary/streaming universe.
+
 Three buyer segments, three pricing motions:
 
 | Buyer | Pricing model | Why this shape |
@@ -125,7 +128,7 @@ Three buyer segments, three pricing motions:
 | E&O insurers | Per-report or annual data-partnership fee | Clearance quality is a direct underwriting input — this is priced as risk-reduction data, not "software" |
 | Post-production supervisors (mid-size indie/doc companies) | Per-seat or per-production SaaS | The day-to-day user, faster sales cycle, lower contract value but higher volume potential |
 
-**Speaker notes:** This slide exists because a judge evaluating "Potential Impact" may directly ask how money actually changes hands — the docs elsewhere name the buyers (`04-prd.md` §3) but never specify the transaction shape until now. Keep this slide honest about being a *hypothesis*, not a validated pricing model — say "here's our starting model, to be validated with real buyer conversations" rather than presenting invented numbers as if they were confirmed. Overclaiming pricing validation that doesn't exist yet is a worse look than presenting a reasoned, clearly-labeled hypothesis.
+**Speaker notes:** This slide exists because a judge evaluating "Potential Impact" may directly ask how money actually changes hands — the docs elsewhere name the buyers (`04-prd.md` §3) but never specified the transaction shape or market size until now. Lead with the $51M figure — it's sourced, conservative, and gives judges a concrete number to repeat in deliberation (full calculation and sourcing in `04-prd.md` §1.1 and `14-sources-appendix.md`). Keep the pricing table honest about being a *hypothesis*, not a validated pricing model — say "here's our starting model, to be validated with real buyer conversations" rather than presenting invented numbers as if they were confirmed. Overclaiming pricing validation that doesn't exist yet is a worse look than presenting a reasoned, clearly-labeled hypothesis.
 
 ---
 
@@ -151,22 +154,24 @@ Not a demo we'll abandon after judging — this is the first product of a compan
 
 ---
 
-## Demo Video Shot List (3 minutes, hard limit — see `01-hackathon-scope.md` §5 for the submission rules this has to satisfy)
+## Demo Video Shot List (3 minutes, hard limit — see `01-hackathon-scope.md` §6 for the submission rules this has to satisfy)
 
 | Time | Content |
 |---|---|
 | 0:00–0:15 | Problem statement, spoken over a simple visual (the claim-volume/cost-baseline stat from Slide 2) |
-| 0:15–0:30 | Quick architecture overview — five agents, one sentence each, matching Slide 6 |
-| 0:30–1:45 | **Live run**: upload demo script excerpt → watch claims table populate live → show one clean claim resolve, one high-risk claim resolve, one ambiguous claim route to human review → show the deliberately-triggered Parallel call failure degrade gracefully instead of crashing |
+| 0:15–0:30 | Quick architecture overview — six agents (Discovery, Intake, Research, Ledger, Risk Scoring, Report), one sentence each, matching Slide 6 |
+| 0:30–0:45 | **The opening beat that matters most (do not default to an upload button here):** show a script file being placed in a watched location — framed as an ordinary action, not as operating the tool ("here's where this production already keeps its scripts") — and the pipeline starting on its own. Narrate explicitly: "nobody clicked run — the Discovery Agent noticed a new file and started." This is the single most important 15 seconds in the video for answering "is this really agentic," and it should not be quietly downgraded back to an upload click under time pressure. |
+| 0:45–1:45 | **Live run continues**: watch claims table populate live → show one clean claim resolve, one high-risk claim resolve, one ambiguous claim route to human review → show the deliberately-triggered Parallel call failure degrade gracefully instead of crashing |
 | 1:45–2:10 | **The arbitration beat (do not cut this):** one claim in the demo set is built to return conflicting ownership findings from two sources. Show a split-screen or sequential callout: "single-agent pass: would have surfaced [source A] and stopped here" vs. "Lienmark's arbitration: weighs authority + recency + corroboration, catches the conflict with [source B], logs both, routes to human review with the conflict visible." This is the single most concrete "Quality of the Idea" moment in the video — it's the literal demonstration of the multi-agent-vs-single-agent efficiency gain, not just a claim about it. |
-| 2:10–2:35 | Final report screen — sourced citations visible, cleared/flagged/pending clearly separated, conflicted claim visibly flagged with both sources shown |
-| 2:35–2:50 | One sentence on the long-term vision (title insurance line from Slide 8) |
-| 2:50–3:00 | Close: name, track, call to action |
+| 2:10–2:25 | **The Discovery Agent beat (new, do not cut this either):** after the conflict claim sits in human review for a short, visible interval, the Discovery Agent proactively resurfaces it — a notification-style UI moment happening without any human clicking anything. Narrate this explicitly as the difference between a reactive pipeline and a genuinely agentic one: "nobody asked it to check again — it noticed on its own." This is worth its own few seconds precisely because it's the most direct rebuttal to the obvious critique that uploading a file isn't agentic behavior. |
+| 2:25–2:45 | Final report screen — sourced citations visible, cleared/flagged/pending clearly separated, conflicted claim visibly flagged with both sources shown |
+| 2:45–2:55 | One sentence on the long-term vision (title insurance line from Slide 8) |
+| 2:55–3:00 | Close: name, track, call to action |
 
 **Demo data requirement this adds:** the "ambiguous claim" in the mixed demo set (see `02-mvp-scope.md` §3) should specifically be engineered to trigger two conflicting Parallel findings — not just be vague or under-specified. This is a deliberate test-data design choice that has to be built ahead of time, not something you can rely on happening naturally within a 3-minute recording window on a live, unpredictable web search.
 
 **Production notes:**
-- The video must show the software functioning as built — explicitly not a cinematic trailer, per the hackathon's own submission rules (see `01-hackathon-scope.md` §5). Given the hackathon's entire theme is "cinema," resist any temptation to make this feel like a movie trailer; it should read as an honest, slightly informal screen recording with narration.
+- The video must show the software functioning as built — explicitly not a cinematic trailer, per the hackathon's own submission rules (see `01-hackathon-scope.md` §6). Given the hackathon's entire theme is "cinema," resist any temptation to make this feel like a movie trailer; it should read as an honest, slightly informal screen recording with narration.
 - English narration, or English subtitles if recorded in another language
 - Must be public on YouTube or Vimeo
 - The graceful-failure moment (0:30-1:45 window) should look genuinely real, not staged-perfect — a controlled failure that resolves well is a more convincing signal of production-readiness to a judge than a run where nothing ever breaks, which can read as suspiciously rehearsed

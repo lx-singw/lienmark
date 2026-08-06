@@ -47,6 +47,8 @@ The actual buyer segment, in priority order:
 
 ## 4. Phase 2 — Lienmark Synthetic
 
+**Architectural addition alongside the feature set below: the planning orchestrator.** Everything in the MVP (`02-mvp-scope.md`) is a fixed pipeline with real agentic reasoning inside each step, plus bounded local adaptations (research reformulation, a callable human-in-the-loop action) — but the sequence of steps itself never varies per document. Phase 2 is the right point to build a genuine planning orchestrator that dynamically decides pipeline shape per document, rather than executing an invariant sequence — the real, larger step toward full agentic architecture (see `25-agentic-maturity-roadmap.md` for the complete reasoning on why this is deliberately deferred past the hackathon, and `09-agent-orchestration.md` §9 for the specific, corrected recommendation that this is the point at which LangGraph becomes the right orchestration framework, reversing the MVP's native-ADK choice for this specific capability only).
+
 **Timing rationale:** this phase is sequenced immediately after MVP validation specifically because it's riding a *live, currently-unfolding* regulatory shift, not a speculative future trend. Major studios have already moved from complaints to formal cease-and-desist actions against AI video generation platforms, and SAG-AFTRA/MPA guidance is actively tightening around consent for synthetic performers. Waiting on this phase risks building it after the regulatory window has already normalized into settled practice that competitors have caught up to.
 
 **Full feature set:**

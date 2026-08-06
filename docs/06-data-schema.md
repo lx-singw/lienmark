@@ -71,6 +71,13 @@ parallel_query: string           # the actual query string sent to Parallel — 
 call_status: enum [success, failed, timeout]
 ```
 
+**Precise definitions for each `ownership_status` value** — this wasn't previously specified precisely enough to guarantee consistent agent behavior, which is a real implementation-ambiguity risk worth closing before code gets written, since two engineers (or two runs of an LLM-assisted extraction) could otherwise reasonably classify the same finding differently:
+
+- **`clear`** — a credible source affirmatively states the work is public domain, unrestricted, or otherwise usable without further licensing action. Requires a positive statement, not just an absence of found restrictions — "no licensing information found" is `unknown`, not `clear`.
+- **`licensing_required`** — a credible source confirms active, enforceable rights exist (a live trademark, an active copyright with an identifiable holder) and some licensing or clearance action is required before use. This is a confident, actionable finding, not a vague risk flag.
+- **`disputed`** — multiple credible sources make contradictory claims about ownership or clearance status for the same claim. This is the state that triggers `conflict_detected: true` in the Risk Scoring Agent (§5 below) — by definition, a claim cannot be `disputed` from a single finding alone; it requires at least two findings in tension.
+- **`unknown`** — the search returned no sufficiently credible or specific result either way. This is meaningfully different from `disputed` (contradiction) and different from a failed call (`call_status: failed`, which means the search itself didn't complete) — `unknown` means the search completed successfully but didn't produce a usable answer.
+
 **Why `parallel_query` is stored verbatim:** beyond auditability, this field is what lets a judge (or a future engineer) verify that the confidentiality requirement (§1.3) is actually being honored — anyone can inspect this field and confirm the query sent to Parallel was the minimal, non-identifying description, not the full scene text. This turns a design *claim* into something independently checkable.
 
 ### `ledger_entries` — append-only, the core governance artifact
