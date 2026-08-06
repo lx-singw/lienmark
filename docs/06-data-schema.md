@@ -24,6 +24,7 @@ title: string
 created_at: timestamp
 source_document_ref: string     # storage path to the uploaded script/cut in Cloud Storage,
                                   # never duplicated into any other collection
+script_content_hash: string    # SHA-256 content hash of ingested PDF for instant deduplication
 status: enum [processing, complete, needs_review]
 ```
 
@@ -45,6 +46,7 @@ co_occurring_claim_ids: array[string] # claim IDs sharing scene-level proximity 
 genai_provenance_required: boolean # true if synthetic media keywords detected in stage directions
 opt_out_registry_flagged: boolean # true if training opt-out notice found on Spawning.ai/HaveIBeenTrained
 territory_codes: array[string]  # target distribution jurisdictions e.g. ["US", "EU", "UK", "JP"]
+suggested_fair_use_defense: string (nullable) # 4-factor Fair Use defense heuristic (17 U.S.C. § 107)
 estimated_licensing_cost_min: float (nullable) # estimated cost floor for clearance rate cards
 estimated_licensing_cost_max: float (nullable) # estimated cost ceiling
 created_at: timestamp

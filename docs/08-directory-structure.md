@@ -54,6 +54,7 @@ lienmark/
 │   │   │   ├── agent.py
 │   │   │   ├── prompts.py
 │   │   │   ├── claim_extraction.py
+│   │   │   ├── script_hasher.py           # SHA-256 script deduplication calculator (04-prd.md §5.2)
 │   │   │   ├── genai_provenance.py        # opt-out registry & synthetic media auditor (04-prd.md §5.2)
 │   │   │   └── self_reflection.py        # self-reflection pass & prompt-injection defense —
 │   │   │                                    see 02-mvp-scope.md §1 & 20-adversarial-input-defense.md §2
@@ -71,6 +72,7 @@ lienmark/
 │   │   ├── risk_scoring/
 │   │   │   ├── agent.py
 │   │   │   ├── deterministic_rules.py     # rule-based scoring logic — NOT an LLM freehand judgment
+│   │   │   ├── fair_use_analyzer.py      # 4-factor Fair Use & De Minimis defense pre-analyzer (04-prd.md §5.4)
 │   │   │   ├── conflict_arbitration.py    # multi-source conflict resolution — demo centerpiece
 │   │   │   └── cross_claim_reasoning.py   # production-wide cross-claim relationship evaluation (04-prd.md §5.4)
 │   │   ├── report/
@@ -139,6 +141,7 @@ lienmark/
 │   ├── run_local_demo.sh                  # one-click local runner launching backend + frontend
 │   ├── seed_demo_data.py
 │   ├── test_week0_validation.py           # Week 0 API de-risking script (13-technical-validation.md)
+│   ├── verify_ledger_integrity.py         # 5-second cryptographic SHA-256 hash chain ledger auditor (04-prd.md §5.5)
 │   └── verify_integrations.py             # 60-second judge compliance verification helper (12-qa-checklist.md §3)
 ├── .github/
 │   └── workflows/

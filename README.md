@@ -38,6 +38,12 @@ Insurers (**E&O**) and **completion bond companies** require verifiable, auditab
 > 
 > ### ⚖️ Enforced Human-in-the-Loop (HITL) Guardrails
 > Rights clearance carries real legal liability. Lienmark explicitly frames all outputs as **Clearance Intelligence & Verification Audit** — providing structured research and deterministic conflict arbitration while enforcing human attorney sign-offs (`action_type: attorney_override`) on all flagged claims.
+> 
+> ### 🛡️ Concurrency Throttling & SHA-256 Script Deduplication
+> An `asyncio.Semaphore(10)` governor in `parallel_client.py` throttles multi-claim research loops, preventing Parallel API rate-limit errors. Meanwhile, `script_hasher.py` computes SHA-256 content hashes to instantly return existing ledger entries for duplicate script drops without wasting search API credits.
+> 
+> ### 🔐 Cryptographic Hash-Chain Ledger Integrity Verification
+> E&O underwriters require proof that historical clearance records were never tampered with. Run `python scripts/verify_ledger_integrity.py` to audit SHA-256 hash chains across Firestore entries in <5 seconds.
 
 ---
 
