@@ -39,6 +39,7 @@ lienmark/
 │   ├── 23-competitor-comparison-matrix.md
 │   ├── 24-vision-and-mission.md
 │   ├── 25-agentic-maturity-roadmap.md
+│   ├── 26-hackathon-alignment-matrix.md # Devpost judging criteria & sponsor requirements alignment
 │   ├── api-reference.md               # complete REST API specifications & untruncated payloads
 │   ├── installation.md                # hardware minimums, setup commands, troubleshooting matrix
 │   ├── contributing.md                # code quality standards, pytest strategies, branching rules
