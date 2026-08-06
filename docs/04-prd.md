@@ -37,10 +37,10 @@ This calculation exists specifically to close a gap: earlier versions of this do
 ## 2. Product vision
 
 ### 2.1 One-line description
-An agentic verification layer that ingests a script or cut, extracts every rights-triggering element, and autonomously researches and verifies current ownership and clearance status — producing an auditable, sourced clearance ledger.
+An independent Clearance Intelligence & Verification Audit platform that ingests a script or cut, extracts every rights-triggering element, autonomously researches live ownership and clearance status via domain-steered queries, and records every automated finding and human attorney sign-off on an append-only ledger.
 
 ### 2.2 Long-term vision, and why this specific framing matters
-> The independent verification layer sitting between a studio and everyone it can't fully trust or see — vendors on one side, rights-holders on the other. The ledger both sides check before money or content moves.
+> The independent Clearance Intelligence & Verification Audit layer sitting between a studio and everyone it can't fully trust or see — vendors on one side, rights-holders on the other. The audit ledger both sides and underwriters check before money or content moves.
 
 This is deliberately modeled on the real-estate title insurance industry, and the reasoning for that specific analogy (rather than a more generic "SaaS tool for studios" framing) is laid out in full in `03-post-mvp-scope.md` §1. The short version: the goal is not to build a tool studios *choose* to use because it's good, but a verification step that surrounding institutions (insurers, bond companies) increasingly *require* as a condition of doing business — unglamorous, mandatory, and difficult to dislodge once embedded in standard deal-closing practice.
 
@@ -88,9 +88,9 @@ The hackathon's own promotional language frames three roles for participants: **
 - Must generate a minimal, non-identifying search term per claim rather than passing along the full surrounding narrative context — see §5.6 for the full confidentiality rationale, since this requirement exists specifically to prevent leaking unreleased script content to a third-party service
 
 ### 5.3 Live research (Research Agent)
-- Must issue a live call to Parallel's Search API for every extracted claim — this is the hackathon-required integration point, and the specific compliance bar (Search API specifically, called via an official SDK, genuinely present in code) is detailed in `01-hackathon-scope.md` §4
+- Must issue live domain-steered query calls to Parallel's Search API for every extracted claim — targeting authoritative public registries per claim type (ASCAP/BMI/HFA for music; USPTO/TESS/WIPO for brands; Copyright.gov catalog for footage/literary; SAG-AFTRA/union notices for real persons) rather than relying on generic open-web queries
 - Must retrieve current ownership status, licensing contact information where available, and any known prior disputes for each claim
-- Each claim's research must be independently traceable back to its own specific call and result — batched or blended queries that can't be attributed to a single claim are not acceptable, both because they violate the "one sourced finding per claim" requirement (§5.7) and because they would undermine the demo's ability to show N distinct, purposeful calls happening live
+- Each claim's research must be independently traceable back to its own specific call, domain query string, and result — batched or blended queries that can't be attributed to a single claim are not acceptable, both because they violate the "one sourced finding per claim" requirement (§5.7) and because they would undermine the demo's ability to show N distinct, purposeful calls happening live
 
 ### 5.4 Deterministic risk scoring (Risk Scoring Agent)
 - Risk scores must be computed via rule-based logic operating on top of LLM-extracted facts — explicitly not a freehand LLM-generated score with no reproducible logic behind it
@@ -98,10 +98,11 @@ The hackathon's own promotional language frames three roles for participants: **
 - Claims with low confidence or conflicting sources must route to a human-in-the-loop review state rather than auto-resolving — this is a deliberate design decision, not a fallback for insufficient confidence in the technology. No completion bond company or insurer would trust a fully-automated "yes, this is clear" verdict with zero human gate on genuinely uncertain claims, and building the human checkpoint in from the start is both more honest and a stronger product story than adding it later under pressure from a skeptical buyer
 - Where the Research Agent surfaces conflicting findings from multiple sources for the same claim, the Risk Scoring Agent must perform explicit arbitration — weighing source authority, recency, and corroboration — and must log the conflict rather than silently picking one finding and discarding the other. This is not just a data-integrity requirement; it's also the specific mechanic that produces the strongest demo moment in the entire submission (see the Pitch Deck's demo video shot list for how this gets shown on camera)
 
-### 5.5 Ledger (Ledger Agent)
+### 5.5 Ledger & Human Attorney Sign-off (Ledger Agent)
 - Must be append-only and immutable — no updates or deletes on any ledger record, only new versioned inserts with a `superseded_by` pointer connecting an old entry to whatever replaced it
+- Must support both automated findings (`action_type: agent_finding`) and explicit **Human Attorney Overrides & Approvals** (`action_type: attorney_approval` or `attorney_override`) with legal audit fields (`reviewed_by`, `override_reason`, `legal_citation_ref`), updating status to `attorney_cleared` or `attorney_flagged` without altering historical agent records
 - Must support delta-based retrieval: re-evaluating a production for a new deal or renewal should be able to pull the current state plus only what's changed since the last check, rather than replaying the full history every single time. This requirement is deliberately borrowed from "memory agent" hackathon patterns focused on efficient retrieval under context-window constraints — the underlying problem (how do you keep a growing historical record useful and fast to query, rather than letting it become an unwieldy full-replay burden) is the same shape whether you're talking about conversational memory or claim history, and solving it well here is both a legitimately better product and a stronger technical story about having thought about scale rather than just correctness on a single demo run
-- This is the architectural foundation of the entire title-insurance-model thesis — an insurer or bond company will only ever trust a ledger that is provably tamper-evident, and "provably" here means enforced at the storage layer (database security rules), not just promised in documentation or application-level convention that a future bug could silently violate
+- This is the architectural foundation of the entire title-insurance-model thesis — an insurer or bond company will only ever trust a clearance intelligence ledger that is provably tamper-evident and maintains a clear audit trail of attorney sign-offs, enforced at the storage layer (database security rules), not just promised in documentation or application-level convention that a future bug could silently violate
 
 ### 5.6 Confidentiality
 - The Intake Agent must extract minimal, non-identifying search terms per claim before anything is transmitted to Parallel — for example, "ownership status of song 'X' by artist Y," never the surrounding scene or plot text that gives that claim its narrative context
@@ -135,7 +136,7 @@ Stating these clearly matters as much as stating the goals, because ambiguity he
 - Not a script-generation or content-creation tool of any kind
 - Not a general-purpose entertainment analytics platform
 - Not building for individual indie filmmakers as the primary buyer (see §3 and `03-post-mvp-scope.md` §3 for the full reasoning)
-- Not attempting to fully automate legal sign-off — Lienmark surfaces risk and research to support a human decision; it does not replace an entertainment lawyer's final clearance judgment, and no messaging (internal or external) should imply otherwise, both because it would be inaccurate and because overclaiming here would undermine the exact trust the product depends on
+- Not attempting to fully automate legal sign-off — Lienmark operates as a Clearance Intelligence & Verification Audit system to support human decisions; it provides automated evidence and an auditable ledger for attorney review, but does not replace an entertainment lawyer's final clearance judgment. All attorney approvals and overrides are recorded as first-class versioned ledger entries with explicit audit attribution.
 
 ## 8. Competitive positioning — the direct objection-handling answer
 

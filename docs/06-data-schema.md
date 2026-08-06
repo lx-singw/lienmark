@@ -88,17 +88,26 @@ entry_id: string (doc id)
 claim_id: string (ref)
 finding_id: string (ref, nullable — an entry can exist before a finding does, e.g. "claim registered, research pending")
 version: integer                 # increments per claim; a version number is never reused
-status: enum [pending, cleared, flagged, needs_human_review]
+action_type: enum [agent_finding, attorney_approval, attorney_override] # distinguishes automated finding from human legal sign-off
+status: enum [pending, cleared, flagged, needs_human_review, attorney_cleared, attorney_flagged]
 superseded_by: string (nullable, ref to a later entry_id — set when a newer entry replaces this one)
 written_at: timestamp
-written_by_agent: string         # which agent wrote this entry — part of the audit trail
+written_by_agent: string         # agent ID or human attorney ID/email — part of the audit trail
+reviewed_by: string (nullable)   # attorney name/ID/email when action_type is attorney_approval or attorney_override
+override_reason: string (nullable) # detailed legal rationale for attorney override or approval
+legal_citation_ref: string (nullable) # legal document, license contract ref, or statutory exemption cited by attorney
 ```
 
-**Worked example of the versioning pattern**, since this is the part most likely to be implemented incorrectly under time pressure: imagine claim `clm_7f3a9b` is first researched and comes back `cleared` (version 1). Weeks later, the production is re-evaluated before a distribution deal closes, and a new Parallel search surfaces a fresh dispute over that same song's rights. The correct behavior is **not** to edit the version-1 entry. Instead:
+**Worked example 1 (Automated Research Versioning):** imagine claim `clm_7f3a9b` is first researched and comes back `cleared` (version 1, `action_type: agent_finding`). Weeks later, the production is re-evaluated before a distribution deal closes, and a new Parallel search surfaces a fresh dispute over that same song's rights. The correct behavior is **not** to edit the version-1 entry. Instead:
 1. A new `research_findings` document is created reflecting the new dispute
-2. A new `ledger_entries` document is created: `version: 2`, `status: flagged`, referencing the new finding
+2. A new `ledger_entries` document is created: `version: 2`, `status: flagged`, `action_type: agent_finding`, referencing the new finding
 3. The version-1 entry gets its `superseded_by` field set to the version-2 entry's ID
 4. Both entries remain permanently queryable — anyone auditing the ledger can see the full history: it was cleared, then later flagged, and exactly when and why each state existed
+
+**Worked example 2 (Human Attorney Override Versioning):** Continuing from Example 1, suppose production legal counsel reviews the `flagged` claim (version 2) and provides an executed synchronization license agreement (#SYNC-2026-884) proving rights were secured off-platform. The attorney submits an override in the UI:
+1. A new `ledger_entries` document is created: `version: 3`, `status: attorney_cleared`, `action_type: attorney_override`, `reviewed_by: "attorney_jane_doe@productionlegal.com"`, `override_reason: "Executed master & sync license agreement verified on file"`, `legal_citation_ref: "License Agreement #SYNC-2026-884"`
+2. The version-2 entry gets its `superseded_by` field set to the version-3 entry's ID
+3. The complete audit trail (v1 automated clear $\rightarrow$ v2 automated flag $\rightarrow$ v3 human attorney clearance) is preserved immutably for underwriters and bond companies without erasing the historical agent findings.
 
 ### `risk_scores`
 The deterministic output of the Risk Scoring Agent for each claim.

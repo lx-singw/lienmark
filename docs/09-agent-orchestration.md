@@ -162,6 +162,14 @@ Notice what's deliberately **not** in either `extracted_description`: the emotio
 ```
 
 **Key behaviors:**
+- **Domain-targeted, registry-steered query construction — not generic open-web searches.** The agent constructs query strings formatted specifically for authoritative databases per claim type to maximize Parallel API confidence and source authority:
+  - `music`: `"ownership, PRO sync rights, ASCAP BMI HFA registry status for {extracted_description}"`
+  - `brand`: `"trademark registration status, USPTO WIPO TESS filing for {extracted_description}"`
+  - `footage`: `"copyright registration status, US Copyright Office catalog for {extracted_description}"`
+  - `real_person`: `"right of publicity, SAG-AFTRA guild clearance considerations for {extracted_description}"`
+  - `genai_flag`: `"copyright training data provenance, U.S. Copyright Office AI guidance for {extracted_description}"`
+  - `other`: `"{extracted_description} ownership and legal status"`
+
 - **Parallelized, per-claim calls — not one blended query.** This matters for two independent reasons: technically, it's the only way to keep each finding traceable back to a specific claim (a requirement in `06-data-schema.md` §1.2); and for the demo, judges need to see N distinct, live calls happening, not one aggregate call that's harder to visually attribute to individual claims on screen.
 - **Integration method:** the official `parallel-web` SDK (Python), calling the Search API directly. This must be a real, imported, callable function in the submitted repo — see `backend/agents/research/parallel_client.py` in `08-directory-structure.md`, which is deliberately isolated into its own file specifically so a judge can find and verify it quickly.
 - **Failure handling:** on a timeout or API failure, the agent writes a finding with `call_status: failed` and `ownership_status: unknown`, rather than raising an unhandled exception that would kill the entire pipeline run. This is deliberately the moment worth triggering on camera during the demo — see `05-pitch-deck.md`'s shot list and `07-env-vars.md` §2's `DEMO_MODE` flag, which enables a reliable, repeatable way to simulate this failure for recording purposes rather than hoping a real timeout happens to occur during a live take.
@@ -173,13 +181,11 @@ from parallel import Parallel
 client = Parallel(api_key=settings.PARALLEL_API_KEY)
 
 def research_claim(claim: Claim) -> Finding:
+    query_str = build_domain_steered_query(claim) # uses registry-targeted templates above
     try:
         result = client.search(
-            query=claim.extracted_description,
-            # confirm current parameter names against docs.parallel.ai before build —
-            # e.g. result-count limits, freshness/recency filters if available,
-            # and whether a domain-allowlist parameter exists that could be useful
-            # for prioritizing authoritative sources like copyright registries
+            query=query_str,
+            # confirm current parameter names against docs.parallel.ai before build
         )
         return Finding.from_search_result(claim.claim_id, result)
     except (TimeoutError, ParallelAPIError):
@@ -296,6 +302,40 @@ The exact weights and formula shape here are illustrative and should be tuned ba
 **Key behaviors:**
 - **No unsourced verdicts, anywhere, ever.** Every claim in `cleared_claims` and `flagged_claims` must carry a `source_url` traceable back to a real Research Agent finding — this is the single most trust-building detail visible to a judge or a real insurer reviewing the output, and it costs nothing extra to build correctly since the data already exists upstream in the pipeline by the time it reaches this agent.
 - **Clear three-way separation** (cleared / flagged / pending review) — this is what makes the output usable by a non-technical buyer (an insurer's or bond company's reviewer scanning the report in seconds) rather than only legible to the engineering team that built the system.
+
+## 7. Human Attorney Review & Override Flow (Human-in-the-Loop)
+
+**Responsibility:** Allow production legal counsel to review `needs_human_review` or `flagged` claims, submit formal legal sign-offs (`attorney_approval` or `attorney_override`), and commit append-only audit entries to the ledger.
+
+**Input:** A target `claim_id`, previous `ledger_entry_id`, attorney credentials (`reviewed_by`), decision (`attorney_cleared` | `attorney_flagged`), rationale (`override_reason`), and optional contract/statutory reference (`legal_citation_ref`).
+
+**Payload contract (UI $\rightarrow$ API):**
+```json
+{
+  "claim_id": "clm_001",
+  "action_type": "attorney_override",
+  "target_status": "attorney_cleared",
+  "reviewed_by": "counsel@productionlaw.com",
+  "override_reason": "Executed synchronization and master use license agreement verified on file",
+  "legal_citation_ref": "License Contract #SYNC-2026-884"
+}
+```
+
+**Output behavior:**
+1. Validates that the requesting user has `attorney_reviewer` permissions.
+2. Retrieves the latest `ledger_entries` record for `claim_id` (e.g. `version: 2`).
+3. Writes a new `ledger_entries` document with:
+   - `version: 3`
+   - `action_type: "attorney_override"` (or `"attorney_approval"`)
+   - `status: "attorney_cleared"`
+   - `reviewed_by: "counsel@productionlaw.com"`
+   - `override_reason: "Executed synchronization..."`
+   - `legal_citation_ref: "License Contract #SYNC-2026-884"`
+   - `written_by_agent: "attorney_counsel@productionlaw.com"`
+4. Updates version 2's `superseded_by` field to point to version 3.
+5. Emits an audit event for the Clearance Intelligence Report generator.
+
+This flow enforces that Lienmark acts strictly as a **Clearance Intelligence & Verification Audit** tool, maintaining complete legal attribution for human sign-offs while preserving the full history of automated agent findings.
 
 ## 8. Error taxonomy — beyond Parallel call failures
 

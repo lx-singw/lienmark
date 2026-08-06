@@ -2,12 +2,14 @@
 
 This document addresses a gap that existed across the entire prior documentation set: every doc describes how Lienmark helps *other* companies manage rights and compliance risk, but none of them addressed Lienmark's *own* risk exposure as a company making clearance-adjacent claims. Given the product sits directly adjacent to legal and insurance decision-making, this isn't a nice-to-have — it's the kind of question a sophisticated buyer (or judge) would ask early, and not having an answer ready would be a real credibility gap.
 
-## 1. The core liability boundary — restated as a hard product rule, not just a PRD note
+## 1. Product category reframing & the core liability boundary
 
-`04-prd.md` §7 already establishes this as a non-goal: *"Lienmark surfaces risk and research to support a human decision; it does not replace an entertainment lawyer's final clearance judgment."* This document exists to make that boundary operational, not just aspirational:
+`04-prd.md` §7 and `09-agent-orchestration.md` §7 establish Lienmark's category position as a **Clearance Intelligence & Verification Audit** platform, not an automated legal counsel: *"Lienmark surfaces risk and research to support a human decision; it does not replace an entertainment lawyer's final clearance judgment."* This document makes that boundary operational:
 
-- **Every report output must carry this boundary in the artifact itself**, not just in a separate terms-of-service document a buyer might not read closely. The Report Agent's output (`09-agent-orchestration.md` §7) should include a standing disclaimer line on every generated report: something to the effect of *"This report reflects automated research as of [timestamp] and is intended to inform, not replace, professional legal clearance review."*
-- **No language anywhere in the product, marketing, or pitch materials should use the word "certify," "guarantee," or "approve"** in reference to a claim's clearance status. "Cleared" (as already used throughout the schema) is a defensible, accurate description of what the system found; "certified" or "approved" implies a legal warranty the system isn't making and shouldn't imply it's making, even informally in a pitch.
+- **Category Definition**: Lienmark is a **Clearance Intelligence & Verification Audit** platform. It provides structured research intelligence, domain-steered registry findings, and an append-only audit ledger for human legal review.
+- **Formal Attorney Sign-Off & Override Auditability**: Human legal counsel remains the sole authority for final clearance decisions. When an attorney reviews a flagged claim or provides off-platform documentation (e.g. an executed sync license), their action is committed as an immutable ledger record (`action_type: attorney_approval` or `attorney_override`, with `reviewed_by`, `override_reason`, and `legal_citation_ref`). This shifts liability from automated AI overclaiming to an auditable human-in-the-loop legal workflow.
+- **Standing Disclaimer Artifact**: Every report output carries this boundary in the artifact itself: *"This Clearance Intelligence & Verification Audit report reflects automated research as of [timestamp] and is intended to inform, not replace, professional legal clearance review."*
+- **Strict Vocabulary Enforcement**: No language in product outputs or marketing uses "certify," "guarantee," or "warrant" for automated claims. System findings use "cleared," "flagged," or "pending review", while legal counsel sign-offs are explicitly recorded as "attorney_cleared" or "attorney_flagged".
 
 ## 2. The irony worth naming directly, not avoiding
 

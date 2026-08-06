@@ -46,23 +46,22 @@ rights-relevant — err toward fewer, well-justified claims over an
 exhaustive but noisy list.
 ```
 
-## 2. Research Agent — Parallel query construction
+## 2. Research Agent — Parallel query construction (domain-steered)
 
-The Research Agent doesn't need a creative/generative prompt in the same sense — its core job is a structured API call, not free text generation. The "prompt" here is really the query-construction logic (`query_builder.py`, per `08-directory-structure.md`):
+The Research Agent constructs domain-targeted query strings targeting authoritative public registries per claim type to maximize Parallel API confidence and source authority (`query_builder.py`, per `08-directory-structure.md`):
 
-```
+```python
 QUERY_TEMPLATE_BY_CLAIM_TYPE = {
-    "music": "ownership and licensing status of {extracted_description}",
-    "footage": "ownership and copyright status of {extracted_description}",
-    "brand": "trademark status and licensing requirements for {extracted_description}",
-    "real_person": "right of publicity considerations for depicting {extracted_description}",
-    "genai_flag": "copyright and provenance considerations for {extracted_description}",
-    "other": "{extracted_description}",  # fallback — used sparingly, since a
-                                             # generic query is the weakest case
+    "music": "ownership, PRO sync rights, ASCAP BMI HFA registry status for {extracted_description}",
+    "footage": "ownership and copyright registration status, US Copyright Office catalog for {extracted_description}",
+    "brand": "trademark registration status, USPTO WIPO TESS filing for {extracted_description}",
+    "real_person": "right of publicity considerations, SAG-AFTRA guild clearance for {extracted_description}",
+    "genai_flag": "copyright training data provenance, U.S. Copyright Office AI guidance for {extracted_description}",
+    "other": "{extracted_description} ownership and legal status",  # fallback — used sparingly
 }
 ```
 
-**Why templated rather than free-form:** this keeps the actual query sent to Parallel predictable and auditable (it's logged verbatim in `parallel_query`, per `06-data-schema.md`), and it means the confidentiality guarantee (only `extracted_description` — never surrounding context — ever leaves the system) is enforced by the template structure itself, not just by trusting the Intake Agent got it right upstream. This is a second, independent layer of the same confidentiality guarantee already discussed in `04-prd.md` §5.6 — worth mentioning if a judge asks how confidentiality is actually enforced end-to-end, since "it's enforced twice, independently" is a stronger answer than "we asked the model nicely once."
+**Why domain-steered templates rather than generic open-web searches:** generic search phrases risk returning low-authority blog posts or informal forum comments. Steering the Parallel Search API query string toward primary public registries (ASCAP/BMI/HFA for music, USPTO/TESS for trademarks, US Copyright Office catalog for footage/literary) forces the search engine to return high-confidence, primary-source URLs. Furthermore, this keeps the query predictable and auditable (logged verbatim in `parallel_query`, per `06-data-schema.md`), enforcing confidentiality twice independently (see `04-prd.md` §5.6).
 
 ## 3. Risk Scoring Agent — this is deliberately NOT a prompt
 
@@ -83,25 +82,29 @@ insurance underwriter), not an engineer.
 
 ```
 You are the Report Agent for Lienmark. You will be given a complete set of
-claims, their ledger status, risk scores, and source citations for one
-production. Generate a clearance report with exactly three sections:
-Cleared, Flagged, and Needs Human Review.
+claims, their ledger status, risk scores, source citations, and any human
+attorney sign-offs for one production. Generate a "Clearance Intelligence &
+Verification Audit Report" with exactly four sections:
+1. Attorney Approved / Cleared
+2. Automated Cleared
+3. Flagged / High Risk
+4. Needs Human Legal Review
 
 RULES:
-- Every claim in "Cleared" or "Flagged" MUST include its source_url. If a
+- Every claim in "Automated Cleared" or "Flagged" MUST include its source_url. If a
   claim has no source_url in the data provided, it does not belong in
-  either of these sections — route it to "Needs Human Review" instead,
-  regardless of what its status field says. This is a hard rule, not a
-  style preference: never generate a sourced-sounding sentence for a claim
-  that doesn't actually have a source in the underlying data.
+  either of these sections — route it to "Needs Human Legal Review" instead.
+- For claims with an attorney override or approval (action_type: attorney_approval
+  or attorney_override), display the reviewing attorney's ID, override reason,
+  and citation reference prominently in "Attorney Approved / Cleared".
 - Do not use the words "certify," "guarantee," "approve," or "warrant"
-  anywhere in the report. Use "cleared," "flagged," and "pending review" —
-  these describe what the research found, not a legal warranty.
-- Include this line verbatim at the end of every report: "This report
-  reflects automated research as of the generation timestamp above and is
-  intended to inform, not replace, professional legal clearance review."
+  as system findings. Use "cleared," "flagged," and "pending review" for automated research,
+  and "attorney cleared" only when a verified legal sign-off is logged in the ledger.
+- Include this line verbatim at the end of every report: "This Clearance Intelligence
+  & Verification Audit report reflects automated research as of the generation
+  timestamp above and is intended to inform, not replace, professional legal clearance review."
 - Keep claim summaries to one sentence each. This report needs to be
-  scannable by a non-technical reviewer in under two minutes.
+  scannable by an insurance underwriter or completion bond reviewer in under two minutes.
 ```
 
 **Why the liability language is enforced at the prompt level, not just described in a policy doc:** `16-liability-and-trust-posture.md` §1 establishes this disclaimer as a requirement; putting the exact required wording directly into the Report Agent's prompt is what actually makes it happen reliably in every generated report, rather than being a policy that exists only in documentation and depends on someone remembering to add it to the UI template separately.

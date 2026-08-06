@@ -1,6 +1,6 @@
 # Lienmark — Documentation Package
 
-**Lienmark** is an independent verification layer for entertainment rights clearance — an agentic system that ingests a script or cut, extracts every rights-triggering element, verifies current ownership/licensing status live against the open web, and writes the result to an append-only ledger that becomes the record a production checks before money or content moves.
+**Lienmark** is an independent Clearance Intelligence & Verification Audit platform for entertainment rights clearance — an agentic system that ingests a script or cut, extracts every rights-triggering element, verifies current ownership/licensing status live against domain-targeted registries via Parallel's Search API, and writes every automated finding and human attorney sign-off to an append-only ledger that becomes the record a production checks before money or content moves.
 
 ## Long-term thesis, stated once here and in full
 
