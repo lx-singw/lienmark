@@ -97,9 +97,14 @@ The hackathon's own promotional language frames three roles for participants: **
 
 ## 5. Functional requirements
 
-### 5.1 Input handling
-- Must accept a script excerpt (text/PDF) or an edit timeline (EDL/XML-style structured input) as the source document
+### 5.1 Autonomous Discovery & Dual-Input Handling
+- **Autonomous Discovery Agent (`poller.py` / `heartbeat.py`)**: Operating as a persistent 24/7 background service, the Discovery Agent continuously listens for new script deposits or timeline edits without requiring human handholding or explicit button clicks.
+- **Dual-Input Architecture**:
+  - **Method A (Background Cloud Watcher)**: Google Cloud Eventarc / GCS Webhook triggers that automatically wake up the Intake Agent when a new locked script is deposited into an enterprise storage bucket (`gs://studio-locked-drafts/`). This is the primary intake vector showcased in the 3-minute hackathon video to demonstrate true agentic autonomy.
+  - **Method B (Manual Web Portal)**: Drag-and-Drop Dropzone (`frontend/app/page.tsx`) enabling freelance screenwriters, external legal counsel, or independent producers to manually upload script revisions (.pdf / .txt) without direct Cloud Storage bucket access.
+- Must accept a script excerpt (text/PDF) or an edit timeline (EDL/XML-style structured input) as the source document.
 - Must handle ambiguous or incomplete input gracefully — the correct behavior when a claim can't be confidently identified or described is to flag it as needing clarification, not to confidently guess and present a wrong answer as if it were certain. This requirement is deliberately borrowed from patterns observed in "Autopilot Agent"-style hackathon tracks focused on real-world business workflow automation, where handling messy, ambiguous input is treated as a core competency rather than an edge case to be assumed away.
+
 
 ### 5.2 Claim extraction & Analysis (Intake Agent)
 - Must identify every rights-triggering element in the source document: music cues, footage/stock references, brand mentions, named real people or historical figures, and content likely to involve GenAI generation or assistance

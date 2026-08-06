@@ -46,6 +46,7 @@ Insurers (**E&O**) and **completion bond companies** require verifiable, auditab
 > ### 🎛️ Enterprise Feature Toggle & Governance Suite
 > * **1-Click Preset Profiles**: Indie ($1M), Blockbuster ($100M+), Global Co-Pro, and GenAI profiles (`preset_profiles.json`).
 > * **API Spend & SLA Budget Governor**: Hard cap spend (`max_api_spend_usd`) and time limits via `execution_budget_governor.py`.
+> * **Dual-Input & Budget Governance**: 100% autonomous background GCS/Eventarc bucket watcher (`poller.py`) for locked drafts vs. manual React dropzone portal (`page.tsx`) for external contractors, with budget-triggered HITL overrides instead of legacy intake popups.
 > * **Feature Dependency Safety Guard**: Automatically mandates dependent safety features (`feature_dependency_guard.py`).
 > * **Studio Policy Inheritance & On-Set Offline Mode**: Studio policy locking (`studio_policy_engine.py`) and remote set offline cache fallback (`offline_fallback.py`).
 > 

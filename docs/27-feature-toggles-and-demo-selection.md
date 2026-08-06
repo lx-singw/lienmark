@@ -127,3 +127,30 @@ To make feature management effortless and enterprise-safe, Lienmark provides 8 o
 
 ### 4.8 On-Set Offline Mode & Local Cache Fallback (`offline_fallback.py`)
 - Switches to pure Python deterministic rules locally when filming in remote locations without internet, queuing Parallel web queries for auto-sync when online.
+
+---
+
+## 🎯 5. Intake Philosophy: Hackathon Autonomy vs. Enterprise Control
+
+### 5.1 The Hackathon Strategy (Zero Human Handholding)
+To strictly satisfy the hackathon judging criteria (*"autonomous software that delivers tangible, end-to-end commercial value... without constant human handholding"*), the **Intake Trigger is 100% autonomous by default**. 
+
+In the 3-minute video submission, dropping a PDF script into `poller_watch_dir/` immediately triggers the 6-agent pipeline **without requiring a human to click an 'Approve Intake' popup or press an 'Upload' button**. This demonstrates indisputable agentic autonomy within the first 15 seconds.
+
+### 5.2 Enterprise Cost Governance vs. Dumb Popups
+In real-world production environments, studios require financial safeguards to prevent accidental API credit depletion (e.g. an intern dropping 10 draft revisions into a watched folder, incurring $500 in unapproved processing fees).
+
+Rather than degrading the UX with a legacy "Do you want to process this script?" popup, Lienmark enforces **Architectural Budget Control**:
+1. **Budget-Triggered HITL (`execution_budget_governor.py`)**: The Intake Agent performs a sub-second token & claim density pre-estimation.
+   - If projected cost is under `max_api_spend_usd` (default: $10.00), processing starts **100% autonomously**.
+   - If projected cost exceeds $10.00 (e.g. a 250-page blockbuster script), execution pauses and fires a high-priority **Budget Approval Alert** to the Line Producer.
+2. **Directory Scoping**: The Discovery Agent watches designated production buckets (e.g. `gs://studio-locked-drafts/`) while strictly ignoring draft directories (e.g. `gs://writer-sandbox/`).
+
+### 5.3 Dual-Input Architecture (Cloud Bucket Watcher vs. Web Portal)
+Lienmark provides two complementary intake vectors to support diverse enterprise workflows:
+
+| Input Vector | Trigger Mechanism | Target Audience / Use Case | Hackathon Demo Treatment |
+|---|---|---|---|
+| **Method A: Background Cloud Watcher** | Google Cloud Eventarc / GCS Webhook / Local `poller.py` | Automated background processing for locked studio drafts deposited into shared cloud storage. | **Primary Hero Vector**: Demonstrated in split-screen video to prove 24/7 background agent liveness. |
+| **Method B: Manual Web Portal** | Drag-and-Drop Dropzone (`frontend/app/page.tsx`) | One-off revision uploads by freelance writers, external legal counsel, or independent producers without shared storage access. | **Visual Anchor**: Maintained in UI design system for product completeness. |
+
