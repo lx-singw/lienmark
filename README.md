@@ -84,6 +84,7 @@ Orchestrated natively via **Google Cloud Agent Builder / Gemini Enterprise Agent
 | -- | [API Reference](docs/api-reference.md) | Complete REST API specification, JSON payloads, and status codes |
 | -- | [Installation Guide](docs/installation.md) | System requirements, setup commands, and troubleshooting matrix |
 | -- | [Contributing Guidelines](docs/contributing.md) | Code quality standards, pytest strategies, and branching rules |
+| -- | [Security Architecture](docs/security.md) | Threat modeling, authentication lifecycles, and CORS/CSP hardening |
 
 ---
 

@@ -40,6 +40,7 @@ This is being built first as a submission to **Agentic Cinema: The Blockbuster H
 | -- | [API Reference](api-reference.md) | Complete REST API specification, JSON payloads, HTTP status codes | Untruncated request/response contracts for backend endpoints |
 | -- | [Installation Guide](installation.md) | Hardware requirements, step-by-step setup commands, troubleshooting matrix | Local dev runner, GCP provisioning, and error resolutions |
 | -- | [Contributing Guidelines](contributing.md) | Code quality standards, testing strategies, trunk-based branching | Linting, pytest coverage, PR workflow, and semantic commits |
+| -- | [Security Architecture](security.md) | Threat modeling, authentication, token lifecycles, and CORS/CSP hardening | 3 architectural attack surfaces, Argon2id/AES-256 encryption, and MPA standards |
 
 ## How these documents relate to each other
 

@@ -41,7 +41,8 @@ lienmark/
 │   ├── 25-agentic-maturity-roadmap.md
 │   ├── api-reference.md               # complete REST API specifications & untruncated payloads
 │   ├── installation.md                # hardware minimums, setup commands, troubleshooting matrix
-│   └── contributing.md                # code quality standards, pytest strategies, branching rules
+│   ├── contributing.md                # code quality standards, pytest strategies, branching rules
+│   └── security.md                    # threat modeling, auth mechanisms, CORS/CSP hardening
 ├── backend/
 │   ├── agents/
 │   │   ├── intake/
