@@ -30,6 +30,11 @@ Nobody loves title insurance, but nobody closes a real estate deal without it. L
 
 Insurers (**E&O**) and **completion bond companies** require verifiable, auditable chain-of-title records before money or content moves. Lienmark replaces $250–$700/hr manual legal research with a fast, domain-steered, auditable verification ledger backed by human attorney override workflows.
 
+> ### 🌐 The Paradigm Shift: From Chatbots to Persistent Autonomous Agents
+> *"Persistent, autonomous agents are becoming the new baseline."*
+> 
+> The era of single-turn chat windows (`Prompt -> Text`) and human-triggered reactive scripts is over. Enterprise software demands standing, persistent agents that run continuously in the background — monitoring production drives, tracking claim lifecycle changes, and surfacing proactive alerts without waiting for human prompts. Lienmark embodies this new baseline through its **Discovery Agent** (`poller.py`), turning legal risk management into a standing, self-updating background process.
+
 ---
 
 ## 🤖 5-Agent Bounded Autonomy Architecture & Autonomous Beats

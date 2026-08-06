@@ -8,6 +8,11 @@ Every film or TV production carries 200+ unresolved rights claims — music, foo
 ## Why now
 In February 2026, Disney, Paramount, and the MPA sent the industry's first-ever cease-and-desist letters from a major studio body to a generative AI company (ByteDance, over its Seedance model). SAG-AFTRA condemned it publicly. As of mid-2026, the dispute remains unresolved even as a more capable successor model has already launched. The regulatory ground is moving faster than manual clearance processes can track (full sourcing: `14-sources-appendix.md`).
 
+## The paradigm shift
+> *"Persistent, autonomous agents are becoming the new baseline."*
+
+The era of single-turn chat windows (`Prompt -> Text`) and human-triggered reactive scripts is ending. Modern enterprise software demands standing, persistent background agents that run continuously — monitoring production storage buckets, tracking claim lifecycle changes, and surfacing proactive alerts without waiting for human prompts. Lienmark embodies this new baseline through its **Discovery Agent** (`poller.py`), turning legal risk management into a standing, self-updating background process.
+
 ## What Lienmark does
 An independent Clearance Intelligence & Verification Audit platform, built on Google's Gemini Enterprise Agent Platform and Parallel's Search API. Upload a script or cut; five agents (Intake, Research, Ledger, Risk Scoring, Report) extract every rights-triggering claim, research it live against domain-targeted registries (ASCAP/BMI, USPTO, Copyright.gov), log findings and human attorney sign-offs to an immutable ledger, arbitrate conflicting sources deterministically, and produce a sourced, audit-ready clearance report — with uncertain claims routed to an auditable human attorney override workflow, never auto-resolved on a guess.
 
