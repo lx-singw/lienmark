@@ -58,6 +58,8 @@ lienmark/
 │   │   │   ├── script_hasher.py           # SHA-256 script deduplication calculator (04-prd.md §5.2)
 │   │   │   ├── genai_provenance.py        # opt-out registry & synthetic media auditor (04-prd.md §5.2)
 │   │   │   ├── union_rights_tracker.py    # SAG-AFTRA/WGA option expiration tracker (04-prd.md §5.2)
+│   │   │   ├── visual_ip_detector.py      # Gemini Multimodal Vision logo & brand detector (04-prd.md §5.2)
+│   │   │   ├── timeline_conformer.py      # FCP XML / DaVinci EDL / Avid AAF timecode parser (04-prd.md §5.2)
 │   │   │   └── self_reflection.py        # self-reflection pass & prompt-injection defense —
 │   │   │                                    see 02-mvp-scope.md §1 & 20-adversarial-input-defense.md §2
 │   │   ├── research/
@@ -83,6 +85,8 @@ lienmark/
 │   │   │   ├── report_formatter.py
 │   │   │   ├── chain_of_title_cert.py    # official E&O title clearance PDF generator (04-prd.md §5.7)
 │   │   │   ├── cue_sheet_exporter.py     # ASCAP/BMI music cue sheet exporter (04-prd.md §5.7)
+│   │   │   ├── eo_binder_api.py          # E&O insurance carrier webhook API integrator (04-prd.md §5.7)
+│   │   │   ├── wrap_checklist.py         # post-production wrap delivery summary generator (04-prd.md §5.7)
 │   │   │   └── templates/                 # report export templates (Markdown/HTML/PDF) — 04-prd.md §5.7
 │   │   └── discovery/                     # autonomous proactive re-review poller — 6th agent module (02-mvp-scope.md §1)
 │   │       ├── agent.py

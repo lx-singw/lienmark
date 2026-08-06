@@ -47,6 +47,10 @@ Insurers (**E&O**) and **completion bond companies** require verifiable, auditab
 > * **ASCAP/BMI Music Cue Sheets**: Automatically exports standard music cue sheets (`cue_sheet_exporter.py`) with PRO work codes, eliminating 20+ hours of post-production legal paperwork.
 > * **SAG-AFTRA Option Expiration Tracker**: Tracks actor likeness/voice option dates (`union_rights_tracker.py`), alerting legal 60 days before distribution rights expire.
 > * **Completion Bond Risk Score**: Computes `bond_compliance_score` (%) in `bond_underwriting_risk.py` to prevent uncleared IP from triggering completion bond stop-orders on production drawdowns.
+> * **Multimodal Visual IP Detector**: Uses Gemini 3.6 Multimodal Vision (`visual_ip_detector.py`) to detect background brand logos and extract frame timecodes & bounding boxes.
+> * **FCP XML / DaVinci EDL Conformer**: Parses Hollywood edit decision lists (`timeline_conformer.py`) linking claims directly to video frames.
+> * **Underwriting Partner API Webhook**: Exposes `POST /api/v1/underwriting/bind-policy` (`eo_binder_api.py`) allowing Chubb/Hiscox to programmatically pull certificates and bind policies.
+> * **Post-Production Wrap Checklist**: Generates wrap clearance summaries (`wrap_checklist.py`) verifying 100% claim clearance before distributors (A24, Netflix) release funds.
 
 ---
 

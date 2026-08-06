@@ -19,6 +19,8 @@
 
 ### 2.1 Technological Implementation (40% Weight)
 * **Agentic Autonomy**: 14 documented Bounded Autonomy capabilities (`04-prd.md` §5).
+* **Multimodal Visual IP & Logo Detector**: Uses Gemini 3.6 Multimodal Vision to detect background brand logos and extract frame timecodes & bounding boxes (`visual_ip_detector.py`).
+* **FCP XML / DaVinci EDL Timeline Conformer**: Parses professional Hollywood edit decision lists (`timeline_conformer.py`) linking claims directly to video frames.
 * **Decoupled Background Poller**: [`backend/agents/discovery/poller.py`](file:///z:/home/lx_singw/projects/lienmark/backend/agents/discovery/poller.py) runs autonomously, detecting file drops and monitoring aging claims.
 * **Persistent Agent State & Heartbeat**: [`backend/agents/discovery/heartbeat.py`](file:///z:/home/lx_singw/projects/lienmark/backend/agents/discovery/heartbeat.py) emits liveness signals; state is checkpointed to `agent_state_store` in Firestore (`06-data-schema.md`).
 * **Error Resilience & Throttling**: `asyncio.Semaphore(10)` rate governor in [`backend/agents/research/parallel_client.py`](file:///z:/home/lx_singw/projects/lienmark/backend/agents/research/parallel_client.py); single-retry backoff; graceful failure routing (`call_status: failed`).
@@ -31,6 +33,8 @@
 
 ### 2.3 Potential Impact & Market Feasibility (30% Weight)
 * **Title Insurance Thesis**: Independent clearance verification layer sitting between studios, E&O insurers, and completion bond companies (`docs/17-moat-mechanics.md`).
+* **Underwriting Partner API Webhook Integrator**: Exposes `POST /api/v1/underwriting/bind-policy` (`eo_binder_api.py`) allowing Chubb/Hiscox to programmatically pull certificates and bind policies.
+* **Post-Production Wrap Delivery Checklist**: Generates wrap clearance summaries (`wrap_checklist.py`) verifying 100% claim clearance before distributors (A24, Netflix) release funds.
 * **Official E&O Title Clearance Certificate Generator**: Generates Form E&O-2026 PDF audit certificates with cryptographic hash stamps required by insurers (`backend/agents/report/chain_of_title_cert.py`).
 * **Standardized ASCAP/BMI Music Cue Sheet Exporter**: Exports industry-standard cue sheets (`cue_sheet_exporter.py`) with PRO work codes, saving 20+ hours of post-production legal paperwork.
 * **SAG-AFTRA Guild Residuals & Expiration Tracker**: Tracks actor likeness/voice option expiration dates (`union_rights_tracker.py`), alerting legal 60 days before distribution rights expire.

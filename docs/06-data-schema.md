@@ -48,6 +48,9 @@ opt_out_registry_flagged: boolean # true if training opt-out notice found on Spa
 territory_codes: array[string]  # target distribution jurisdictions e.g. ["US", "EU", "UK", "JP"]
 union_option_expires_at: timestamp (nullable) # SAG-AFTRA/WGA option expiration date
 usage_classification: enum [background_instrumental, visual_vocal, feature_music, logo_visual] # PRO code
+visual_bounding_box: object (nullable) # {ymin, xmin, ymax, xmax} coordinates for Multimodal Vision logo detection
+edl_timecode_in: string (nullable)  # SMPTE timecode in e.g. "01:14:22:10" from FCP XML / DaVinci EDL
+edl_timecode_out: string (nullable) # SMPTE timecode out e.g. "01:14:28:15"
 suggested_fair_use_defense: string (nullable) # 4-factor Fair Use defense heuristic (17 U.S.C. § 107)
 estimated_licensing_cost_min: float (nullable) # estimated cost floor for clearance rate cards
 estimated_licensing_cost_max: float (nullable) # estimated cost ceiling
@@ -71,6 +74,9 @@ created_at: timestamp
   "territory_codes": ["US", "EU"],
   "union_option_expires_at": null,
   "usage_classification": "background_instrumental",
+  "visual_bounding_box": null,
+  "edl_timecode_in": "01:14:22:10",
+  "edl_timecode_out": "01:14:28:15",
   "estimated_licensing_cost_min": 15000.0,
   "estimated_licensing_cost_max": 35000.0,
   "created_at": "2026-08-15T14:22:03Z"
