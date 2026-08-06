@@ -178,13 +178,19 @@ Notice what's deliberately **not** in either `extracted_description`: the emotio
 - **Dynamic Multi-Tool Parallel API Selection.** The agent dynamically evaluates each claim's complexity and selects the appropriate Parallel API tool:
   - **Parallel Search API** (`parallel_search_api`): Selected for standard, high-speed public domain and trademark registry queries.
   - **Parallel Task / Deep Extract API** (`parallel_task_api`): Selected for complex, ambiguous claims (e.g. multi-party copyright assignments, estate transfers, or conflicting broadcast licenses) requiring multi-page synthesis.
-- **Domain-targeted, registry-steered query construction.** The agent constructs query strings formatted specifically for authoritative databases per claim type:
-  - `music`: `"ownership, PRO sync rights, ASCAP BMI HFA registry status for {extracted_description}"`
-  - `brand`: `"trademark registration status, USPTO WIPO TESS filing for {extracted_description}"`
-  - `footage`: `"copyright registration status, US Copyright Office catalog for {extracted_description}"`
-  - `real_person`: `"right of publicity, SAG-AFTRA guild clearance considerations for {extracted_description}"`
-  - `genai_flag`: `"copyright training data provenance, U.S. Copyright Office AI guidance for {extracted_description}"`
-  - `other`: `"{extracted_description} ownership and legal status"`
+
+- **Open Web Search vs. Gated Rights Databases (Public Mirror Strategy).** Music rights registries (ASCAP/BMI/HFA), copyright databases (US Copyright Office), trademark registries (USPTO TESS/WIPO), and union agreements often sit behind complex interactive search forms or login paywalls. To ensure Parallel's Search API consistently returns authoritative, high-confidence results without hitting paywall blockers, `query_builder.py` formats search terms specifically targeting public mirrors and open registry indices:
+
+| Registry Category | Gated Database | Targeted Public Mirror / Index | Example Query Template |
+|---|---|---|---|
+| Music PRO Sync Rights | ASCAP / BMI / HFA Search Forms | `site:ascap.com/repertoire` OR `site:songfile.com` | `"site:ascap.com/repertoire {extracted_description} work title writer ISWC"` |
+| Trademarks & Brands | USPTO TESS (interactive form) | `site:uspto.report` OR `site:trademarks.justia.com` | `"site:uspto.report {extracted_description} registration status active mark"` |
+| Copyright Catalog | Copyright.gov Public Search | `site:cocatalog.loc.gov` OR `site:copyrightdata.com` | `"site:cocatalog.loc.gov {extracted_description} registration number copyright owner"` |
+| SAG-AFTRA Guild IP | SAG-AFTRA Member Directory | `site:sagaftra.org` OR `site:imdb.com` | `"site:sagaftra.org {extracted_description} right of publicity clearance SAG member"` |
+
+- **Enforced Human-in-the-Loop (HITL) Guardrails & Clearance Intelligence Positioning.** Legal rights clearance demands extreme precision; automated false negatives or false positives carry real commercial liability. To manage this liability safely:
+  1. **Legal Framing**: Lienmark explicitly positions its output as **Clearance Intelligence & Verification Audit** — never a automated "definitive legal opinion" or automated binding guarantee.
+  2. **Human Attorney Sign-off Boundary**: Claims with low confidence (<0.60), conflicting findings, or high legal exposure automatically route to `needs_human_review`. Human legal counsel conducts the final review in `ClarifyingQuestionModal.tsx` or `AttorneyOverrideModal.tsx`, committing their override to the immutable ledger (`action_type: attorney_override`). Agent findings provide intelligence; human attorneys hold final approval authority.
 
 - **Self-Directed Multi-Hop Chained Research.** If an initial search result snippet references a connected licensee, estate, or subsidiary rights-holder (e.g., discovering CBS broadcast rights attached to an Apollo 11 NASA clip), the Research Agent autonomously issues a follow-up query (`multi_hop_depth: 1`) chasing the lead without waiting for human intervention.
 - **Mid-Run Secondary Claim Discovery.** If web research on a claim surfaces an unextracted secondary rights-triggering element (e.g. a background musical cue mentioned in a trademark document), the Research Agent proposes a new claim (`proposed_by_agent: "research_agent"`). The proposed claim is passed to the Intake Agent for schema validation before being committed to the ledger.

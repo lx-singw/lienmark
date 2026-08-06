@@ -33,10 +33,11 @@ Insurers (**E&O**) and **completion bond companies** require verifiable, auditab
 > ### 🌐 The Paradigm Shift: From Chatbots to Persistent Autonomous Agents
 > *"Persistent, autonomous agents are becoming the new baseline."*
 > 
-> ### 💡 Token & Context-Window Memory Efficiency
-> *"Memory management is the unsexy problem nobody wants to talk about, until the bill arrives."*
+> ### 🔍 Open Web Search vs. Gated Rights Databases (Public Mirror Strategy)
+> ASCAP/BMI/HFA music registries, USPTO trademark databases, and US Copyright Office records often sit behind interactive search forms or paywalls. `query_builder.py` formats Parallel Search API queries to target **public web mirrors and open registry indices** (`site:ascap.com/repertoire`, `site:uspto.report`, `site:cocatalog.loc.gov`), ensuring high-confidence results without hitting paywall blockers.
 > 
-> Naive multi-agent systems dump full 100-page script texts and complete audit logs into LLM context windows on every pass, resulting in bloated latencies and massive API bills. Lienmark solves context growth through **delta-based retrieval** (evaluating only modified claims on script revisions), **minimal non-identifying term extraction** (`04-prd.md` §5.6), and **denormalized status documents** (`06-data-schema.md`), maintaining sub-5-second execution speeds without token inflation.
+> ### ⚖️ Enforced Human-in-the-Loop (HITL) Guardrails
+> Rights clearance carries real legal liability. Lienmark explicitly frames all outputs as **Clearance Intelligence & Verification Audit** — providing structured research and deterministic conflict arbitration while enforcing human attorney sign-offs (`action_type: attorney_override`) on all flagged claims.
 
 ---
 
