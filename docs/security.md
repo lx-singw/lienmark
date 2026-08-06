@@ -11,7 +11,7 @@ We have identified three critical architectural attack surfaces specific to Lien
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                    ATTACK SURFACE 1: PROMPT INJECTION                   │
-│  [Uploaded Script PDF] ──> [Embedded System Override] ──> [Intake Agent] │
+│  [Discovered Script File] ──> [Discovery Agent Detection] ──> [Embedded System Override] ──> [Intake Agent] │
 │  Mitigation: Multi-layer regex trap + structural prompt isolation        │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
