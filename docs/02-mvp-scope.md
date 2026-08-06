@@ -2,9 +2,14 @@
 
 This document defines exactly what ships by September 7, 2026, at the level of detail needed to actually build against — not just a feature list, but what each feature needs to do, what "done" looks like for it, and where the boundary sits against things that sound related but are explicitly deferred. Anything not listed as in-scope here is out of scope, regardless of how good an idea it is — see `03-post-mvp-scope.md` for everything deferred and why.
 
-## 1. The demo narrative this scope is built to support
+## 1. The demo narrative & 3 Autonomous Beats
 
-Before the feature list, it's worth being explicit about the story the MVP has to tell, because every scope decision below traces back to this: **a user uploads a script excerpt, watches five distinct agents process it live, sees real web research happen in front of them, and receives a sourced, trustworthy report they could hand to a real insurer.** Every feature either directly serves this narrative or is cut, regardless of how technically interesting it is.
+Before the feature list, every scope decision traces back to this core narrative: **a user uploads a script excerpt, watches five distinct agents process it live, sees real web research happen in front of them, and receives a sourced, trustworthy report they could hand to a real insurer.**
+
+To decisively satisfy Devpost's **Technological Implementation** and **Quality of Idea** criteria, the MVP explicitly demonstrates three visible autonomous beats:
+1. **Beat A (Proactive Background Discovery)**: The Discovery Agent runs independently, periodically polling for stale claims or new document drops and surfacing proactive glowing toast notifications (`ToastContainer.tsx`) without human interaction.
+2. **Beat B (Bounded Iterative Search)**: When Parallel's initial query returns thin or low-confidence results, the Research Agent autonomously reformulates its search string and executes a second targeted pass before committing findings.
+3. **Beat C (Interactive Human-in-the-Loop Action)**: When hitting genuine ambiguity, the Risk Scoring Agent surfaces a targeted `ClarifyingQuestionModal.tsx` asking a specific question, pausing pipeline execution and seamlessly resuming once answered.
 
 ## 2. In-scope: the five-agent core pipeline
 
@@ -99,15 +104,16 @@ Before the feature list, it's worth being explicit about the story the MVP has t
 - Every claim in "cleared" and "flagged" has a visible, clickable/checkable source
 - The "pending review" bucket includes a plain-language reason for why each item needs a human (not just a confidence number with no explanation)
 
-## 3. In-scope: demo-critical UI features
+## 3. In-scope: demo-critical UI features & Design Polish Specs
 
-These exist because the Design judging criterion explicitly rewards "a complete, coherent product experience," not just correct backend logic (see `01-hackathon-scope.md` §7.2). Cutting these under time pressure directly costs points on a named judging axis — protect this scope deliberately.
+These exist because the Design judging criterion explicitly rewards "a complete, coherent product experience," not just correct backend logic (see `01-hackathon-scope.md` §7.2). To ensure Lienmark wows judges in the first 15 seconds against flashier generative AI tools, the UI enforces rich visual polish and dynamic design:
 
-- **Live-updating claims table**: claim → status → risk score → source, updating in the UI as each Parallel call resolves in real time. This is the single highest-leverage visual for judges — it turns an invisible backend pipeline into something they watch happen, rather than something they have to take on faith.
-- **The deliberately-mixed demo claim set**: one clean/clear claim, one disputed/high-risk claim, and one claim specifically engineered to return conflicting ownership findings from two different sources — so live Parallel calls visibly produce different verdicts on camera, and the arbitration step is demonstrated, not just described.
-- **A deliberately-triggered graceful failure**: one claim in the demo set should simulate a Parallel timeout, and the UI should show it routing to "research incomplete — needs manual review" rather than the whole pipeline stalling or erroring. This should look like a real, controlled moment on camera, not something edited around — a run where a failure is handled gracefully is a more convincing "production-ready" signal to judges than a run where nothing ever goes wrong (which can read as suspiciously scripted).
-- **Source citations displayed inline**, next to each finding, not buried in a separate tab or requiring a click-through
-- **A visible human-in-the-loop review flag** in the UI for any claim below the confidence threshold — this needs to look like a genuine product state (a distinct visual treatment, not just a red row in a table), since it's doing double duty as both a real feature and a demo talking point about why full automation would be the wrong design choice for a compliance product.
+- **Rich Aesthetics & Color Palette**: Sleek dark mode (`#0B0F17` background) with curated HSL accent colors, subtle glassmorphism (`backdrop-filter: blur(12px)` cards), vibrant risk status glows, and Google Fonts typography (Inter / Outfit).
+- **Live-Updating Claims Table (`ClaimsTable.tsx`)**: Real-time WebSocket/Firestore listener updating claim row entry, status badges, risk score meters, and inline source citations as each Parallel call resolves.
+- **Micro-Animations & Visual Cues**: Pulsating warning badges for `needs_human_review`, smooth CSS slide-in transitions for newly extracted claims, and real-time glowing progress bars during Research Agent query passes.
+- **Proactive Toast Notifications (`ToastContainer.tsx`)**: Glowing notification toasts popping up when the Discovery Agent resurfaces a stale claim or when a background retry completes.
+- **Interactive Human-in-the-Loop Modal (`ClarifyingQuestionModal.tsx`)**: Modern glassmorphism modal popping up when human input is requested, providing context-aware prompts and resuming pipeline state seamlessly.
+- **Inline Source Citations (`SourceCitation.tsx`)**: Displayed directly next to each finding with clickable domain badges, ensuring zero friction for judges verifying search validity.
 
 ## 4. In-scope: technical/infrastructure requirements
 

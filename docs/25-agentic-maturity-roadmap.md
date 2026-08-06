@@ -29,22 +29,19 @@ Most systems marketed as "agentic" are the first thing. That's not necessarily a
 4. **No dynamic planning.** Nothing decides the shape of the pipeline itself based on what a specific document actually needs — every document gets the identical sequence of steps regardless of its content.
 5. **Human-in-the-loop is a terminal state, not a callable action.** `needs_human_review` is currently where a run ends up, not something an agent can actively invoke mid-reasoning as a targeted clarifying question and then resume from.
 
-## 4. The tension worth naming directly, not smoothing over
+## 4. The tension worth naming directly: Selective Agency
 
 The instinct after reading the above might be "then maximize agentic autonomy everywhere" — that instinct is wrong for this specific product, and it's worth being explicit about why. **Lienmark's core value proposition depends on determinism and auditability** (`04-prd.md` §5.4, §5.5) — the Risk Scoring Agent was deliberately built to be rule-based specifically *because* a compliance verdict that varies between identical runs would undermine the entire trust thesis this company is built on. Full dynamic planning applied indiscriminately would work directly against that.
 
-**The right target isn't uniform maximum agency — it's selective agency:** increase autonomy exactly where adaptability improves output quality (research iteration, reflection, dynamic clarification), and deliberately preserve determinism exactly where it currently exists (scoring logic, ledger writes), because that determinism is not an immaturity to engineer away — it's the product's actual selling point to an insurer.
+**The right target isn't uniform maximum agency — it's selective agency:** increase autonomy exactly where adaptability improves output quality, and deliberately preserve determinism where it creates trust.
 
-## 5. Concrete path forward, prioritized
+## 5. The 3 Visible Autonomous Beats (MVP Scope)
 
-### Now — low-risk, self-contained, genuine improvement (added to `02-mvp-scope.md`)
+To demonstrate true agency without sacrificing compliance determinism, Lienmark implements three explicit autonomous beats in the MVP:
 
-- **Research Agent: reformulate-and-retry on low confidence.** If a query's result quality is poor (few results, low relevance, or the result itself signals ambiguity), the agent evaluates this and autonomously issues a reformulated follow-up query before accepting a final answer — a real, bounded instance of an agent iterating on its own work, not a human-coded retry-on-error rule.
-- **Intake Agent: a reflection pass.** After the first extraction pass over a document, the agent re-reads its own output against the source document once more and asks whether anything was missed, before finalizing the claim list — a well-established, low-risk pattern (not novel research), genuinely worth having rather than skipping.
-
-### Now — moderate scope, meaningfully strengthens the demo (added to `02-mvp-scope.md`)
-
-- **Human-in-the-loop as a callable mid-reasoning action, not just a terminal state.** Rather than only routing a claim to `needs_human_review` as an end state, an agent that hits genuine, irreducible ambiguity should be able to actively surface a targeted clarifying question and then resume processing once answered — treating a human as an invokable tool, not just an exit ramp. This is also a stronger demo beat than a passive "flagged for review" state: "the agent asked a specific question" visibly reads as more agentic than "the agent gave up."
+1. **Beat A (Proactive Background Discovery)**: The Discovery Agent runs autonomously in the background (`09-agent-orchestration.md` §2), periodically watching script directories and surfacing proactive glowing toast notifications (`ToastContainer.tsx`) when new files or stale claims are detected—without waiting for a human upload click.
+2. **Beat B (Bounded Research Iteration)**: When initial Parallel Search API queries return low-confidence or thin findings, the Research Agent autonomously reformulates query strings (`09-agent-orchestration.md` §4) and executes a second targeted search pass before finalizing findings.
+3. **Beat C (Human-in-the-Loop as a Callable Action)**: Rather than stopping at a passive flag, when hitting genuine ambiguity, the Risk Scoring Agent surfaces a context-aware `ClarifyingQuestionModal.tsx` asking a targeted legal question, pausing execution and seamlessly resuming once answered.
 
 ### Phase 2 — the real architectural leap, and where an earlier decision needs correcting
 

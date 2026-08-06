@@ -21,6 +21,8 @@ Run this in full, ideally by a teammate who did **not** write the code being che
 - [ ] Open `backend/agents/research/parallel_client.py` directly on GitHub and confirm the Parallel SDK import and a real, callable function are visible in the file itself — not just referenced in the README (see `01-hackathon-scope.md` §4 for exactly why this specific check exists)
 - [ ] Confirm the call is to the **Search API** specifically, not solely the Task or Extract API, per the exact wording of the requirement
 - [ ] Confirm Google Cloud Agent Builder / Gemini usage is similarly visible and callable in `backend/orchestration/agent_builder_config.py`, not just described
+- [ ] Execute `python scripts/verify_integrations.py` from a fresh clone and confirm it completes in <5 seconds, outputting live Parallel Search API verification payloads and Firestore append-only ledger write checks
+- [ ] Test `demo/sample_script_adversarial.pdf` fixture against the Intake Agent and confirm prompt injection text is trapped as `suspicious_embedded_instruction` without bypassing rules
 - [ ] Trigger a real pipeline run and confirm — via logs, or a visible network call, or a debug panel — that a live API call actually fires against Parallel at that moment, not a cached or pre-recorded response
 
 ## 4. License and repo hygiene
