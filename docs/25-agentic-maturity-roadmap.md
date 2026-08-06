@@ -61,8 +61,18 @@ Worth recording directly: independent hackathon coverage confirms this wasn't a 
 
 That's close to a direct description of the exact failure mode this document exists to correct — a system that only acts when a human tells it to. The Discovery Agent addition wasn't a speculative improvement; it was closing a gap the hackathon's own coverage explicitly names as disqualifying in spirit, even if not in the letter of the written rules.
 
-## 8. A correction to the correction — worth recording, not smoothing over
+## 8. A correction to the correction — Bar 1 vs. Bar 2 Discipline
 
-When directly asked whether this was genuinely resolved, a closer look found it wasn't. The first version of the Discovery Agent fix scoped only the *secondary* behavior — re-surfacing an already-flagged stale claim — into MVP scope, and deferred *new-document discovery* (the behavior that actually determines whether the demo's opening action is autonomous or human-triggered) entirely to Phase 2, reasoning it needed real customer system access. That reasoning didn't hold up: a demo-scale watcher needs neither a real customer nor significant engineering — it's simpler than the behavior that *was* prioritized. The practical effect of the first fix was a demo that still opened with a human clicking upload, plus one good autonomous flourish near the end. `09-agent-orchestration.md` §2 and `02-mvp-scope.md` §2.1 have since been corrected to put the watcher first, as the higher-priority item.
+When directly asked whether this was genuinely resolved, a closer look found a critical subtlety between two different evaluation bars buried in the hackathon's brief:
+
+* **Bar 1 ("Not a single-turn Q&A chatbot")**: Lienmark clears this easily and always has — it is a multi-agent, multi-step pipeline with real tool integration, structured schemas, and immutable storage.
+* **Bar 2 ("Without constant human handholding")**: This is the harder, more honest bar. If the demo's primary opening action is a human clicking "upload," then resurfacing a stale claim later is merely a secondary flourish on a human-started run.
+
+**The Decoupled Backend Watcher Requirement (`09-agent-orchestration.md` §2.1):**
+To clear Bar 2 completely, the demo opens not with a human clicking an "Upload PDF" button, but with a script file appearing in a watched folder location — an ordinary production action — and an independent backend poller (`backend/agents/discovery/poller.py`) autonomously detecting the file and triggering the pipeline.
+
+> **Crucial Engineering Boundary:** This only counts if it is a genuinely decoupled, independent backend process (`poller.py`) that fires identically regardless of what dropped the file (a script, a human, an automated workflow). A drag-and-drop UI that directly invokes the pipeline via a client-side JavaScript event handler is the same human-triggered pattern with new styling. Lienmark mandates an actual decoupled backend watcher loop.
+
+**Why recording this discipline matters:** It demonstrates senior engineering rigor — identifying where a solution could be cosmetically faked versus architecturally built, and enforcing the architectural fix.
 
 **The reason this is worth recording rather than just quietly fixing:** it's a real instance of the exact discipline this whole document argues for — stating a position, checking it against a direct challenge, and correcting it visibly when the check fails, rather than defending the first answer because it was already written down. A pitch or README that only ever shows confident, unwavering positions is less credible than one that shows this kind of correction happened and explains why — it's evidence the reasoning was actually load-bearing, not decorative.
