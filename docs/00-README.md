@@ -40,6 +40,8 @@ This is being built first as a submission to **Agentic Cinema: The Blockbuster H
 | 26 | [Hackathon Alignment Matrix](26-hackathon-alignment-matrix.md) | Devpost judging criteria & sponsor requirements alignment | Direct mapping of judging rules to code files and CLI commands |
 | 27 | [Feature Toggles & Demo Selection](27-feature-toggles-and-demo-selection.md) | Modular feature toggle architecture & 3-min video demo features | Opt-in config payload and 6 active hero features for hackathon demo |
 | 28 | [Devpost Submission Manifest](28-devpost-submission-manifest.md) | Devpost master submission & Parallel MCP track manifest | September 7 deadline tracking, track allocation, and MCP server config |
+| 29 | [Monetization & GTM Strategy](29-monetization-and-gtm.md) | Business model, SaaS pricing tiers, and partnership roadmap | Transactional audits, enterprise studio subscriptions, and E&O broker strategy |
+| 30 | [UI Component Design System](30-ui-design-system.md) | Design tokens, glassmorphism UI components, and layout standards | Obsidian black dark theme, Inter/Outfit fonts, and micro-animation specs |
 | -- | [API Reference](api-reference.md) | Complete REST API specification, JSON payloads, HTTP status codes | Untruncated request/response contracts for backend endpoints |
 | -- | [Installation Guide](installation.md) | Hardware requirements, step-by-step setup commands, troubleshooting matrix | Local dev runner, GCP provisioning, and error resolutions |
 | -- | [Contributing Guidelines](contributing.md) | Code quality standards, testing strategies, trunk-based branching | Linting, pytest coverage, PR workflow, and semantic commits |

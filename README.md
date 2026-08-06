@@ -122,6 +122,8 @@ Orchestrated natively via **Google Cloud Agent Builder / Gemini Enterprise Agent
 | 26 | [Hackathon Alignment Matrix](docs/26-hackathon-alignment-matrix.md) | Devpost judging criteria & sponsor requirements alignment |
 | 27 | [Feature Toggles & Demo Selection](docs/27-feature-toggles-and-demo-selection.md) | Modular feature toggle architecture & 3-min video demo features |
 | 28 | [Devpost Submission Manifest](docs/28-devpost-submission-manifest.md) | Devpost master submission & Parallel MCP track manifest |
+| 29 | [Monetization & GTM Strategy](docs/29-monetization-and-gtm.md) | B2B SaaS pricing model, studio subscriptions, and GTM roadmap |
+| 30 | [UI Component Design System](docs/30-ui-design-system.md) | Design tokens, glassmorphism UI components, and layout standards |
 | -- | [API Reference](docs/api-reference.md) | Complete REST API specification, JSON payloads, and status codes |
 | -- | [Installation Guide](docs/installation.md) | System requirements, setup commands, and troubleshooting matrix |
 | -- | [Contributing Guidelines](docs/contributing.md) | Code quality standards, pytest strategies, and branching rules |

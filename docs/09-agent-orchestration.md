@@ -403,3 +403,22 @@ Lienmark addresses context growth through a 4-tier memory efficiency architectur
 - **Per-agent service accounts** (see `07-env-vars.md` §4) are not an IAM nicety layered on afterward — they are the literal, code-level implementation of the "Studio Head enforcing Cloud IAM security" framing from the hackathon's own promotional language (see `01-hackathon-scope.md` §7.4). Worth surfacing this explicitly in the pitch narration, not leaving it as an implementation detail judges might miss if it isn't called out.
 
 - **Testing determinism as an actual test, not just a design claim.** `tests/test_risk_scoring_determinism.py` should run the identical claim/finding input through the Risk Scoring Agent multiple times in a row and assert byte-identical output every time. This converts "our scoring is deterministic" from an assertion in documentation into something independently verifiable by anyone who runs the test suite — including, potentially, a technically thorough judge who clones the repo and runs `pytest` before making a final decision.
+
+## 11. Google Cloud Enterprise Best Practices Architecture
+
+Lienmark implements 4 core Google Cloud Enterprise architectural patterns:
+
+### 11.1 Tiered Gemini Model Strategy
+- **Gemini Pro (Orchestration & Deliberation)**: Powering `pipeline.py` and `peer_deliberation.py` for complex reasoning, multi-claim state management, and high-stakes conflict resolution.
+- **Gemini Flash (Execution & Research Workers)**: Powering `parallel_client.py` and `deterministic_rules.py` for sub-second, cost-effective tool calling and risk evaluation.
+- **Gemini Flash-Lite (Pipeline Ingest Workers)**: Powering `claim_extraction.py` and `script_hasher.py` for high-volume structured script extraction.
+
+### 11.2 Google Agent-to-Agent (A2A) Protocol (`a2a_protocol.py`)
+- Standardized JSON message envelopes exchanged across agent boundaries (`backend/agents/orchestration/a2a_protocol.py`), defining typed inter-agent headers (`sender_agent`, `recipient_agent`, `conversation_token`) to ensure seamless interoperability.
+
+### 11.3 Vertex AI Search Grounding Engine (`vertex_grounding.py`)
+- Grounding claim research against private studio contract repositories (`backend/agents/research/vertex_grounding.py`) to prevent LLM hallucinations on corporate IP rights.
+
+### 11.4 Cloud Logging & BigQuery Agent Thought Tracer (`cloud_logging_tracer.py`)
+- Live observability into agent reasoning steps and tool execution traces via Google Cloud Logging and BigQuery telemetry streams (`backend/agents/orchestration/cloud_logging_tracer.py`).
+

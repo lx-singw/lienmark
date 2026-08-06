@@ -42,6 +42,8 @@ lienmark/
 │   ├── 26-hackathon-alignment-matrix.md # Devpost judging criteria & sponsor requirements alignment
 │   ├── 27-feature-toggles-and-demo-selection.md # modular feature toggles & 3-min video demo features
 │   ├── 28-devpost-submission-manifest.md # Devpost master submission & Parallel MCP track manifest
+│   ├── 29-monetization-and-gtm.md     # B2B SaaS pricing tiers, studio sales cycles, and GTM strategy
+│   ├── 30-ui-design-system.md         # obsidian black dark theme, Inter/Outfit fonts, glassmorphism tokens
 │   ├── api-reference.md               # complete REST API specifications & untruncated payloads
 │   ├── installation.md                # hardware minimums, setup commands, troubleshooting matrix
 │   ├── contributing.md                # code quality standards, pytest strategies, branching rules
@@ -79,6 +81,7 @@ lienmark/
 │   │   │   ├── subgoal_planner.py        # goal-driven sub-goal decomposer & verification planner (04-prd.md §5.3)
 │   │   │   ├── consensus_verifier.py     # dual independent query pass verifier (04-prd.md §5.3)
 │   │   │   ├── cost_estimator.py         # industry clearance rate card cost calculator (04-prd.md §5.3)
+│   │   │   ├── vertex_grounding.py       # Vertex AI Search grounding engine for studio IP contracts (09-agent.md §11.3)
 │   │   │   └── query_builder.py           # builds minimal, non-identifying search terms (04-prd.md §5.6)
 │   │   ├── ledger/
 │   │   │   ├── agent.py
@@ -115,6 +118,8 @@ lienmark/
 │   │       └── notification_router.py     # urgency-based notification routing (25-agentic-maturity-roadmap.md §5)
 │   ├── orchestration/
 │   │   ├── pipeline.py                    # top-level agent orchestration / control flow (09-agent-orchestration.md)
+│   │   ├── a2a_protocol.py               # Agent-to-Agent (A2A) inter-agent protocol message envelope (09-agent.md §11.2)
+│   │   ├── cloud_logging_tracer.py       # Google Cloud Logging & BigQuery agent thought tracer (09-agent.md §11.4)
 │   │   ├── agent_builder_config.py        # Google Cloud Agent Builder setup — hackathon-required orchestration config
 │   │   ├── agent_builder_mcp_config.json  # Agent Builder MCP server tool registration config (28-devpost.md §2)
 │   │   ├── execution_budget_governor.py  # API spend & time SLA budget governor (27-feature-toggles.md §4.2)
@@ -137,6 +142,11 @@ lienmark/
 │   ├── requirements.txt                   # Python deps: parallel-web, google-cloud-firestore, pytest, etc.
 │   ├── Dockerfile                         # Cloud Run container definition
 │   └── main.py                            # Cloud Run entrypoint
+├── docker-compose.yml                     # local multi-container dev environment (backend + frontend)
+├── scripts/
+│   ├── deploy.sh                          # Google Cloud Run production deployment script
+│   ├── verify_integrations.py             # 60-second judge compliance verification helper
+│   └── verify_ledger_integrity.py         # SHA-256 hash-chain ledger integrity verification script
 ├── frontend/
 │   ├── app/                               # Next.js App Router directory
 │   │   ├── layout.tsx                     # root layout — imports globals.css, Google Fonts (Inter/Outfit)
