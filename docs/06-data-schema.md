@@ -43,7 +43,10 @@ proposed_by_agent: string (nullable) # agent ID if claim was discovered mid-run 
 is_delta_modified: boolean       # true if newly introduced or modified in script draft delta diff
 co_occurring_claim_ids: array[string] # claim IDs sharing scene-level proximity (e.g. brand + music)
 genai_provenance_required: boolean # true if synthetic media keywords detected in stage directions
+opt_out_registry_flagged: boolean # true if training opt-out notice found on Spawning.ai/HaveIBeenTrained
 territory_codes: array[string]  # target distribution jurisdictions e.g. ["US", "EU", "UK", "JP"]
+estimated_licensing_cost_min: float (nullable) # estimated cost floor for clearance rate cards
+estimated_licensing_cost_max: float (nullable) # estimated cost ceiling
 created_at: timestamp
 ```
 
@@ -60,7 +63,10 @@ created_at: timestamp
   "is_delta_modified": true,
   "co_occurring_claim_ids": ["clm_brand_88a"],
   "genai_provenance_required": false,
+  "opt_out_registry_flagged": false,
   "territory_codes": ["US", "EU"],
+  "estimated_licensing_cost_min": 15000.0,
+  "estimated_licensing_cost_max": 35000.0,
   "created_at": "2026-08-15T14:22:03Z"
 }
 ```
@@ -79,6 +85,8 @@ retrieved_at: timestamp
 parallel_query: string           # actual query string sent to Parallel — kept for auditability
 tool_used: enum [parallel_search_api, parallel_task_api] # dynamic multi-tool selection
 multi_hop_depth: integer         # 0 for initial pass, 1+ for self-directed secondary lead chasing
+consensus_verified: boolean      # true if dual independent query passes yielded identical verdict
+escalation_level: integer        # 1 = standard dashboard toast, 2 = automated email/Slack escalation
 source_authority_tier: enum [official_registry, secondary_news, unverified_blog] # authority weighting
 corroboration_factor: float      # source authority weight score (1.0 = PRO database, 0.2 = blog)
 call_status: enum [success, failed, timeout]

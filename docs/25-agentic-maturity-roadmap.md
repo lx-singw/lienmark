@@ -51,6 +51,10 @@ The instinct might be "then maximize agentic autonomy everywhere" — that insti
 10. **Multi-Jurisdiction Territory Rights Routing**: Research Agent constructs territory-specific queries to local rights databases (GEMA in Germany, JASRAC in Japan, SACEM in France, PRS in the UK) for productions with global distribution tags (`territory_codes`).
 11. **Production Risk-Trend Regression Tracking**: Ledger Agent calculates production risk trend deltas (`risk_trend: "improving" | "degrading"` and `clearance_velocity_score`), providing completion bond underwriters with quantitative metrics showing risk reduction across script revisions.
 12. **Synthetic AI Content Provenance Pre-Screening**: Intake Agent analyzes stage directions for synthetic media keywords ("voice sounds like X", "VFX style: Sora generated"), tagging claims with `genai_provenance_required: true` to trigger specialized AI training data lineage checks.
+13. **Autonomous Dispute Auto-Escalation Engine**: Discovery Agent automatically escalates unreviewed high-severity disputes past SLA thresholds (`escalation_level: 2`), firing automated email/Slack webhooks to senior production legal officers.
+14. **Industry Licensing Cost Floor & Budget Calculator**: Research Agent extracts estimated licensing cost ranges (`estimated_licensing_cost_min` / `max`) from industry clearance rate cards, calculating total production clearance exposure for underwriters.
+15. **Multi-Agent Consensus Verification Protocol**: For high-risk claims (risk score >= 0.85), a second independent verification pass is automatically executed; matching dual verdicts earn a `consensus_verified: true` audit stamp.
+16. **GenAI Opt-Out & Likeness Provenance Auditor**: Research Agent queries public model opt-out registries (Spawning.ai / HaveIBeenTrained indices) for synthetic media claims to flag unauthorized artist likenesses (`opt_out_registry_flagged: true`).
 
 ### Phase 2 — Dynamic Pipeline Planning (Sequenced Deliberately)
 

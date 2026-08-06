@@ -54,6 +54,7 @@ lienmark/
 │   │   │   ├── agent.py
 │   │   │   ├── prompts.py
 │   │   │   ├── claim_extraction.py
+│   │   │   ├── genai_provenance.py        # opt-out registry & synthetic media auditor (04-prd.md §5.2)
 │   │   │   └── self_reflection.py        # self-reflection pass & prompt-injection defense —
 │   │   │                                    see 02-mvp-scope.md §1 & 20-adversarial-input-defense.md §2
 │   │   ├── research/
@@ -61,6 +62,8 @@ lienmark/
 │   │   │   ├── parallel_client.py        # THE required hackathon artifact — live Parallel SDK integration
 │   │   │   ├── multi_tool_router.py      # dynamic multi-tool selection (Parallel Search API vs Task API) —
 │   │   │   │                                see 04-prd.md §5.3 & 09-agent-orchestration.md §4
+│   │   │   ├── consensus_verifier.py     # dual independent query pass verifier (04-prd.md §5.3)
+│   │   │   ├── cost_estimator.py         # industry clearance rate card cost calculator (04-prd.md §5.3)
 │   │   │   └── query_builder.py           # builds minimal, non-identifying search terms (04-prd.md §5.6)
 │   │   ├── ledger/
 │   │   │   ├── agent.py
@@ -78,6 +81,7 @@ lienmark/
 │   │       ├── agent.py
 │   │       ├── poller.py
 │   │       ├── heartbeat.py               # 24/7 background agent liveness & health monitor (09-agent-orchestration.md §2.5)
+│   │       ├── conflict_escalation.py     # automated SLA dispute escalation router (04-prd.md §5.5)
 │   │       └── notification_router.py     # urgency-based notification routing (25-agentic-maturity-roadmap.md §5)
 │   ├── orchestration/
 │   │   ├── pipeline.py                    # top-level agent orchestration / control flow (09-agent-orchestration.md)
