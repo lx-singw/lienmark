@@ -18,7 +18,11 @@
 ## 🏆 2. Devpost Judging Criteria Alignment
 
 ### 2.1 Technological Implementation (40% Weight)
-* **Agentic Autonomy**: 24 documented Bounded Autonomy capabilities (`04-prd.md` §5).
+* **Agentic Autonomy**: 28 documented Bounded Autonomy capabilities (`04-prd.md` §5).
+* **Pure Python Statutory Legal Rule Engine**: Zero-LLM statutory Fair Use matrix evaluator (`statutory_rule_engine.py`) eliminating legal hallucinations.
+* **Dual-Key Cryptographic Signatures**: RSA-256 dual-signature engine (`dual_key_signer.py`) for attorney sign-off verification.
+* **Attorney Rejection & Re-Investigation Loop**: Bidirectional feedback loop (`attorney_rejection_router.py`) routing attorney rejections back to Research.
+* **ISO 27001 Legal Audit Manifest Exporter**: Standardized legal compliance manifest generator (`legal_audit_exporter.py`).
 * **Research Plan Synthesis DAG**: Upfront reasoning DAG plan generator (`research_planner.py`).
 * **Claim Dependency Resolver**: Prerequisite claim ordering & parent-child dependency tree resolver (`claim_dependency_resolver.py`).
 * **Dynamic Tool Synthesis**: Prompt instruction self-adaptation & custom schema generator (`tool_synthesizer.py`).
@@ -36,7 +40,7 @@
 
 ### 2.2 Design & User Experience (30% Weight)
 * **Human-in-the-Loop (HITL) Clearance Intelligence**: Framing output as *Clearance Intelligence & Verification Audit* rather than definitive legal opinion (`04-prd.md` §5.5).
-* **Attorney Sign-Off Workflows**: `ClarifyingQuestionModal.tsx` and `AttorneyOverrideModal.tsx` pre-populate legal citations (`suggested_legal_citation`) and Fair Use defenses (`suggested_fair_use_defense`), writing immutable overrides (`action_type: attorney_override`) to Firestore.
+* **Attorney Sign-Off Workflows**: `ClarifyingQuestionModal.tsx` and `AttorneyOverrideModal.tsx` pre-populate legal citations (`suggested_legal_citation`) and Fair Use defenses (`suggested_fair_use_defense`), writing immutable overrides (`action_type: attorney_override`) with dual-key RSA-256 signatures to Firestore.
 * **Urgency-Routed Proactive Toast Alerts**: [`ToastContainer.tsx`](file:///z:/home/lx_singw/projects/lienmark/src/components/ToastContainer.tsx) surfaces immediate alerts for urgent disputes while batching routine claims.
 
 ### 2.3 Potential Impact & Market Feasibility (30% Weight)

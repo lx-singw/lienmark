@@ -63,6 +63,10 @@ The instinct might be "then maximize agentic autonomy everywhere" — that insti
 22. **Autonomous Claim Dependency & Hierarchy Resolver**: Identifies legal dependencies between claims (`claim_dependency_resolver.py`), dynamically ordering research to resolve prerequisite parent claims (`parent_claim_id`) first.
 23. **Dynamic Tool Synthesis & Prompt Strategy Adapter**: Research Agent dynamically adapts its extraction prompts and schema parameters (`adapted_extraction_schema` in `tool_synthesizer.py`), synthesizing a tailored strategy on the fly.
 24. **Multi-Agent Peer Deliberation & Consensus Voting**: Spawns 3 peer evaluator agents (`peer_deliberation.py` - Conservative Counsel, Litigation Defense, Sync Specialist) to deliberate and vote on final risk classification (`peer_vote_consensus: 3/3`).
+25. **Dual-Key Cryptographic Attorney Signature Engine**: Requires dual-key RSA-256 digital signatures (`dual_key_signer.py`) from reviewing attorney and lead legal officer (`attorney_signature_hash`) before marking claims `attorney_cleared`.
+26. **Standardized Legal Audit Trail Manifest Exporter**: Generates ISO 27001 / SOC 2 legal audit manifests (`manifest_iso_legal.json` via `legal_audit_exporter.py`) capturing raw API payloads and override rationales.
+27. **Pure Python Statutory Legal Rule Engine**: Codifies 17 U.S.C. § 107 Fair Use matrices into a pure Python engine (`statutory_rule_engine.py`) with zero LLM calls during risk scoring.
+28. **Attorney Override Rejection & Re-Investigation Loop**: Routes rejected attorney findings (`attorney_rejection_router.py`) back to Research Agent with human counsel directives (`attorney_rejection_directive`).
 
 ### Phase 2 — Dynamic Pipeline Planning (Sequenced Deliberately)
 

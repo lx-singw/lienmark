@@ -79,10 +79,14 @@ lienmark/
 │   │   │   └── query_builder.py           # builds minimal, non-identifying search terms (04-prd.md §5.6)
 │   │   ├── ledger/
 │   │   │   ├── agent.py
-│   │   │   └── append_only_store.py       # enforces create-only writes on top of Firestore rules (06-data-schema.md §3)
+│   │   │   ├── append_only_store.py       # enforces create-only writes on top of Firestore rules (06-data-schema.md §3)
+│   │   │   ├── dual_key_signer.py        # dual-key RSA-256 attorney digital signature engine (04-prd.md §5.5)
+│   │   │   ├── attorney_rejection_router.py # attorney override rejection & re-investigation router (04-prd.md §5.5)
+│   │   │   └── legal_audit_exporter.py   # ISO 27001 / SOC 2 legal audit trail manifest exporter (04-prd.md §5.5)
 │   │   ├── risk_scoring/
 │   │   │   ├── agent.py
 │   │   │   ├── deterministic_rules.py     # rule-based scoring logic — NOT an LLM freehand judgment
+│   │   │   ├── statutory_rule_engine.py   # pure Python statutory legal rule evaluation engine (04-prd.md §5.4)
 │   │   │   ├── fair_use_analyzer.py      # 4-factor Fair Use & De Minimis defense pre-analyzer (04-prd.md §5.4)
 │   │   │   ├── peer_deliberation.py      # multi-agent 3-persona consensus voting engine (04-prd.md §5.4)
 │   │   │   ├── bond_underwriting_risk.py # completion bond contingency risk calculator (04-prd.md §5.4)

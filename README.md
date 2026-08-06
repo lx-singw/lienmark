@@ -36,8 +36,12 @@ Insurers (**E&O**) and **completion bond companies** require verifiable, auditab
 > ### 🔍 Open Web Search vs. Gated Rights Databases (Public Mirror Strategy)
 > ASCAP/BMI/HFA music registries, USPTO trademark databases, and US Copyright Office records often sit behind interactive search forms or paywalls. `query_builder.py` formats Parallel Search API queries to target **public web mirrors and open registry indices** (`site:ascap.com/repertoire`, `site:uspto.report`, `site:cocatalog.loc.gov`), ensuring high-confidence results without hitting paywall blockers.
 > 
-> ### ⚖️ Enforced Human-in-the-Loop (HITL) Guardrails
+> ### ⚖️ Enforced Human-in-the-Loop (HITL) & Deterministic Validation Guardrails
 > Rights clearance carries real legal liability. Lienmark explicitly frames all outputs as **Clearance Intelligence & Verification Audit** — providing structured research and deterministic conflict arbitration while enforcing human attorney sign-offs (`action_type: attorney_override`) on all flagged claims.
+> * **Pure Python Statutory Rule Engine**: Zero-LLM statutory Fair Use evaluator (`statutory_rule_engine.py`) eliminating legal score hallucinations.
+> * **Dual-Key RSA-256 Attorney Signatures**: Dual-key digital signature engine (`dual_key_signer.py`) requiring lead counsel sign-off before clearance.
+> * **Attorney Rejection Re-Investigation Loop**: Bidirectional feedback loop (`attorney_rejection_router.py`) routing attorney rejections back to Research.
+> * **ISO 27001 Legal Audit Manifest**: Standardized legal compliance manifest generator (`legal_audit_exporter.py`) capturing raw API payloads and rationales.
 > 
 > ### 🛡️ Concurrency Throttling & SHA-256 Script Deduplication
 > An `asyncio.Semaphore(10)` governor in `parallel_client.py` throttles multi-claim research loops, preventing Parallel API rate-limit errors. Meanwhile, `script_hasher.py` computes SHA-256 content hashes to instantly return existing ledger entries for duplicate script drops without wasting search API credits.

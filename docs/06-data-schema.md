@@ -129,7 +129,7 @@ entry_id: string (doc id)
 claim_id: string (ref)
 finding_id: string (ref, nullable — an entry can exist before a finding does, e.g. "claim registered, research pending")
 version: integer                 # increments per claim; a version number is never reused
-action_type: enum [agent_finding, attorney_approval, attorney_override] # distinguishes automated finding from human legal sign-off
+action_type: enum [agent_finding, attorney_approval, attorney_override, attorney_rejection] # human/agent audit action
 status: enum [pending, cleared, flagged, needs_human_review, attorney_cleared, attorney_flagged]
 superseded_by: string (nullable, ref to a later entry_id — set when a newer entry replaces this one)
 written_at: timestamp
@@ -137,6 +137,9 @@ written_by_agent: string         # agent ID or human attorney ID/email — part 
 reviewed_by: string (nullable)   # attorney name/ID/email when action_type is attorney_approval or attorney_override
 override_reason: string (nullable) # detailed legal rationale for attorney override or approval
 legal_citation_ref: string (nullable) # legal document, license contract ref, or statutory exemption cited by attorney
+attorney_signature_hash: string (nullable) # dual-key RSA-256 digital signature hash (dual_key_signer.py)
+statutory_rule_eval: object (nullable) # pure Python statutory legal rule evaluation output (statutory_rule_engine.py)
+attorney_rejection_directive: string (nullable) # human counsel instruction on rejection (attorney_rejection_router.py)
 ```
 
 **Worked example 1 (Automated Research Versioning):** imagine claim `clm_7f3a9b` is first researched and comes back `cleared` (version 1, `action_type: agent_finding`). Weeks later, the production is re-evaluated before a distribution deal closes, and a new Parallel search surfaces a fresh dispute over that same song's rights. The correct behavior is **not** to edit the version-1 entry. Instead:
