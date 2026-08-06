@@ -30,7 +30,10 @@ status: enum [processing, complete, needs_review]
 **Why `status` lives here and not derived on the fly:** having a denormalized top-level status field lets the UI's live-updating claims table (see `02-mvp-scope.md` §3) query a single cheap document rather than aggregating across every claim/finding/ledger-entry on every render — this matters specifically because the demo needs this table to feel responsive and live, not laggy.
 
 ### `claims`
-Every rights-triggering element extracted by the Intake Agent or proposed mid-run by thclaim_id: string (doc id)
+Every rights-triggering element extracted by the Intake Agent or proposed mid-run by the Research Agent.
+
+```
+claim_id: string (doc id)
 production_id: string (ref)
 type: enum [music, footage, brand, real_person, genai_flag, other]
 scene_ref: string                # e.g. "INT. WAREHOUSE - NIGHT, p.14" — traceability back to source
@@ -39,6 +42,8 @@ needs_clarification: boolean     # true if the Intake Agent couldn't confidently
 proposed_by_agent: string (nullable) # agent ID if claim was discovered mid-run during multi-hop search
 is_delta_modified: boolean       # true if newly introduced or modified in script draft delta diff
 co_occurring_claim_ids: array[string] # claim IDs sharing scene-level proximity (e.g. brand + music)
+genai_provenance_required: boolean # true if synthetic media keywords detected in stage directions
+territory_codes: array[string]  # target distribution jurisdictions e.g. ["US", "EU", "UK", "JP"]
 created_at: timestamp
 ```
 
@@ -54,6 +59,8 @@ created_at: timestamp
   "proposed_by_agent": null,
   "is_delta_modified": true,
   "co_occurring_claim_ids": ["clm_brand_88a"],
+  "genai_provenance_required": false,
+  "territory_codes": ["US", "EU"],
   "created_at": "2026-08-15T14:22:03Z"
 }
 ```
@@ -65,6 +72,7 @@ Every result returned by Parallel Search/Task API calls, one per claim per query
 finding_id: string (doc id)
 claim_id: string (ref)
 source_url: string               # REQUIRED, non-null — enforced at write time, not just by convention
+cached_snapshot_url: string (nullable) # Web Archive fallback if HEAD check fails on source_url
 source_snippet: string           # short excerpt supporting the finding, used for inline citation display
 ownership_status: enum [clear, disputed, unknown, licensing_required]
 retrieved_at: timestamp
@@ -74,7 +82,6 @@ multi_hop_depth: integer         # 0 for initial pass, 1+ for self-directed seco
 source_authority_tier: enum [official_registry, secondary_news, unverified_blog] # authority weighting
 corroboration_factor: float      # source authority weight score (1.0 = PRO database, 0.2 = blog)
 call_status: enum [success, failed, timeout]
-```num [success, failed, timeout]
 ```
 
 **Precise definitions for each `ownership_status` value** — this wasn't previously specified precisely enough to guarantee consistent agent behavior, which is a real implementation-ambiguity risk worth closing before code gets written, since two engineers (or two runs of an LLM-assisted extraction) could otherwise reasonably classify the same finding differently:

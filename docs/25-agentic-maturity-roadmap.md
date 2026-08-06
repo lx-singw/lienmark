@@ -47,6 +47,10 @@ The instinct might be "then maximize agentic autonomy everywhere" — that insti
 6. **Scene-Proximity Co-Occurrence Risk Clustering**: Intake & Risk Scoring Agents evaluate scene proximity, clustering co-occurring claims (e.g. unlicensed music playing in a scene with a visible commercial brand logo) into `co_occurring_claim_ids` groups to flag compound legal exposure.
 7. **Automated Script Delta-Diffing**: Intake Agent executes an automated semantic delta diff on script revisions (Draft 3 vs. Draft 2), tagging modified claims (`is_delta_modified: true`) to target live research only to changed elements.
 8. **Attorney Legal Citation Suggestion Engine**: Pre-populates context-aware legal citation templates (`suggested_legal_citation` e.g. 17 U.S.C. § 107 Fair Use factors or Sync License clauses) when legal counsel opens `AttorneyOverrideModal.tsx`, reducing sign-off friction from 5 minutes to 15 seconds.
+9. **Web Archive Fallback & Link Verification Safeguard**: Report Agent executes lightweight HEAD checks on all retrieved Parallel source URLs before report generation; if a URL returns 404, it automatically attaches a cached snapshot reference (`cached_snapshot_url`), guaranteeing zero broken clickable links in the judge output.
+10. **Multi-Jurisdiction Territory Rights Routing**: Research Agent constructs territory-specific queries to local rights databases (GEMA in Germany, JASRAC in Japan, SACEM in France, PRS in the UK) for productions with global distribution tags (`territory_codes`).
+11. **Production Risk-Trend Regression Tracking**: Ledger Agent calculates production risk trend deltas (`risk_trend: "improving" | "degrading"` and `clearance_velocity_score`), providing completion bond underwriters with quantitative metrics showing risk reduction across script revisions.
+12. **Synthetic AI Content Provenance Pre-Screening**: Intake Agent analyzes stage directions for synthetic media keywords ("voice sounds like X", "VFX style: Sora generated"), tagging claims with `genai_provenance_required: true` to trigger specialized AI training data lineage checks.
 
 ### Phase 2 — Dynamic Pipeline Planning (Sequenced Deliberately)
 
