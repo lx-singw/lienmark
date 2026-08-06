@@ -30,17 +30,15 @@ status: enum [processing, complete, needs_review]
 **Why `status` lives here and not derived on the fly:** having a denormalized top-level status field lets the UI's live-updating claims table (see `02-mvp-scope.md` §3) query a single cheap document rather than aggregating across every claim/finding/ledger-entry on every render — this matters specifically because the demo needs this table to feel responsive and live, not laggy.
 
 ### `claims`
-Every rights-triggering element extracted by the Intake Agent or proposed mid-run by the Research Agent.
-
-```
-claim_id: string (doc id)
+Every rights-triggering element extracted by the Intake Agent or proposed mid-run by thclaim_id: string (doc id)
 production_id: string (ref)
 type: enum [music, footage, brand, real_person, genai_flag, other]
 scene_ref: string                # e.g. "INT. WAREHOUSE - NIGHT, p.14" — traceability back to source
 extracted_description: string    # short, non-identifying — e.g. "song 'X' by artist Y"
-                                   # NEVER full scene/plot context (confidentiality requirement, see §1.3)
 needs_clarification: boolean     # true if the Intake Agent couldn't confidently type/describe this claim
 proposed_by_agent: string (nullable) # agent ID if claim was discovered mid-run during multi-hop search
+is_delta_modified: boolean       # true if newly introduced or modified in script draft delta diff
+co_occurring_claim_ids: array[string] # claim IDs sharing scene-level proximity (e.g. brand + music)
 created_at: timestamp
 ```
 
@@ -54,6 +52,8 @@ created_at: timestamp
   "extracted_description": "song 'Bohemian Rhapsody' by Queen — sync licensing status",
   "needs_clarification": false,
   "proposed_by_agent": null,
+  "is_delta_modified": true,
+  "co_occurring_claim_ids": ["clm_brand_88a"],
   "created_at": "2026-08-15T14:22:03Z"
 }
 ```
@@ -71,7 +71,10 @@ retrieved_at: timestamp
 parallel_query: string           # actual query string sent to Parallel — kept for auditability
 tool_used: enum [parallel_search_api, parallel_task_api] # dynamic multi-tool selection
 multi_hop_depth: integer         # 0 for initial pass, 1+ for self-directed secondary lead chasing
+source_authority_tier: enum [official_registry, secondary_news, unverified_blog] # authority weighting
+corroboration_factor: float      # source authority weight score (1.0 = PRO database, 0.2 = blog)
 call_status: enum [success, failed, timeout]
+```num [success, failed, timeout]
 ```
 
 **Precise definitions for each `ownership_status` value** — this wasn't previously specified precisely enough to guarantee consistent agent behavior, which is a real implementation-ambiguity risk worth closing before code gets written, since two engineers (or two runs of an LLM-assisted extraction) could otherwise reasonably classify the same finding differently:

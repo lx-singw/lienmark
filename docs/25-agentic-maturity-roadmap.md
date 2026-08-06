@@ -39,9 +39,14 @@ The instinct might be "then maximize agentic autonomy everywhere" — that insti
 
 ## 5. Bounded Autonomy Capabilities (MVP Scope)
 
-1. **Beat A (Proactive Discovery & Urgency Routing)**: Discovery Agent runs autonomously in the background (`09-agent-orchestration.md` §2), surfacing proactive toast alerts (`ToastContainer.tsx`) and routing urgent disputes to immediate alerts while batching routine flags.
+1. **Beat A (Proactive Discovery & Urgency Routing)**: Discovery Agent runs autonomously in the background (`09-agent-orchestration.md` §2), surfacing proactive toast alerts (`ToastContainer.tsx`) and routing urgent disputes via `notification_router.py` to immediate alerts while batching routine flags.
 2. **Beat B (Multi-Tool & Multi-Hop Iteration)**: Research Agent dynamically selects between Parallel Search API and Task/Extract API based on claim complexity, reformulates low-confidence queries, and autonomously chases secondary leads (subsidiaries, estates, licensees).
 3. **Beat C (Mid-Run Discovery & Interactive HITL Action)**: Research Agent proposes newly discovered claims mid-run (validated by Intake schema checks) and surfaces context-aware `ClarifyingQuestionModal.tsx` asking targeted legal questions, pausing and resuming execution.
+4. **Inverse Domain Steering & Negative Search Operators**: When domain-steered queries (`site:ascap.com`) return zero results for an obscure composition, the Research Agent strips domain constraints and appends negative search operators (`-wiki -lyrics -youtube -spotify`) to isolate publishing catalogs and trademark filings.
+5. **Source Authority & Corroboration Weighting**: Risk Scoring Agent evaluates source reliability across conflicting findings (official PRO database = 1.0, news outlet = 0.6, blog = 0.2) and assigns a `corroboration_factor` score, logging the source authority hierarchy explicitly.
+6. **Scene-Proximity Co-Occurrence Risk Clustering**: Intake & Risk Scoring Agents evaluate scene proximity, clustering co-occurring claims (e.g. unlicensed music playing in a scene with a visible commercial brand logo) into `co_occurring_claim_ids` groups to flag compound legal exposure.
+7. **Automated Script Delta-Diffing**: Intake Agent executes an automated semantic delta diff on script revisions (Draft 3 vs. Draft 2), tagging modified claims (`is_delta_modified: true`) to target live research only to changed elements.
+8. **Attorney Legal Citation Suggestion Engine**: Pre-populates context-aware legal citation templates (`suggested_legal_citation` e.g. 17 U.S.C. § 107 Fair Use factors or Sync License clauses) when legal counsel opens `AttorneyOverrideModal.tsx`, reducing sign-off friction from 5 minutes to 15 seconds.
 
 ### Phase 2 — Dynamic Pipeline Planning (Sequenced Deliberately)
 
