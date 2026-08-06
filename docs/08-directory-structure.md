@@ -52,48 +52,59 @@ lienmark/
 │   │   │   ├── parallel_client.py        # THE required hackathon artifact — live Parallel SDK integration
 │   │   │   ├── multi_tool_router.py      # dynamic multi-tool selection (Parallel Search API vs Task API) —
 │   │   │   │                                see 04-prd.md §5.3 & 09-agent-orchestration.md §4
-│   │   │   └── query_builder.py           # builds minimal, non-identifying search terms —
-│   │   │                                    the code-level enforcement of confidentiality in 04-prd.md §5.6
+│   │   │   └── query_builder.py           # builds minimal, non-identifying search terms (04-prd.md §5.6)
 │   │   ├── ledger/
 │   │   │   ├── agent.py
-│   │   │   └── append_only_store.py       # enforces create-only writes at the application
-│   │   │                                    layer, on top of Firestore security rules (06-data-schema.md §3)
+│   │   │   └── append_only_store.py       # enforces create-only writes on top of Firestore rules (06-data-schema.md §3)
 │   │   ├── risk_scoring/
 │   │   │   ├── agent.py
 │   │   │   ├── deterministic_rules.py     # rule-based scoring logic — NOT an LLM freehand judgment
-│   │   │   └── conflict_arbitration.py    # multi-source conflict resolution — the code behind the demo centerpiece
+│   │   │   ├── conflict_arbitration.py    # multi-source conflict resolution — demo centerpiece
+│   │   │   └── cross_claim_reasoning.py   # production-wide cross-claim relationship evaluation (04-prd.md §5.4)
 │   │   ├── report/
 │   │   │   ├── agent.py
-│   │   │   └── report_formatter.py
+│   │   │   ├── report_formatter.py
+│   │   │   └── templates/                 # report export templates (Markdown/HTML/PDF) — 04-prd.md §5.7
 │   │   └── discovery/                     # autonomous proactive re-review poller — 6th agent module (02-mvp-scope.md §1)
 │   │       ├── agent.py
-│   │       └── poller.py
+│   │       ├── poller.py
+│   │       └── notification_router.py     # urgency-based notification routing (25-agentic-maturity-roadmap.md §5)
 │   ├── orchestration/
 │   │   ├── pipeline.py                    # top-level agent orchestration / control flow (09-agent-orchestration.md)
 │   │   └── agent_builder_config.py        # Google Cloud Agent Builder setup — hackathon-required orchestration config
 │   ├── storage/
 │   │   ├── firestore_client.py
 │   │   ├── firestore.rules                # protocol-level create-only rules for ledger_entries (06-data-schema.md §3)
+│   │   ├── firestore.indexes.json         # composite index config for delta retrieval & ledger queries
 │   │   └── schema.py                      # mirrors docs/06-data-schema.md exactly
 │   ├── config/
 │   │   ├── settings.py                    # loads env vars; contains zero hardcoded secrets
 │   │   └── iam_bindings.py                # enforces per-agent service account mapping (07-env-vars.md §4)
+│   ├── requirements.txt                   # Python deps: parallel-web, google-cloud-firestore, pytest, etc.
 │   ├── Dockerfile                         # Cloud Run container definition
 │   └── main.py                            # Cloud Run entrypoint
 ├── frontend/
-│   ├── app/                               # Next.js app directory
+│   ├── app/                               # Next.js App Router directory
+│   │   ├── layout.tsx                     # root layout — imports globals.css, Google Fonts (Inter/Outfit)
 │   │   ├── globals.css                    # CSS Design Token system — dark mode (#0B0F17), glassmorphism, status glows
 │   │   ├── page.tsx                       # upload + live claims table — primary product view
 │   │   ├── report/[production_id]/page.tsx
+│   │   ├── api/                           # Next.js API route handlers
+│   │   │   └── attorney-override/
+│   │   │       └── route.ts               # attorney approval/override API endpoint (09-agent-orchestration.md §7)
 │   │   └── components/
 │   │       ├── ClaimsTable.tsx            # live-updating demo-critical component (02-mvp-scope.md §3)
 │   │       ├── ClaimRow.tsx
 │   │       ├── SourceCitation.tsx         # inline clickable source citation component
 │   │       ├── HumanReviewFlag.tsx        # distinct visual treatment for human review state
-│   │       ├── DiscoveryNotification.tsx  # proactive resurfacing alert toast component
-│   │       └── ClarifyingQuestionModal.tsx # interactive modal for human-in-the-loop action
+│   │       ├── ToastContainer.tsx         # glowing toast notification container (02-mvp-scope.md §3, Beat A)
+│   │       ├── DiscoveryNotification.tsx  # proactive resurfacing alert toast content component
+│   │       ├── AttorneyOverrideModal.tsx  # attorney sign-off form (06-data-schema.md §2, 09-agent-orchestration.md §7)
+│   │       └── ClarifyingQuestionModal.tsx # interactive modal for human-in-the-loop action (Beat C)
 │   ├── lib/
 │   │   └── api_client.ts
+│   ├── next.config.js                     # Next.js configuration
+│   ├── tsconfig.json                      # TypeScript configuration
 │   └── package.json
 ├── demo/
 │   ├── sample_script.pdf                  # primary test fixture (mixed claim set + conflict arbitration)
