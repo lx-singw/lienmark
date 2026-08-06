@@ -143,6 +143,10 @@ attorney_rejection_directive: string (nullable) # human counsel instruction on r
 conflict_free_attorney: boolean   # true if counsel ethics pre-screening passed (ethics_pre_screening.py)
 blockchain_anchor_tx: string (nullable) # RFC 3161 TSA / L2 blockchain timestamp anchor (anchor_service.py)
 statutory_exposure_max: float (nullable) # worst-case 17 U.S.C. § 504(c) statutory damages (statutory_damages_calc.py)
+active_preset_profile: enum [indie_film, blockbuster, global_copro, genai_assisted] # preset_profiles.json
+api_spend_cap_usd: float (nullable) # max API spend governor limit (execution_budget_governor.py)
+studio_policy_lock: boolean       # true if mandatory studio policy inheritance enforced (studio_policy_engine.py)
+offline_queued_queries: array[string] # queued queries for auto-sync on reconnect (offline_fallback.py)
 ```
 
 **Worked example 1 (Automated Research Versioning):** imagine claim `clm_7f3a9b` is first researched and comes back `cleared` (version 1, `action_type: agent_finding`). Weeks later, the production is re-evaluated before a distribution deal closes, and a new Parallel search surfaces a fresh dispute over that same song's rights. The correct behavior is **not** to edit the version-1 entry. Instead:

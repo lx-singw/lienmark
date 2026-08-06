@@ -94,3 +94,36 @@ We activate **6 Core Hero Features** on camera, while highlighting the remaining
 | 30 | Multi-Agent Consensus Verification Protocol (`consensus_verifier.py`) | Optional (UI Toggle) | ⚙️ Optional |
 | 31 | Self-Correction Reflection Loop (`self_correction_loop.py`) | Optional (UI Toggle) | ⚙️ Optional |
 | 32 | Inter-Agent Negotiation Protocol (`agent_negotiator.py`) | Optional (UI Toggle) | ⚙️ Optional |
+
+---
+
+## 🏛️ 4. Presets, Governance & Safety Guard Suite
+
+To make feature management effortless and enterprise-safe, Lienmark provides 8 operational governance modules:
+
+### 4.1 1-Click Preset Clearance Profiles (`preset_profiles.json` & `PresetProfileSelector.tsx`)
+- **Indie Film ($1M–$5M)**: Activates basic Parallel Search + HITL Attorney Override + PDF Report.
+- **Hollywood Blockbuster ($100M+)**: Activates all 32 capabilities (Visual IP, SAG-AFTRA, Cue Sheets, Dual-Key Signatures).
+- **Global Co-Production**: Activates Multi-Jurisdiction Routing (GEMA/SACEM/PRS) + European Fair Dealing rules.
+- **GenAI-Assisted Production**: Activates GenAI Provenance Auditor + Training Data Opt-Out Registry + Likeness Consent.
+
+### 4.2 Dynamic API Spend & SLA Budget Governor (`execution_budget_governor.py`)
+- Allows line producers to cap API spend (`max_api_spend_usd: 5.00`) or pipeline latency (`max_pipeline_latency_seconds: 30.0`). The Research Agent dynamically throttles optional deep-extract passes if budget caps are reached.
+
+### 4.3 Role-Based Feature Toggle IAM Scoping (`feature_iam_policy.json`)
+- Restricts toggle permissions by user role: Outside Legal Counsel controls legal signature engines, Line Producers control cue sheet exporters, and Studio Heads control global presets and API budget caps.
+
+### 4.4 Automated Feature Dependency Safety Guard (`feature_dependency_guard.py`)
+- Automatically enforces dependent feature requirements (e.g. toggling `eo_certificate_generator: ON` mandates `dual_key_signatures: ON` and `ledger_hash_integrity_auditor: ON`).
+
+### 4.5 Production Stage Auto-Adaptive Toggle Triggers (`stage_adaptive_toggles.py`)
+- Morph toggles automatically across production phases (Development -> Production -> Post-Production -> Distribution Wrap).
+
+### 4.6 Multi-Tenant Studio Policy Inheritance Engine (`studio_policy_engine.py`)
+- Allows studio executives (A24, Netflix) to lock mandatory baseline security rules across all child indie productions.
+
+### 4.7 Feature Toggle Clearance Velocity Analytics (`toggle_analytics.py`)
+- Tracks legal review speed metrics (`clearance_velocity_per_toggle`) proving that pre-populated citations reduce sign-off time from 5 minutes to 15 seconds.
+
+### 4.8 On-Set Offline Mode & Local Cache Fallback (`offline_fallback.py`)
+- Switches to pure Python deterministic rules locally when filming in remote locations without internet, queuing Parallel web queries for auto-sync when online.

@@ -113,7 +113,13 @@ lienmark/
 │   │       └── notification_router.py     # urgency-based notification routing (25-agentic-maturity-roadmap.md §5)
 │   ├── orchestration/
 │   │   ├── pipeline.py                    # top-level agent orchestration / control flow (09-agent-orchestration.md)
-│   │   └── agent_builder_config.py        # Google Cloud Agent Builder setup — hackathon-required orchestration config
+│   │   ├── agent_builder_config.py        # Google Cloud Agent Builder setup — hackathon-required orchestration config
+│   │   ├── execution_budget_governor.py  # API spend & time SLA budget governor (27-feature-toggles.md §4.2)
+│   │   ├── feature_dependency_guard.py   # automated feature dependency safety guard (27-feature-toggles.md §4.4)
+│   │   ├── stage_adaptive_toggles.py     # production stage auto-adaptive toggle triggers (27-feature-toggles.md §4.5)
+│   │   ├── studio_policy_engine.py       # studio policy inheritance & mandatory rules engine (27-feature-toggles.md §4.6)
+│   │   ├── toggle_analytics.py           # clearance velocity & review speed analytics (27-feature-toggles.md §4.7)
+│   │   └── offline_fallback.py           # on-set offline local cache fallback & auto-sync (27-feature-toggles.md §4.8)
 │   ├── storage/
 │   │   ├── firestore_client.py
 │   │   ├── firestore.rules                # protocol-level create-only rules for ledger_entries (06-data-schema.md §3)
@@ -121,6 +127,9 @@ lienmark/
 │   │   └── schema.py                      # mirrors docs/06-data-schema.md exactly
 │   ├── config/
 │   │   ├── settings.py                    # loads env vars; contains zero hardcoded secrets
+│   │   ├── clearance_config.json          # 32-feature toggle state configuration payload
+│   │   ├── preset_profiles.json           # 1-click clearance profiles (Indie, Blockbuster, CoPro, GenAI)
+│   │   ├── feature_iam_policy.json        # role-based toggle IAM permissions matrix
 │   │   └── iam_bindings.py                # enforces per-agent service account mapping (07-env-vars.md §4)
 │   ├── requirements.txt                   # Python deps: parallel-web, google-cloud-firestore, pytest, etc.
 │   ├── Dockerfile                         # Cloud Run container definition

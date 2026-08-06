@@ -43,6 +43,12 @@ Insurers (**E&O**) and **completion bond companies** require verifiable, auditab
 > * **Attorney Rejection Re-Investigation Loop**: Bidirectional feedback loop (`attorney_rejection_router.py`) routing attorney rejections back to Research.
 > * **ISO 27001 Legal Audit Manifest**: Standardized legal compliance manifest generator (`legal_audit_exporter.py`) capturing raw API payloads and rationales.
 > 
+> ### 🎛️ Enterprise Feature Toggle & Governance Suite
+> * **1-Click Preset Profiles**: Indie ($1M), Blockbuster ($100M+), Global Co-Pro, and GenAI profiles (`preset_profiles.json`).
+> * **API Spend & SLA Budget Governor**: Hard cap spend (`max_api_spend_usd`) and time limits via `execution_budget_governor.py`.
+> * **Feature Dependency Safety Guard**: Automatically mandates dependent safety features (`feature_dependency_guard.py`).
+> * **Studio Policy Inheritance & On-Set Offline Mode**: Studio policy locking (`studio_policy_engine.py`) and remote set offline cache fallback (`offline_fallback.py`).
+> 
 > ### 🛡️ Concurrency Throttling & SHA-256 Script Deduplication
 > An `asyncio.Semaphore(10)` governor in `parallel_client.py` throttles multi-claim research loops, preventing Parallel API rate-limit errors. Meanwhile, `script_hasher.py` computes SHA-256 content hashes to instantly return existing ledger entries for duplicate script drops without wasting search API credits.
 > 

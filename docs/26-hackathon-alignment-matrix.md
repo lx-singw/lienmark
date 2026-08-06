@@ -19,6 +19,7 @@
 
 ### 2.1 Technological Implementation (40% Weight)
 * **Agentic Autonomy**: 32 documented Bounded Autonomy capabilities (`04-prd.md` §5).
+* **Enterprise Feature Toggle & Presets**: 1-click profiles (`preset_profiles.json`), API spend budget governor (`execution_budget_governor.py`), safety guard (`feature_dependency_guard.py`), and studio policy inheritance (`studio_policy_engine.py`).
 * **Attorney Ethics Pre-Screening**: Counsel conflict-of-interest verifier (`ethics_pre_screening.py`) under ABA rules.
 * **RFC 3161 Timestamping Anchor**: Trusted TSA / L2 blockchain timestamp anchor service (`anchor_service.py`) for FRE 902(13) court evidence.
 * **Statutory Damages Calculator**: 17 U.S.C. § 504(c) worst-case lawsuit exposure calculator (`statutory_damages_calc.py`).
