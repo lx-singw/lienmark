@@ -41,6 +41,7 @@ lienmark/
 │   ├── 25-agentic-maturity-roadmap.md
 │   ├── 26-hackathon-alignment-matrix.md # Devpost judging criteria & sponsor requirements alignment
 │   ├── 27-feature-toggles-and-demo-selection.md # modular feature toggles & 3-min video demo features
+│   ├── 28-devpost-submission-manifest.md # Devpost master submission & Parallel MCP track manifest
 │   ├── api-reference.md               # complete REST API specifications & untruncated payloads
 │   ├── installation.md                # hardware minimums, setup commands, troubleshooting matrix
 │   ├── contributing.md                # code quality standards, pytest strategies, branching rules
@@ -66,6 +67,7 @@ lienmark/
 │   │   ├── research/
 │   │   │   ├── agent.py
 │   │   │   ├── parallel_client.py        # THE required hackathon artifact — live Parallel SDK integration
+│   │   │   ├── parallel_mcp_client.py    # Parallel Model Context Protocol (MCP) server client (04-prd.md §5.3)
 │   │   │   ├── multi_tool_router.py      # dynamic multi-tool selection (Parallel Search API vs Task API) —
 │   │   │   │                                see 04-prd.md §5.3 & 09-agent-orchestration.md §4
 │   │   │   ├── research_planner.py       # autonomous investigation DAG plan synthesizer (04-prd.md §5.3)
@@ -114,6 +116,7 @@ lienmark/
 │   ├── orchestration/
 │   │   ├── pipeline.py                    # top-level agent orchestration / control flow (09-agent-orchestration.md)
 │   │   ├── agent_builder_config.py        # Google Cloud Agent Builder setup — hackathon-required orchestration config
+│   │   ├── agent_builder_mcp_config.json  # Agent Builder MCP server tool registration config (28-devpost.md §2)
 │   │   ├── execution_budget_governor.py  # API spend & time SLA budget governor (27-feature-toggles.md §4.2)
 │   │   ├── feature_dependency_guard.py   # automated feature dependency safety guard (27-feature-toggles.md §4.4)
 │   │   ├── stage_adaptive_toggles.py     # production stage auto-adaptive toggle triggers (27-feature-toggles.md §4.5)
