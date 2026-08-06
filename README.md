@@ -71,7 +71,7 @@ Lienmark operates under the core design principle **"Flexible Investigation, Det
 
 Orchestrated natively via **Google Cloud Agent Builder / Gemini Enterprise Agent Platform**:
 
-1. **Intake Agent** (`IntakeAgent`): Reads script PDFs via Gemini multimodal vision; extracts minimal search phrases (`extracted_description`) while stripping narrative plot to guarantee confidentiality.
+1. **Intake Agent** (`IntakeAgent`): Ingests all industry-standard screenplay formats (.pdf, Final Draft `.fdx`, `.fountain`, `.txt`), edit decision timelines (`.xml`, `.edl`, `.aaf`), and video cuts via Gemini Multimodal Vision; extracts minimal search phrases (`extracted_description`) while stripping narrative plot to guarantee confidentiality.
 2. **Research Agent** (`ResearchAgent`): Multi-tool investigation agent. Dynamically selects between Parallel's **Search API** (standard registry lookups) and **Task / Deep Extract API** (complex multi-party claims), and executes self-directed multi-hop lead chasing.
 3. **Ledger Agent** (`LedgerAgent`): Enforces append-only immutability at the storage layer; logs automated findings (`agent_finding`), mid-run proposed claims, and formal attorney overrides (`attorney_override`).
 4. **Risk Scoring Agent** (`RiskScoringAgent`): Performs cross-claim relationship reasoning, computes rule-based deterministic confidence scores, and arbitrates source conflicts (e.g. Apollo 11 public domain vs. private footage rights).
