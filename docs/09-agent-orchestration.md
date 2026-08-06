@@ -162,7 +162,10 @@ Notice what's deliberately **not** in either `extracted_description`: the emotio
 ```
 
 **Key behaviors:**
-- **Domain-targeted, registry-steered query construction — not generic open-web searches.** The agent constructs query strings formatted specifically for authoritative databases per claim type to maximize Parallel API confidence and source authority:
+- **Dynamic Multi-Tool Parallel API Selection.** The agent dynamically evaluates each claim's complexity and selects the appropriate Parallel API tool:
+  - **Parallel Search API** (`parallel_search_api`): Selected for standard, high-speed public domain and trademark registry queries.
+  - **Parallel Task / Deep Extract API** (`parallel_task_api`): Selected for complex, ambiguous claims (e.g. multi-party copyright assignments, estate transfers, or conflicting broadcast licenses) requiring multi-page synthesis.
+- **Domain-targeted, registry-steered query construction.** The agent constructs query strings formatted specifically for authoritative databases per claim type:
   - `music`: `"ownership, PRO sync rights, ASCAP BMI HFA registry status for {extracted_description}"`
   - `brand`: `"trademark registration status, USPTO WIPO TESS filing for {extracted_description}"`
   - `footage`: `"copyright registration status, US Copyright Office catalog for {extracted_description}"`
@@ -170,9 +173,8 @@ Notice what's deliberately **not** in either `extracted_description`: the emotio
   - `genai_flag`: `"copyright training data provenance, U.S. Copyright Office AI guidance for {extracted_description}"`
   - `other`: `"{extracted_description} ownership and legal status"`
 
-- **Parallelized, per-claim calls — not one blended query.** This matters for two independent reasons: technically, it's the only way to keep each finding traceable back to a specific claim (a requirement in `06-data-schema.md` §1.2); and for the demo, judges need to see N distinct, live calls happening, not one aggregate call that's harder to visually attribute to individual claims on screen.
-- **Integration method:** the official `parallel-web` SDK (Python), calling the Search API directly. This must be a real, imported, callable function in the submitted repo — see `backend/agents/research/parallel_client.py` in `08-directory-structure.md`, which is deliberately isolated into its own file specifically so a judge can find and verify it quickly.
-- **Failure handling:** on a timeout or API failure, the agent writes a finding with `call_status: failed` and `ownership_status: unknown`, rather than raising an unhandled exception that would kill the entire pipeline run. This is deliberately the moment worth triggering on camera during the demo — see `05-pitch-deck.md`'s shot list and `07-env-vars.md` §2's `DEMO_MODE` flag, which enables a reliable, repeatable way to simulate this failure for recording purposes rather than hoping a real timeout happens to occur during a live take.
+- **Self-Directed Multi-Hop Chained Research.** If an initial search result snippet references a connected licensee, estate, or subsidiary rights-holder (e.g., discovering CBS broadcast rights attached to an Apollo 11 NASA clip), the Research Agent autonomously issues a follow-up query (`multi_hop_depth: 1`) chasing the lead without waiting for human intervention.
+- **Mid-Run Secondary Claim Discovery.** If web research on a claim surfaces an unextracted secondary rights-triggering element (e.g. a background musical cue mentioned in a trademark document), the Research Agent proposes a new claim (`proposed_by_agent: "research_agent"`). The proposed claim is passed to the Intake Agent for schema validation before being committed to the ledger.
 
 **Example call shape** (illustrative — confirm exact current parameter names and method signatures against `docs.parallel.ai` before implementation, since SDK interfaces evolve):
 ```python

@@ -29,23 +29,23 @@ Most systems marketed as "agentic" are the first thing. That's not necessarily a
 4. **No dynamic planning.** Nothing decides the shape of the pipeline itself based on what a specific document actually needs — every document gets the identical sequence of steps regardless of its content.
 5. **Human-in-the-loop is a terminal state, not a callable action.** `needs_human_review` is currently where a run ends up, not something an agent can actively invoke mid-reasoning as a targeted clarifying question and then resume from.
 
-## 4. The tension worth naming directly: Selective Agency
+## 4. The governing architectural principle: Bounded Autonomy
 
-The instinct after reading the above might be "then maximize agentic autonomy everywhere" — that instinct is wrong for this specific product, and it's worth being explicit about why. **Lienmark's core value proposition depends on determinism and auditability** (`04-prd.md` §5.4, §5.5) — the Risk Scoring Agent was deliberately built to be rule-based specifically *because* a compliance verdict that varies between identical runs would undermine the entire trust thesis this company is built on. Full dynamic planning applied indiscriminately would work directly against that.
+The instinct might be "then maximize agentic autonomy everywhere" — that instinct is wrong for this specific product, and it's worth being explicit about why. **Lienmark's core value proposition depends on determinism and auditability** (`04-prd.md` §5.4, §5.5) — the Risk Scoring Agent was deliberately built to be rule-based specifically *because* a compliance verdict that varies between identical runs would undermine the entire trust thesis this company is built on. Full dynamic planning applied indiscriminately would work directly against that.
 
-**The right target isn't uniform maximum agency — it's selective agency:** increase autonomy exactly where adaptability improves output quality, and deliberately preserve determinism where it creates trust.
+**The governing principle is Bounded Autonomy ("Flexible Investigation, Deterministic Validation"):**
+- **Agents get full investigative autonomy**: Agents possess unconstrained authority over research depth, dynamic tool selection (Parallel Search API vs. Task/Extract API), multi-hop lead chasing across search snippets, mid-run claim discovery proposals, and notification urgency routing.
+- **System maintains strict deterministic validation**: All ledger commits, Firestore security rules, risk scoring calculations, and human legal sign-off boundaries remain 100% deterministic and auditable.
 
-## 5. The 3 Visible Autonomous Beats (MVP Scope)
+## 5. Bounded Autonomy Capabilities (MVP Scope)
 
-To demonstrate true agency without sacrificing compliance determinism, Lienmark implements three explicit autonomous beats in the MVP:
+1. **Beat A (Proactive Discovery & Urgency Routing)**: Discovery Agent runs autonomously in the background (`09-agent-orchestration.md` §2), surfacing proactive toast alerts (`ToastContainer.tsx`) and routing urgent disputes to immediate alerts while batching routine flags.
+2. **Beat B (Multi-Tool & Multi-Hop Iteration)**: Research Agent dynamically selects between Parallel Search API and Task/Extract API based on claim complexity, reformulates low-confidence queries, and autonomously chases secondary leads (subsidiaries, estates, licensees).
+3. **Beat C (Mid-Run Discovery & Interactive HITL Action)**: Research Agent proposes newly discovered claims mid-run (validated by Intake schema checks) and surfaces context-aware `ClarifyingQuestionModal.tsx` asking targeted legal questions, pausing and resuming execution.
 
-1. **Beat A (Proactive Background Discovery)**: The Discovery Agent runs autonomously in the background (`09-agent-orchestration.md` §2), periodically watching script directories and surfacing proactive glowing toast notifications (`ToastContainer.tsx`) when new files or stale claims are detected—without waiting for a human upload click.
-2. **Beat B (Bounded Research Iteration)**: When initial Parallel Search API queries return low-confidence or thin findings, the Research Agent autonomously reformulates query strings (`09-agent-orchestration.md` §4) and executes a second targeted search pass before finalizing findings.
-3. **Beat C (Human-in-the-Loop as a Callable Action)**: Rather than stopping at a passive flag, when hitting genuine ambiguity, the Risk Scoring Agent surfaces a context-aware `ClarifyingQuestionModal.tsx` asking a targeted legal question, pausing execution and seamlessly resuming once answered.
+### Phase 2 — Dynamic Pipeline Planning (Sequenced Deliberately)
 
-### Phase 2 — the real architectural leap, and where an earlier decision needs correcting
-
-**A genuine planning orchestrator that dynamically decides pipeline shape per document** is the actual biggest step toward "true" agentic architecture — and it's explicitly out of scope for the hackathon MVP, not because it isn't valuable, but because a planner capable of altering its own steps is far harder to make reliably demonstrable in a fixed 3-minute video than a stable pipeline with strong reasoning inside it. Attempting this now would trade demo reliability for architectural purity, which is the wrong trade at this stage.
+A full dynamic planner that alters the pipeline shape per document (e.g. skipping steps or dynamically adding new agent nodes) is the remaining architectural step. It is sequenced for Phase 2 not because of liability (investigative autonomy is already unconstrained), but because of **demo predictability and recording reliability**: a planner that alters its own pipeline shape introduces runtime variance that risks an unpredictable run during a live 3-minute recorded video take. Bounded autonomy delivers maximum investigative agency while maintaining 100% demo reliability.
 
 **This requires walking back part of the ADK-vs-LangGraph decision in `09-agent-orchestration.md` §9.** That decision was made with an explicit, stated condition for reversal: *"if a future phase's control flow genuinely becomes non-linear... that's the point to revisit this decision."* A real dynamic planner is exactly that condition. **Corrected position:** native Agent Builder orchestration remains the right choice for the MVP's fixed pipeline (the original reasoning — the MVP's control flow is linear, so a heavier framework isn't justified — still holds for what's being built now). But **Phase 2's planning orchestrator is a strong candidate for LangGraph specifically**, since explicit state-graph modeling is built for exactly the branching, looping, self-modifying control flow a real planner needs — this was true when the original decision was made and remains true now; only the phase it applies to needed to be pinned down honestly rather than left implicit.
 

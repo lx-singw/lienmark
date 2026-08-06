@@ -30,7 +30,7 @@ status: enum [processing, complete, needs_review]
 **Why `status` lives here and not derived on the fly:** having a denormalized top-level status field lets the UI's live-updating claims table (see `02-mvp-scope.md` §3) query a single cheap document rather than aggregating across every claim/finding/ledger-entry on every render — this matters specifically because the demo needs this table to feel responsive and live, not laggy.
 
 ### `claims`
-Every rights-triggering element extracted by the Intake Agent.
+Every rights-triggering element extracted by the Intake Agent or proposed mid-run by the Research Agent.
 
 ```
 claim_id: string (doc id)
@@ -40,6 +40,7 @@ scene_ref: string                # e.g. "INT. WAREHOUSE - NIGHT, p.14" — trace
 extracted_description: string    # short, non-identifying — e.g. "song 'X' by artist Y"
                                    # NEVER full scene/plot context (confidentiality requirement, see §1.3)
 needs_clarification: boolean     # true if the Intake Agent couldn't confidently type/describe this claim
+proposed_by_agent: string (nullable) # agent ID if claim was discovered mid-run during multi-hop search
 created_at: timestamp
 ```
 
@@ -52,12 +53,13 @@ created_at: timestamp
   "scene_ref": "p.34, INT. CAR - NIGHT",
   "extracted_description": "song 'Bohemian Rhapsody' by Queen — sync licensing status",
   "needs_clarification": false,
+  "proposed_by_agent": null,
   "created_at": "2026-08-15T14:22:03Z"
 }
 ```
 
 ### `research_findings`
-Every result returned by a Parallel Search API call, one per claim per query attempt.
+Every result returned by Parallel Search/Task API calls, one per claim per query attempt.
 
 ```
 finding_id: string (doc id)
@@ -66,8 +68,9 @@ source_url: string               # REQUIRED, non-null — enforced at write time
 source_snippet: string           # short excerpt supporting the finding, used for inline citation display
 ownership_status: enum [clear, disputed, unknown, licensing_required]
 retrieved_at: timestamp
-parallel_query: string           # the actual query string sent to Parallel — kept for auditability
-                                   # and for debugging why a particular finding was returned
+parallel_query: string           # actual query string sent to Parallel — kept for auditability
+tool_used: enum [parallel_search_api, parallel_task_api] # dynamic multi-tool selection
+multi_hop_depth: integer         # 0 for initial pass, 1+ for self-directed secondary lead chasing
 call_status: enum [success, failed, timeout]
 ```
 

@@ -32,20 +32,22 @@ Insurers (**E&O**) and **completion bond companies** require verifiable, auditab
 
 ---
 
-## 🤖 5-Agent Architecture & 3 Autonomous Beats
+## 🤖 5-Agent Bounded Autonomy Architecture & Autonomous Beats
 
-Lienmark is orchestrated natively via **Google Cloud Agent Builder / Gemini Enterprise Agent Platform**:
+Lienmark operates under the core design principle **"Flexible Investigation, Deterministic Validation"**: agents possess unconstrained autonomy over research depth, tool choice, multi-hop lead chasing, and mid-run claim discovery, while all ledger commits and liability boundaries remain strictly validated and human-governed.
+
+Orchestrated natively via **Google Cloud Agent Builder / Gemini Enterprise Agent Platform**:
 
 1. **Intake Agent** (`IntakeAgent`): Reads script PDFs via Gemini multimodal vision; extracts minimal search phrases (`extracted_description`) while stripping narrative plot to guarantee confidentiality.
-2. **Research Agent** (`ResearchAgent`): Issues domain-steered query strings per claim type (ASCAP/BMI for music, USPTO for brands, US Copyright Office for footage) via Parallel Search API.
-3. **Ledger Agent** (`LedgerAgent`): Enforces append-only immutability at the storage layer; logs automated findings (`agent_finding`) and formal attorney overrides (`attorney_override`).
-4. **Risk Scoring Agent** (`RiskScoringAgent`): Computes rule-based, deterministic confidence scores and arbitrates source conflicts (e.g. Apollo 11 public domain vs. private footage rights).
-5. **Report Agent** (`Report Agent`): Generates a structured Clearance Intelligence & Verification Audit report complete with inline source citations and attorney sign-off sections.
+2. **Research Agent** (`ResearchAgent`): Multi-tool investigation agent. Dynamically selects between Parallel's **Search API** (standard registry lookups) and **Task / Deep Extract API** (complex multi-party claims), and executes self-directed multi-hop lead chasing.
+3. **Ledger Agent** (`LedgerAgent`): Enforces append-only immutability at the storage layer; logs automated findings (`agent_finding`), mid-run proposed claims, and formal attorney overrides (`attorney_override`).
+4. **Risk Scoring Agent** (`RiskScoringAgent`): Performs cross-claim relationship reasoning, computes rule-based deterministic confidence scores, and arbitrates source conflicts (e.g. Apollo 11 public domain vs. private footage rights).
+5. **Report Agent** (`Report Agent`): Generates a structured Clearance Intelligence & Verification Audit report complete with inline source citations, notification urgency routing, and attorney sign-off sections.
 
-### 🌟 3 Visible Autonomous Beats
-- **Beat A (Proactive Discovery)**: Autonomous background polling surfacing stale or newly disputed claims via glowing toast alerts (`ToastContainer.tsx`).
-- **Beat B (Bounded Iteration)**: Research Agent evaluates low-confidence search results and autonomously reformulates query strings before finalizing findings.
-- **Beat C (Human-in-the-Loop Action)**: Interactive modal (`ClarifyingQuestionModal.tsx`) surfacing targeted questions and pausing pipeline execution until human input is committed.
+### 🌟 Bounded Autonomy Capabilities
+- **Beat A (Proactive Discovery & Urgency Routing)**: Background poller surfacing stale/disputed claims via glowing toast alerts (`ToastContainer.tsx`).
+- **Beat B (Multi-Tool & Multi-Hop Iteration)**: Research Agent selects optimal Parallel tools and autonomously chases secondary leads (subsidiaries, licensees, estates) across search snippets.
+- **Beat C (Mid-Run Claim Discovery & HITL Action)**: Research Agent proposes newly discovered claims mid-run (validated before ledger write) and surfaces context-aware `ClarifyingQuestionModal.tsx` for human legal sign-off.
 
 ---
 

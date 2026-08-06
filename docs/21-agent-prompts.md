@@ -46,9 +46,9 @@ rights-relevant — err toward fewer, well-justified claims over an
 exhaustive but noisy list.
 ```
 
-## 2. Research Agent — Parallel query construction (domain-steered)
+## 2. Research Agent — Dynamic Tool Selection & Multi-Hop Query Construction
 
-The Research Agent constructs domain-targeted query strings targeting authoritative public registries per claim type to maximize Parallel API confidence and source authority (`query_builder.py`, per `08-directory-structure.md`):
+The Research Agent dynamically evaluates claim complexity to select the appropriate Parallel API tool (`parallel_search_api` vs `parallel_task_api`) and constructs domain-steered query strings (`query_builder.py`, per `08-directory-structure.md`):
 
 ```python
 QUERY_TEMPLATE_BY_CLAIM_TYPE = {
@@ -59,9 +59,21 @@ QUERY_TEMPLATE_BY_CLAIM_TYPE = {
     "genai_flag": "copyright training data provenance, U.S. Copyright Office AI guidance for {extracted_description}",
     "other": "{extracted_description} ownership and legal status",  # fallback — used sparingly
 }
+
+def select_tool_and_query(claim: Claim) -> Tuple[str, str]:
+    """Dynamically routes simple registry lookups to Search API and multi-party claims to Task API."""
+    if claim.needs_clarification or claim.type in ["footage", "genai_flag"]:
+        tool = "parallel_task_api"  # Deep Extract/Task API for complex multi-party synthesis
+    else:
+        tool = "parallel_search_api" # Fast Search API for direct public registry lookups
+    return tool, QUERY_TEMPLATE_BY_CLAIM_TYPE.get(claim.type, QUERY_TEMPLATE_BY_CLAIM_TYPE["other"]).format(
+        extracted_description=claim.extracted_description
+    )
 ```
 
-**Why domain-steered templates rather than generic open-web searches:** generic search phrases risk returning low-authority blog posts or informal forum comments. Steering the Parallel Search API query string toward primary public registries (ASCAP/BMI/HFA for music, USPTO/TESS for trademarks, US Copyright Office catalog for footage/literary) forces the search engine to return high-confidence, primary-source URLs. Furthermore, this keeps the query predictable and auditable (logged verbatim in `parallel_query`, per `06-data-schema.md`), enforcing confidentiality twice independently (see `04-prd.md` §5.6).
+**Multi-Hop Lead Chasing & Mid-Run Proposals:**
+- If an initial search result snippet references a connected licensee, estate, or subsidiary (e.g. CBS broadcast rights attached to NASA moon footage), the Research Agent autonomously constructs a secondary query (`multi_hop_depth: 1`) chasing the lead.
+- If an unextracted secondary claim is surfaced during research (e.g. background music cue mentioned in a trademark filing), the agent emits a proposed claim payload (`proposed_by_agent: "research_agent"`) for Intake validation before committing to the ledger.
 
 ## 3. Risk Scoring Agent — this is deliberately NOT a prompt
 
