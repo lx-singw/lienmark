@@ -59,17 +59,17 @@ The Week 0 spike tests are the entire foundation of the schedule — if any of t
   - Method B: Drag-and-Drop Dropzone (`frontend/app/page.tsx`) — manual web portal, maintained as visual anchor
   - Directory scoping: watcher observes locked production buckets only, never writer sandbox directories
 - [ ] **Budget Governance Foundation** (`04-prd.md` §5.9, `27-feature-toggles-and-demo-selection.md` §4.2, §5.2):
-  - `backend/agents/orchestration/execution_budget_governor.py` — API spend caps (`max_api_spend_usd`) and pipeline latency ceilings (`max_pipeline_latency_seconds`)
+  - `backend/orchestration/execution_budget_governor.py` — API spend caps (`max_api_spend_usd`) and pipeline latency ceilings (`max_pipeline_latency_seconds`)
   - Budget-triggered HITL: sub-second token + claim density pre-estimation before pipeline launch; if projected cost < $10.00, runs autonomously; if > $10.00, fires Budget Approval Alert to Line Producer before executing
-- [ ] **Notification Router** (`25-agentic-maturity-roadmap.md` §5 Beat A): `backend/agents/orchestration/notification_router.py` — urgency routing (immediate alerts for high-severity disputes, batched delivery for routine flags)
+- [ ] **Notification Router** (`25-agentic-maturity-roadmap.md` §5 Beat A): `backend/agents/discovery/notification_router.py` — urgency routing (immediate alerts for high-severity disputes, batched delivery for routine flags)
 
 ### Thu–Fri: Config Layer + Scripts
 - [ ] **Feature Toggle Infrastructure** (`27-feature-toggles-and-demo-selection.md` §1):
   - `backend/config/clearance_config.json` — 32-capability toggle configuration payload
-  - `src/components/FeatureTogglePanel.tsx` — UI toggle panel (shell; full wiring in Week 4)
+  - `frontend/app/components/FeatureTogglePanel.tsx` — UI toggle panel (shell; full wiring in Week 4)
 - [ ] **Preset Profiles** (`04-prd.md` §5.9, `27-feature-toggles-and-demo-selection.md` §4.1):
   - `backend/config/preset_profiles.json` — Indie Film, Hollywood Blockbuster, Global Co-Production, GenAI-Assisted presets
-  - `src/components/PresetProfileSelector.tsx` — preset UI selector (shell; full wiring in Week 4)
+  - `frontend/app/components/PresetProfileSelector.tsx` — preset UI selector (shell; full wiring in Week 4)
 - [ ] **Utility Scripts**:
   - `scripts/verify_integrations.py` — integration verification script (`README.md`)
   - `scripts/run_local_demo.sh` — one-click local launcher (`README.md`)
@@ -174,7 +174,7 @@ The Week 0 spike tests are the entire foundation of the schedule — if any of t
 - [ ] `tests/test_risk_scoring_determinism.py` — write this test early, not as an afterthought; confirm identical inputs produce identical scores across repeated runs
 
 ### Tue–Wed: Inter-Agent Verification Protocols (`04-prd.md` §5.3, §5.4)
-- [ ] **Inter-Agent Negotiation Protocol**: `backend/agents/orchestration/agent_negotiator.py` — Risk Scoring Agent dispatches targeted negotiation prompts to Research Agent, requesting specialized secondary verification (`site:copyright.gov`) to resolve evidence contradictions before finalizing verdicts
+- [ ] **Inter-Agent Negotiation Protocol**: `backend/agents/research/agent_negotiator.py` — Risk Scoring Agent dispatches targeted negotiation prompts to Research Agent, requesting specialized secondary verification (`site:copyright.gov`) to resolve evidence contradictions before finalizing verdicts
 - [ ] **Multi-Agent Consensus Verification**: `backend/agents/risk_scoring/consensus_verifier.py` — for claims with risk score >= 0.85, automatically trigger a second independent verification pass with alternative query formulation; stamp `consensus_verified: true` when both passes yield identical findings
 - [ ] **Multi-Agent Peer Deliberation & Voting**: `backend/agents/risk_scoring/peer_deliberation.py` — for catastrophic risk claims (potential $1M+ exposure), spawn 3 peer evaluator agents (Conservative Counsel, Litigation Defense, Sync Specialist); log `peer_vote_consensus: 3/3`
 
@@ -188,7 +188,7 @@ The Week 0 spike tests are the entire foundation of the schedule — if any of t
 - [ ] **30-Day Clearance Expiration TTL**: Enforce `verification_ttl_days: 30` expiration lifecycle; trigger automatic re-verification passes when productions enter Picture Lock past 30 days
 - [ ] **Attorney Legal Citation Suggestion Engine**: Pre-populate `suggested_legal_citation` templates (17 U.S.C. § 107 Fair Use factors, standard Sync License clauses) when counsel opens `AttorneyOverrideModal.tsx` — reduce sign-off time from 5 minutes to 15 seconds
 - [ ] **Risk-Trend Regression Tracking**: Calculate `risk_trend: "improving" | "degrading"` and `clearance_velocity_score` across script revisions — quantitative metrics for completion bond underwriters
-- [ ] **Autonomous Dispute Auto-Escalation**: `backend/agents/ledger/conflict_escalation.py` — auto-escalate high-severity disputes past 72-hour SLA (`escalation_level: 2`), route automated notifications to senior production legal officers
+- [ ] **Autonomous Dispute Auto-Escalation**: `backend/agents/discovery/conflict_escalation.py` — auto-escalate high-severity disputes past 72-hour SLA (`escalation_level: 2`), route automated notifications to senior production legal officers
 - [ ] **Cryptographic Hash-Chain Ledger Auditor**: Compute `ledger_entry_hash` SHA-256 linking each entry to its predecessor; provide CLI auditor (`scripts/verify_ledger_integrity.py`) for tamper-evidence proof
 - [ ] **Dual-Key Cryptographic Attorney Signature Engine**: `backend/agents/ledger/dual_key_signer.py` — require dual RSA-256 / Ed25519 signatures from reviewing attorney + lead legal officer before any high-risk claim can be marked `attorney_cleared`
 - [ ] **Attorney Override Rejection → Re-Investigation Loop**: `backend/agents/ledger/attorney_rejection_router.py` — log `action_type: attorney_rejection` with `attorney_rejection_directive`; route claim back to Research Agent for targeted re-investigation
@@ -249,11 +249,11 @@ This is the single most important checkpoint in the whole schedule — if the co
 - [ ] **CSS Design Token System** (`02-mvp-scope.md`): `globals.css` — design system tokens; no ad-hoc inline styles
 
 **Governance Module Implementations**:
-- [ ] `backend/agents/orchestration/feature_dependency_guard.py` — enforce dependent feature prerequisites (E&O certificate mandates dual-key signatures; dual-key mandates ledger hash auditor)
-- [ ] `backend/agents/orchestration/stage_adaptive_toggles.py` — morph active toggles across Development → Production → Post-Production → Distribution Wrap
-- [ ] `backend/agents/orchestration/studio_policy_engine.py` — studio-level baseline security rule locking across child productions
-- [ ] `backend/agents/orchestration/toggle_analytics.py` — clearance velocity metrics proving pre-populated citations reduce sign-off from 5 minutes to 15 seconds
-- [ ] `backend/agents/research/offline_fallback.py` — on-set offline mode; switch to pure Python deterministic rules, queue web lookups for auto-sync
+- [ ] `backend/orchestration/feature_dependency_guard.py` — enforce dependent feature prerequisites (E&O certificate mandates dual-key signatures; dual-key mandates ledger hash auditor)
+- [ ] `backend/orchestration/stage_adaptive_toggles.py` — morph active toggles across Development → Production → Post-Production → Distribution Wrap
+- [ ] `backend/orchestration/studio_policy_engine.py` — studio-level baseline security rule locking across child productions
+- [ ] `backend/orchestration/toggle_analytics.py` — clearance velocity metrics proving pre-populated citations reduce sign-off from 5 minutes to 15 seconds
+- [ ] `backend/orchestration/offline_fallback.py` — on-set offline mode; switch to pure Python deterministic rules, queue web lookups for auto-sync
 
 ### Thu–Fri: Deploy + Staging
 - [ ] Deploy full stack to Cloud Run (staging URL); per-agent IAM enforcement confirmed working in deployed environment, not just locally

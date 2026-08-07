@@ -53,6 +53,8 @@ lienmark/
 │   ├── vision.md                      # executive summary, problem statement, title insurance model
 │   ├── prd.md                         # exact-match PRD entry point (links to 04-prd.md)
 │   └── directory-structure.md         # exact-match directory structure entry point (links to 08-directory-structure.md)
+├── output/                            # runtime-generated deliverable artifacts (PDFs, cue sheets, manifests — gitignored)
+│   └── .gitkeep
 ├── backend/
 │   ├── agents/
 │   │   ├── intake/
@@ -68,6 +70,7 @@ lienmark/
 │   │   │                                    see 02-mvp-scope.md §1 & 20-adversarial-input-defense.md §2
 │   │   ├── research/
 │   │   │   ├── agent.py
+│   │   │   ├── prompts.py                 # Research Agent tool selection & query prompts (21-agent-prompts.md §2)
 │   │   │   ├── parallel_client.py        # THE required hackathon artifact — live Parallel SDK integration
 │   │   │   ├── parallel_mcp_client.py    # Parallel Model Context Protocol (MCP) server client (04-prd.md §5.3)
 │   │   │   ├── multi_tool_router.py      # dynamic multi-tool selection (Parallel Search API vs Task API) —
@@ -93,6 +96,7 @@ lienmark/
 │   │   │   └── legal_audit_exporter.py   # ISO 27001 / SOC 2 legal audit trail manifest exporter (04-prd.md §5.5)
 │   │   ├── risk_scoring/
 │   │   │   ├── agent.py
+│   │   │   ├── prompts.py                 # Risk Scoring Agent post-verdict explanation prompt (21-agent-prompts.md §3)
 │   │   │   ├── deterministic_rules.py     # rule-based scoring logic — NOT an LLM freehand judgment
 │   │   │   ├── statutory_rule_engine.py   # pure Python statutory legal rule evaluation engine (04-prd.md §5.4)
 │   │   │   ├── statutory_damages_calc.py # 17 U.S.C. § 504(c) statutory damages exposure calculator (04-prd.md §5.4)
@@ -103,7 +107,9 @@ lienmark/
 │   │   │   └── cross_claim_reasoning.py   # production-wide cross-claim relationship evaluation (04-prd.md §5.4)
 │   │   ├── report/
 │   │   │   ├── agent.py
+│   │   │   ├── prompts.py                 # Report Agent structured report generation prompt (21-agent-prompts.md §4)
 │   │   │   ├── report_formatter.py
+│   │   │   ├── policy_exclusion_schedule.json # E&O policy exclusion schedule template (README.md)
 │   │   │   ├── legal_brief_exporter.py   # formal attorney defense memorandum PDF exporter (04-prd.md §5.5)
 │   │   │   ├── chain_of_title_cert.py    # official E&O title clearance PDF generator (04-prd.md §5.7)
 │   │   │   ├── cue_sheet_exporter.py     # ASCAP/BMI music cue sheet exporter (04-prd.md §5.7)
@@ -145,10 +151,6 @@ lienmark/
 │   ├── Dockerfile                         # Cloud Run container definition
 │   └── main.py                            # Cloud Run entrypoint
 ├── docker-compose.yml                     # local multi-container dev environment (backend + frontend)
-├── scripts/
-│   ├── deploy.sh                          # Google Cloud Run production deployment script
-│   ├── verify_integrations.py             # 60-second judge compliance verification helper
-│   └── verify_ledger_integrity.py         # SHA-256 hash-chain ledger integrity verification script
 ├── frontend/
 │   ├── app/                               # Next.js App Router directory
 │   │   ├── layout.tsx                     # root layout — imports globals.css, Google Fonts (Inter/Outfit)
@@ -166,7 +168,10 @@ lienmark/
 │   │       ├── ToastContainer.tsx         # glowing toast notification container (02-mvp-scope.md §3, Beat A)
 │   │       ├── DiscoveryNotification.tsx  # proactive resurfacing alert toast content component
 │   │       ├── AttorneyOverrideModal.tsx  # attorney sign-off form (06-data-schema.md §2, 09-agent-orchestration.md §7)
-│   │       └── ClarifyingQuestionModal.tsx # interactive modal for human-in-the-loop action (Beat C)
+│   │       ├── ClarifyingQuestionModal.tsx # interactive modal for human-in-the-loop action (Beat C)
+│   │       ├── IntakeDropzone.tsx         # glassmorphic drag-and-drop file uploader (30-ui-design-system.md §2.1)
+│   │       ├── FeatureTogglePanel.tsx     # 32-capability feature toggle suite panel (27-feature-toggles.md §1, 30-ui §2.3)
+│   │       └── PresetProfileSelector.tsx  # 1-click clearance preset selector (04-prd.md §5.9, 27-feature-toggles.md §4.1)
 │   ├── lib/
 │   │   └── api_client.ts
 │   ├── next.config.js                     # Next.js configuration
@@ -187,9 +192,9 @@ lienmark/
 │   └── test_e2e_pipeline.py               # E2E benchmark pipeline runner under pytest
 ├── scripts/
 │   ├── setup_gcp.sh                       # provisions GCP project, service accounts, IAM bindings
-│   ├── deploy.sh
+│   ├── deploy.sh                          # Google Cloud Run production deployment script
 │   ├── run_local_demo.sh                  # one-click local runner launching backend + frontend
-│   ├── seed_demo_data.py
+│   ├── seed_demo_data.py                  # populates initial test collections in Firestore
 │   ├── test_week0_validation.py           # Week 0 API de-risking script (13-technical-validation.md)
 │   ├── verify_ledger_integrity.py         # 5-second cryptographic SHA-256 hash chain ledger auditor (04-prd.md §5.5)
 │   └── verify_integrations.py             # 60-second judge compliance verification helper (12-qa-checklist.md §3)
@@ -200,13 +205,15 @@ lienmark/
 
 ## 2. Rationale for key structural decisions, explained rather than just asserted
 
-- **`agents/` is split by responsibility, not by generic "utils" grouping.** Each agent is a fully self-contained module with its own prompts and logic, directly mirroring the architecture described in `04-prd.md` and `09-agent-orchestration.md`. This includes `discovery/`, which implements the proactive re-review poller (`02-mvp-scope.md` §1) to demonstrate true autonomous initiative rather than purely reactive execution.
+- **`agents/` is split by responsibility, not by generic "utils" grouping.** Each agent is a fully self-contained module with its own prompts (`prompts.py`) and logic, directly mirroring the architecture described in `04-prd.md` and `09-agent-orchestration.md`. This includes `discovery/`, which implements the proactive re-review poller (`02-mvp-scope.md` §1) to demonstrate true autonomous initiative rather than purely reactive execution.
 
 - **`research/parallel_client.py` is deliberately isolated into its own file, not inlined into `agent.py`.** This single file is what satisfies the hackathon's hardest, most specific requirement (see `01-hackathon-scope.md` §4: "imported and called in code, not README-only"). Keeping it isolated means it's easy to point a judge directly at exactly the file that proves compliance, rather than making them read through a larger, mixed-purpose file to find the relevant lines.
 
 - **`ledger/append_only_store.py` and `storage/firestore.rules` work together for immutability.** The immutability guarantee is the single core governance claim of the entire product — application-layer enforcement in `append_only_store.py` is backed by protocol-level security rules in `firestore.rules` (`06-data-schema.md` §3). It deserves to be independently readable, independently testable (`tests/test_ledger_immutability.py`), and independently auditable.
 
 - **`intake/self_reflection.py` isolates prompt-injection defenses and extraction reflection.** Prompt injection is a major risk for LLM-driven compliance tools (`20-adversarial-input-defense.md`). Keeping self-reflection and instruction-hierarchy defenses isolated makes the Technological Implementation story clean and checkable.
+
+- **`output/` directory separates runtime deliverables from source code.** Runtime-generated PDFs (E&O certificates, defense memorandums), cue sheets, and legal audit manifests (`manifest_iso_legal.json`) write to a dedicated, gitignored `output/` directory, keeping the codebase repository clean.
 
 - **`demo/` is a first-class top-level directory, not an afterthought bolted on in the final week.** Given that the Design judging criterion explicitly rewards "a complete, coherent product experience" (see `01-hackathon-scope.md` §6.2), the demo data, adversarial fixtures (`sample_script_adversarial.pdf`), and the failure-trigger mechanism are treated as real engineering deliverables with their own directory and their own files, planned for from the start — not scrambled together the night before recording.
 
@@ -241,3 +248,4 @@ MIT — see LICENSE
 ```
 
 **Why the "Required integrations" section is called out this explicitly, with direct file links rather than just a general architecture description:** given that `01-hackathon-scope.md` §4 quotes the hackathon's own rule that "referencing Parallel in your README alone does not satisfy this requirement," the README's job here isn't to *claim* compliance — it's to make it as fast and easy as possible for a time-constrained judge to independently verify compliance themselves by clicking straight to the exact file. A judge who has to hunt through an unfamiliar codebase to find the required integration is a judge who might reasonably give up and assume it isn't there. Removing that friction entirely is a small effort with an outsized effect on judging outcomes.
+
