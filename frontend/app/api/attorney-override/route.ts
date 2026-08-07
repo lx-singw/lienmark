@@ -1,6 +1,6 @@
 // route.ts
-// Lienmark frontend component
+// Attorney override API endpoint route handler
 
-export default function Component() {
-  return null;
+export async function POST() {
+  return new Response("OK");
 }

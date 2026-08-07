@@ -1,1 +1,10 @@
 # .gitignore
+output/*
+!output/.gitkeep
+backend/secrets/*
+!backend/secrets/.gitkeep
+node_modules/
+.next/
+__pycache__/
+*.pyc
+.env

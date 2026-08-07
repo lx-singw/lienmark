@@ -1,6 +1,6 @@
-// report/[production_id]/page.tsx
-// Lienmark frontend component
+// page.tsx
+// Lienmark report view page
 
-export default function Component() {
+export default function Page() {
   return null;
 }
