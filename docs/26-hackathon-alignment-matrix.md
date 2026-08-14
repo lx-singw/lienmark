@@ -9,7 +9,7 @@
 | Rule / Requirement | Hackathon Citation | Lienmark Code Implementation | Verification CLI Command |
 |---|---|---|---|
 | **Live Parallel Search API Usage** | `01-hackathon-scope.md` §4 | [`backend/agents/research/parallel_client.py`](file:///z:/home/lx_singw/projects/lienmark/backend/agents/research/parallel_client.py)<br>[`backend/agents/research/multi_tool_router.py`](file:///z:/home/lx_singw/projects/lienmark/backend/agents/research/multi_tool_router.py) | `python scripts/verify_integrations.py` |
-| **Google Cloud Agent Builder Orchestration** | `01-hackathon-scope.md` §2 | [`backend/agents/agent_builder_config.py`](file:///z:/home/lx_singw/projects/lienmark/backend/agents/agent_builder_config.py)<br>[`backend/agents/orchestration/pipeline.py`](file:///z:/home/lx_singw/projects/lienmark/backend/agents/orchestration/pipeline.py) | `python scripts/verify_integrations.py` |
+| **Google Cloud Agent Builder Orchestration** | `01-hackathon-scope.md` §2 | [`backend/orchestration/agent_builder_config.py`](file:///z:/home/lx_singw/projects/lienmark/backend/orchestration/agent_builder_config.py)<br>[`backend/orchestration/pipeline.py`](file:///z:/home/lx_singw/projects/lienmark/backend/orchestration/pipeline.py) | `python scripts/verify_integrations.py` |
 | **Media & Entertainment Workflow** | `01-hackathon-scope.md` §2 | Title Insurance Rights Clearance ($51.4M TAM)<br>[`docs/04-prd.md`](file:///z:/home/lx_singw/projects/lienmark/docs/04-prd.md) §1 | N/A (Domain Specific) |
 | **3-Minute Hard Limit Video** | `01-hackathon-scope.md` §6 | [`docs/05-pitch-deck.md`](file:///z:/home/lx_singw/projects/lienmark/docs/05-pitch-deck.md)<br>[`demo/demo_script.md`](file:///z:/home/lx_singw/projects/lienmark/demo/demo_script.md) | Video URL in Devpost |
 
@@ -46,7 +46,7 @@
 ### 2.2 Design & User Experience (30% Weight)
 * **Human-in-the-Loop (HITL) Clearance Intelligence**: Framing output as *Clearance Intelligence & Verification Audit* rather than definitive legal opinion (`04-prd.md` §5.5).
 * **Attorney Sign-Off Workflows**: `ClarifyingQuestionModal.tsx` and `AttorneyOverrideModal.tsx` pre-populate legal citations (`suggested_legal_citation`) and Fair Use defenses (`suggested_fair_use_defense`), writing immutable overrides (`action_type: attorney_override`) with dual-key RSA-256 signatures to Firestore.
-* **Urgency-Routed Proactive Toast Alerts**: [`ToastContainer.tsx`](file:///z:/home/lx_singw/projects/lienmark/src/components/ToastContainer.tsx) surfaces immediate alerts for urgent disputes while batching routine claims.
+* **Urgency-Routed Proactive Toast Alerts**: [`ToastContainer.tsx`](file:///z:/home/lx_singw/projects/lienmark/frontend/app/components/ToastContainer.tsx) surfaces immediate alerts for urgent disputes while batching routine claims.
 
 ### 2.3 Potential Impact & Market Feasibility (30% Weight)
 * **Title Insurance Thesis**: Independent clearance verification layer sitting between studios, E&O insurers, and completion bond companies (`docs/17-moat-mechanics.md`).

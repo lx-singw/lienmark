@@ -234,7 +234,7 @@ the person who wrote them, ideally on a clean machine or fresh clone]
 
 ## Architecture
 [Link to docs/09-agent-orchestration.md, plus one simple diagram —
-the five-agent control-flow diagram from that document works well here]
+the six-agent control-flow diagram from that document works well here]
 
 ## Required integrations (for judges — make this section impossible to miss)
 - Google Cloud Agent Builder: see backend/orchestration/agent_builder_config.py

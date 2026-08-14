@@ -13,7 +13,7 @@ Run this in full, ideally by a teammate who did **not** write the code being che
 
 - [ ] The submitted URL is live, loads without errors, and is the **production** deployment, not a staging or local-only link
 - [ ] Upload the actual demo script content from `11-demo-content.md` through the live hosted UI, start to finish, exactly as a judge would
-- [ ] Confirm the full five-agent pipeline runs end-to-end on the hosted instance specifically — a pipeline that only works locally is not a passing state
+- [ ] Confirm the full six-agent pipeline runs end-to-end on the hosted instance specifically — a pipeline that only works locally is not a passing state
 - [ ] Reload the page mid-run at least once to confirm the UI doesn't break on refresh (judges may do this without thinking about it)
 
 ## 3. Hackathon-required integration checks (the two things that can disqualify, not just lose points)

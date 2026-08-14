@@ -4,7 +4,7 @@ The rest of this documentation package establishes the title-insurance analogy (
 
 ## 1. The code is not the moat, and that's a deliberate, stated position
 
-Everything in `08-directory-structure.md` and `09-agent-orchestration.md` is being open-sourced under MIT license, as required by the hackathon (`01-hackathon-scope.md` §6). This is worth confronting directly rather than treating as an awkward tension to avoid mentioning: **if the moat depended on the code being secret, open-sourcing it for the hackathon would actively destroy the company's defensibility.** It doesn't, because the code was never the intended moat. Anyone can clone the five-agent architecture, the Firestore schema, even the exact Parallel integration pattern, in a weekend. That's fine, and worth being unbothered by if a judge or competitor points it out — it's evidence the team understands where their actual defensibility lives, rather than confusing "working software" with "durable advantage."
+Everything in `08-directory-structure.md` and `09-agent-orchestration.md` is being open-sourced under MIT license, as required by the hackathon (`01-hackathon-scope.md` §6). This is worth confronting directly rather than treating as an awkward tension to avoid mentioning: **if the moat depended on the code being secret, open-sourcing it for the hackathon would actively destroy the company's defensibility.** It doesn't, because the code was never the intended moat. Anyone can clone the six-agent architecture, the Firestore schema, even the exact Parallel integration pattern, in a weekend. That's fine, and worth being unbothered by if a judge or competitor points it out — it's evidence the team understands where their actual defensibility lives, rather than confusing "working software" with "durable advantage."
 
 ## 2. The actual moat, mechanism by mechanism
 
@@ -30,7 +30,7 @@ The Seedance dispute (`14-sources-appendix.md`) and the broader AI-content regul
 
 Worth being disciplined about this, since overclaiming moat strength is a credibility risk if a sharp judge or investor probes it:
 
-- **The specific five-agent architecture** — replicable in a weekend, as stated above
+- **The specific six-agent architecture** — replicable in a weekend, as stated above
 - **The Parallel integration itself** — Parallel is a publicly available API any competitor can also use
 - **The "idea" of AI-assisted rights clearance** — genuinely non-obvious relative to the saturated adjacent categories (`03-post-mvp-scope.md` §2), but an idea alone is not a moat once it's public, which it now will be via the hackathon submission
 - **The Lienmark name or brand** — a real trademark eventually matters for brand protection, but it's not a competitive moat against a well-funded competitor building a similar product under a different name
