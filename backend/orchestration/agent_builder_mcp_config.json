@@ -1,2 +1,12 @@
 {
+  "mcp_servers": {
+    "parallel_search": {
+      "url": "https://search.parallel.ai/mcp",
+      "transport": "sse",
+      "auth": {
+        "type": "bearer",
+        "env_var": "PARALLEL_API_KEY"
+      }
+    }
+  }
 }

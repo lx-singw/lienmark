@@ -1,2 +1,56 @@
 {
+  "roles": {
+    "STUDIO_EXECUTIVE": {
+      "allowed_toggles": ["*"],
+      "can_override_policy": true,
+      "can_bind_insurance": true
+    },
+    "PRODUCTION_ATTORNEY": {
+      "allowed_toggles": [
+        "ENABLE_STATUTORY_RULE_ENGINE",
+        "ENABLE_STATUTORY_DAMAGES_CALCULATOR",
+        "ENABLE_FAIR_USE_PRE_ANALYZER",
+        "ENABLE_DUAL_KEY_DIGITAL_SIGNATURES",
+        "ENABLE_ATTORNEY_ETHICS_PRE_SCREENING",
+        "ENABLE_TIMESTAMPING_AUTHORITY_ANCHOR",
+        "ENABLE_ATTORNEY_REJECTION_ROUTER",
+        "ENABLE_ISO_LEGAL_AUDIT_EXPORTER",
+        "ENABLE_LEGAL_DEFENSE_BRIEF_EXPORTER",
+        "ENABLE_CHAIN_OF_TITLE_CERT_GENERATOR"
+      ],
+      "can_override_policy": false,
+      "can_bind_insurance": false
+    },
+    "POST_SUPERVISOR": {
+      "allowed_toggles": [
+        "ENABLE_SCRIPT_DELTA_DIFFING",
+        "ENABLE_MULTIMODAL_VISION_EXTRACTION",
+        "ENABLE_TIMELINE_CONFORMER",
+        "ENABLE_MUSIC_CUE_SHEET_EXPORTER"
+      ],
+      "can_override_policy": false,
+      "can_bind_insurance": false
+    },
+    "AUTOMATED_AGENT_PIPELINE": {
+      "allowed_toggles": [
+        "ENABLE_MULTI_TOOL_DYNAMIC_ROUTING",
+        "ENABLE_PARALLEL_MCP_SERVER",
+        "ENABLE_RESEARCH_PLAN_SYNTHESIS",
+        "ENABLE_CLAIM_DEPENDENCY_RESOLVER",
+        "ENABLE_DYNAMIC_TOOL_SYNTHESIS",
+        "ENABLE_AUTONOMOUS_SELF_CORRECTION",
+        "ENABLE_INTER_AGENT_NEGOTIATION",
+        "ENABLE_CIRCUIT_BREAKER_FALLBACK",
+        "ENABLE_SUBGOAL_PLANNER",
+        "ENABLE_CONSENSUS_VERIFIER",
+        "ENABLE_CLEARANCE_COST_ESTIMATOR",
+        "ENABLE_VERTEX_GROUNDING",
+        "ENABLE_MULTI_AGENT_PEER_DELIBERATION",
+        "ENABLE_BOND_UNDERWRITING_RISK_SCORE",
+        "ENABLE_CROSS_CLAIM_REASONING"
+      ],
+      "can_override_policy": false,
+      "can_bind_insurance": false
+    }
+  }
 }

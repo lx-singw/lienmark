@@ -1,2 +1,98 @@
 {
+  "indie_film": {
+    "name": "Indie Film Fast-Track",
+    "description": "Streamlined, cost-effective clearance prioritizing core statutory rules, Parallel search, and rapid E&O certification.",
+    "budget_cap_usd": 25.0,
+    "sla_seconds": 60,
+    "active_toggles": [
+      "ENABLE_PARALLEL_MCP_SERVER",
+      "ENABLE_STATUTORY_RULE_ENGINE",
+      "ENABLE_FAIR_USE_PRE_ANALYZER",
+      "ENABLE_PROMPT_INJECTION_DEFENSE",
+      "ENABLE_CHAIN_OF_TITLE_CERT_GENERATOR",
+      "ENABLE_CIRCUIT_BREAKER_FALLBACK"
+    ]
+  },
+  "hollywood_blockbuster": {
+    "name": "Hollywood Blockbuster Studio Tier",
+    "description": "Comprehensive, deep-tier clearance with multimodal logo detection, EDL conforming, guild residual tracking, and completion bond underwriting.",
+    "budget_cap_usd": 250.0,
+    "sla_seconds": 300,
+    "active_toggles": [
+      "ENABLE_SCRIPT_DELTA_DIFFING",
+      "ENABLE_GENAI_PROVENANCE_AUDIT",
+      "ENABLE_UNION_RIGHTS_TRACKER",
+      "ENABLE_MULTIMODAL_VISION_EXTRACTION",
+      "ENABLE_TIMELINE_CONFORMER",
+      "ENABLE_PROMPT_INJECTION_DEFENSE",
+      "ENABLE_MULTI_TOOL_DYNAMIC_ROUTING",
+      "ENABLE_PARALLEL_MCP_SERVER",
+      "ENABLE_RESEARCH_PLAN_SYNTHESIS",
+      "ENABLE_CLAIM_DEPENDENCY_RESOLVER",
+      "ENABLE_DYNAMIC_TOOL_SYNTHESIS",
+      "ENABLE_AUTONOMOUS_SELF_CORRECTION",
+      "ENABLE_INTER_AGENT_NEGOTIATION",
+      "ENABLE_CIRCUIT_BREAKER_FALLBACK",
+      "ENABLE_SUBGOAL_PLANNER",
+      "ENABLE_CONSENSUS_VERIFIER",
+      "ENABLE_CLEARANCE_COST_ESTIMATOR",
+      "ENABLE_VERTEX_GROUNDING",
+      "ENABLE_DUAL_KEY_DIGITAL_SIGNATURES",
+      "ENABLE_ATTORNEY_ETHICS_PRE_SCREENING",
+      "ENABLE_TIMESTAMPING_AUTHORITY_ANCHOR",
+      "ENABLE_ATTORNEY_REJECTION_ROUTER",
+      "ENABLE_ISO_LEGAL_AUDIT_EXPORTER",
+      "ENABLE_STATUTORY_RULE_ENGINE",
+      "ENABLE_STATUTORY_DAMAGES_CALCULATOR",
+      "ENABLE_FAIR_USE_PRE_ANALYZER",
+      "ENABLE_MULTI_AGENT_PEER_DELIBERATION",
+      "ENABLE_BOND_UNDERWRITING_RISK_SCORE",
+      "ENABLE_CROSS_CLAIM_REASONING",
+      "ENABLE_LEGAL_DEFENSE_BRIEF_EXPORTER",
+      "ENABLE_CHAIN_OF_TITLE_CERT_GENERATOR",
+      "ENABLE_MUSIC_CUE_SHEET_EXPORTER"
+    ]
+  },
+  "global_coproduction": {
+    "name": "Global Co-Production Multi-Jurisdiction",
+    "description": "Multi-territory cross-border rights arbitration with international public domain analysis and ISO 27001 legal audit manifest exports.",
+    "budget_cap_usd": 150.0,
+    "sla_seconds": 180,
+    "active_toggles": [
+      "ENABLE_PARALLEL_MCP_SERVER",
+      "ENABLE_RESEARCH_PLAN_SYNTHESIS",
+      "ENABLE_CONSENSUS_VERIFIER",
+      "ENABLE_VERTEX_GROUNDING",
+      "ENABLE_DUAL_KEY_DIGITAL_SIGNATURES",
+      "ENABLE_TIMESTAMPING_AUTHORITY_ANCHOR",
+      "ENABLE_ISO_LEGAL_AUDIT_EXPORTER",
+      "ENABLE_STATUTORY_RULE_ENGINE",
+      "ENABLE_STATUTORY_DAMAGES_CALCULATOR",
+      "ENABLE_FAIR_USE_PRE_ANALYZER",
+      "ENABLE_MULTI_AGENT_PEER_DELIBERATION",
+      "ENABLE_CROSS_CLAIM_REASONING",
+      "ENABLE_LEGAL_DEFENSE_BRIEF_EXPORTER",
+      "ENABLE_CHAIN_OF_TITLE_CERT_GENERATOR",
+      "ENABLE_MUSIC_CUE_SHEET_EXPORTER"
+    ]
+  },
+  "genai_assisted": {
+    "name": "GenAI-Assisted Production Pipeline",
+    "description": "Specialized audit profile for synthetic video, voice cloning, and AI digital doubles with training opt-out verification and provenance hashing.",
+    "budget_cap_usd": 100.0,
+    "sla_seconds": 120,
+    "active_toggles": [
+      "ENABLE_GENAI_PROVENANCE_AUDIT",
+      "ENABLE_UNION_RIGHTS_TRACKER",
+      "ENABLE_PROMPT_INJECTION_DEFENSE",
+      "ENABLE_PARALLEL_MCP_SERVER",
+      "ENABLE_DYNAMIC_TOOL_SYNTHESIS",
+      "ENABLE_STATUTORY_RULE_ENGINE",
+      "ENABLE_STATUTORY_DAMAGES_CALCULATOR",
+      "ENABLE_FAIR_USE_PRE_ANALYZER",
+      "ENABLE_MULTI_AGENT_PEER_DELIBERATION",
+      "ENABLE_LEGAL_DEFENSE_BRIEF_EXPORTER",
+      "ENABLE_CHAIN_OF_TITLE_CERT_GENERATOR"
+    ]
+  }
 }
