@@ -52,9 +52,10 @@ lienmark/
 │   ├── project-scope.md               # consolidated 3-tier project scope (Hackathon, MVP, Post-MVP)
 │   ├── vision.md                      # executive summary, problem statement, title insurance model
 │   ├── prd.md                         # exact-match PRD entry point (links to 04-prd.md)
-│   └── directory-structure.md         # exact-match directory structure entry point (links to 08-directory-structure.md)
 ├── output/                            # runtime-generated deliverable artifacts (PDFs, cue sheets, manifests — gitignored)
-│   └── .gitkeep
+│   ├── .gitkeep
+│   ├── manifest_iso_legal.json        # ISO 27001 / SOC 2 legal audit trail manifest (04-prd.md §5.5)
+│   └── legal_brief_doc.pdf            # formal attorney defense memorandum PDF export (04-prd.md §5.5)
 ├── backend/
 │   ├── agents/
 │   │   ├── intake/

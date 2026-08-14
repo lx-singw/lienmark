@@ -58,16 +58,19 @@ Worth addressing directly, because it's the sharpest possible critique of the or
 
 **2.2 Full production system integration — genuinely Phase 2, this part of the original scoping was correct.** Connecting to a real customer's actual document management platform, shared production drive, or script-tracking tool via a managed, secure data pipeline — this is the literal, direct embodiment of the hackathon's own "Technical Producer connecting secure data pipelines via managed MCP servers" framing (`01-hackathon-scope.md` §7.4) at full scale, but it correctly requires a real customer relationship and real system access that doesn't exist yet. The MVP's §2.1 watcher is architecturally the same *pattern* at demo scale — worth stating this connection explicitly in the pitch, since it means the MVP isn't a toy version of a different idea, it's a small, honest instance of the same real capability.
 
-**2.3 Autonomous re-verification, triggered by the world changing.** Still valuable, still in MVP scope, but now correctly positioned as the secondary behavior rather than the only one. It monitors for conditions that should prompt a re-check of an *already-logged* claim, without a human deciding to ask:
+### 2.3 Autonomous re-verification, triggered by the world changing
+Still valuable, still in MVP scope, but now correctly positioned as the secondary behavior rather than the only one. It monitors for conditions that should prompt a re-check of an *already-logged* claim, without a human deciding to ask:
 - A claim previously routed to `needs_human_review` (per the Risk Scoring Agent, §6) that has sat unresolved past a reasonable window — the agent should proactively flag this as stale, not wait indefinitely for a human to remember it
 - A borderline-confidence `clear` or `licensing_required` verdict, where re-running the Research Agent's query periodically could surface new information (a dispute that's since been filed, a license that's since expired) that the original one-time check couldn't have known about
 - An external signal relevant to a specific logged claim type — for instance, if the claim taxonomy includes a `genai_flag` claim and a new, relevant legal development occurs (the kind of event already tracked in `14-sources-appendix.md`'s Seedance-dispute research), claims of that type across the ledger could be proactively surfaced for re-review
 
-**2.4 Persistent Agent State Store & Cold-Start Recovery.** To ensure the persistent background poller (`backend/agents/discovery/poller.py`) is production-resilient across Cloud Run serverless cold starts or container restarts, execution state is checkpointed to a Firestore `agent_state_store` collection (`06-data-schema.md`). If a polling cycle is interrupted, the Discovery Agent reads `last_polled_at` and `active_watchers` on boot, seamlessly resuming execution without duplicating research calls.
+### 2.4 Persistent Agent State Store & Cold-Start Recovery
+To ensure the persistent background poller (`backend/agents/discovery/poller.py`) is production-resilient across Cloud Run serverless cold starts or container restarts, execution state is checkpointed to a Firestore `agent_state_store` collection (`06-data-schema.md`). If a polling cycle is interrupted, the Discovery Agent reads `last_polled_at` and `active_watchers` on boot, seamlessly resuming execution without duplicating research calls.
 
-**2.5 Autonomous Agent Liveness & Health Heartbeat (`heartbeat.py`).** A dedicated background heartbeat thread (`backend/agents/discovery/heartbeat.py`) emits periodic liveness signals (`status: active_listening`, `interval_sec: 15`) to GCP Cloud Logging. This provides tangible, log-verifiable proof to insurance underwriters and hackathon judges that the Discovery Agent is actively listening 24/7.
+### 2.5 Autonomous Agent Liveness & Health Heartbeat (`heartbeat.py`)
+A dedicated background heartbeat thread (`backend/agents/discovery/heartbeat.py`) emits periodic liveness signals (`status: active_listening`, `interval_sec: 15`) to GCP Cloud Logging. This provides tangible, log-verifiable proof to insurance underwriters and hackathon judges that the Discovery Agent is actively listening 24/7.
 
-**2.6 World-State Event Trigger Matrix:**
+### 2.6 World-State Event Trigger Matrix
 
 | Trigger Type | World-State Condition | Agent Action | SLA / Frequency |
 |---|---|---|---|
