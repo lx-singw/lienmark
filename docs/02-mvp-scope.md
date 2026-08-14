@@ -11,7 +11,7 @@ To decisively satisfy Devpost's **Technological Implementation** and **Quality o
 2. **Beat B (Bounded Iterative Search)**: When Parallel's initial query returns thin or low-confidence results, the Research Agent autonomously reformulates its search string and executes a second targeted pass before committing findings.
 3. **Beat C (Interactive Human-in-the-Loop Action)**: When hitting genuine ambiguity, the Risk Scoring Agent surfaces a targeted `ClarifyingQuestionModal.tsx` asking a specific question, pausing pipeline execution and seamlessly resuming once answered.
 
-## 2. In-scope: the five-agent core pipeline
+## 2. In-scope: the six-agent core pipeline
 
 ### 2.1 Discovery Agent — the genuinely autonomous trigger, not just a reactive pipeline
 
@@ -169,9 +169,9 @@ Being explicit about what's cut, and why each cut is safe, matters as much as th
 
 ## 9. Definition of done
 
-The MVP is complete, and ready to submit, only when all of the following are true simultaneously:
+The MVP is the **complete, working clearance pipeline** — six-agent core pipeline, real Parallel Search API calls, real append-only Firestore store, real deterministic scoring, real sourced report output, and a polished Next.js dark-mode UI. It must be production-grade in design, even if scope is intentionally focused.
 
-1. A user can upload a script excerpt and watch the five-agent pipeline run live, end to end, with real Parallel Search API calls
+1. A user can upload a script excerpt and watch the six-agent pipeline run live, end to end, with real Parallel Search API calls
 2. At least one claim resolves clean, one resolves high-risk, and one specifically triggers the conflict-arbitration path with two disagreeing sources visibly shown
 3. Every finding in the final report links back to a real, checkable Parallel source
 4. At least one failure mode is demonstrated gracefully, on camera, without crashing the pipeline

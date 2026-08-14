@@ -21,6 +21,7 @@ This document provides the complete, production-grade REST API specification for
 | `POST` | `/attorney-override` | Record formal legal counsel approval/flag override to the ledger |
 | `GET` | `/report/{production_id}` | Retrieve generated Clearance Intelligence & Verification Audit report |
 | `GET` | `/ledger/{production_id}` | Retrieve immutable append-only ledger audit trail |
+| `POST` | `/underwriting/bind-policy` | Form E&O-2026 insurance policy binder & carrier exclusion schedule API |
 
 ---
 
@@ -259,6 +260,43 @@ Authorization: Bearer lm_live_9f8a3b2c1e4d
         "written_at": "2026-08-06T14:46:12Z"
       }
     ]
+  }
+}
+```
+
+---
+
+### 6. `POST /underwriting/bind-policy`
+Executes Form E&O-2026 insurance policy binder binding and exports the carrier exclusion schedule.
+
+#### Request Headers
+```http
+Authorization: Bearer lm_live_9f8a3b2c1e4d
+Content-Type: application/json
+```
+
+#### Request Payload
+```json
+{
+  "production_id": "prod_apollo_11",
+  "underwriter_id": "carrier_hiscox_01",
+  "policy_limit_usd": 5000000.0,
+  "sir_deductible_usd": 25000.0,
+  "generate_exclusion_schedule": true
+}
+```
+
+#### Response: `200 OK`
+```json
+{
+  "status": "success",
+  "data": {
+    "binder_id": "bnd_eo_2026_9941",
+    "production_id": "prod_apollo_11",
+    "policy_status": "bound_with_exclusions",
+    "certificate_pdf_url": "/output/chain_of_title_cert_prod_apollo_11.pdf",
+    "exclusion_schedule_json": "/output/policy_exclusion_schedule_prod_apollo_11.json",
+    "bound_at": "2026-08-06T15:00:00Z"
   }
 }
 ```

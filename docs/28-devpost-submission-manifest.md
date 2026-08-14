@@ -11,7 +11,7 @@
 | **Project Title** | **Lienmark** — Agentic Chain-of-Title Insurance & Clearance Intelligence |
 | **Tagline** | The title insurance model for entertainment IP: autonomous clearance verification powered by Parallel Search API and Google Cloud Agent Builder. |
 | **Track Category** | **Parallel Track** ($15,000 Prize Pool) |
-| **Submission Deadline** | September 7, 2026 at 10:00 PM GMT+1 |
+| **Submission Deadline** | September 7, 2026 at 21:00 UTC / 2:00 PM PDT / 10:00 PM GMT+1 |
 | **Primary Platform** | Google Cloud Agent Builder / Gemini Enterprise Agent Platform |
 | **Partner Integration** | Parallel Search API & Parallel MCP Server (`https://search.parallel.ai/mcp`) |
 | **Open-Source License** | MIT License ([`LICENSE`](file:///z:/home/lx_singw/projects/lienmark/LICENSE)) |

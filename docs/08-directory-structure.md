@@ -84,7 +84,7 @@ lienmark/
 │   │   │   ├── subgoal_planner.py        # goal-driven sub-goal decomposer & verification planner (04-prd.md §5.3)
 │   │   │   ├── consensus_verifier.py     # dual independent query pass verifier (04-prd.md §5.3)
 │   │   │   ├── cost_estimator.py         # industry clearance rate card cost calculator (04-prd.md §5.3)
-│   │   │   ├── vertex_grounding.py       # Vertex AI Search grounding engine for studio IP contracts (09-agent.md §11.3)
+│   │   │   ├── vertex_grounding.py       # Vertex AI Search grounding engine for studio IP contracts (09-agent-orchestration.md §11.3)
 │   │   │   └── query_builder.py           # builds minimal, non-identifying search terms (04-prd.md §5.6)
 │   │   ├── ledger/
 │   │   │   ├── agent.py
@@ -124,16 +124,16 @@ lienmark/
 │   │       └── notification_router.py     # urgency-based notification routing (25-agentic-maturity-roadmap.md §5)
 │   ├── orchestration/
 │   │   ├── pipeline.py                    # top-level agent orchestration / control flow (09-agent-orchestration.md)
-│   │   ├── a2a_protocol.py               # Agent-to-Agent (A2A) inter-agent protocol message envelope (09-agent.md §11.2)
-│   │   ├── cloud_logging_tracer.py       # Google Cloud Logging & BigQuery agent thought tracer (09-agent.md §11.4)
+│   │   ├── a2a_protocol.py               # Agent-to-Agent (A2A) inter-agent protocol message envelope (09-agent-orchestration.md §11.2)
+│   │   ├── cloud_logging_tracer.py       # Google Cloud Logging & BigQuery agent thought tracer (09-agent-orchestration.md §11.4)
 │   │   ├── agent_builder_config.py        # Google Cloud Agent Builder setup — hackathon-required orchestration config
-│   │   ├── agent_builder_mcp_config.json  # Agent Builder MCP server tool registration config (28-devpost.md §2)
-│   │   ├── execution_budget_governor.py  # API spend & time SLA budget governor (27-feature-toggles.md §4.2)
-│   │   ├── feature_dependency_guard.py   # automated feature dependency safety guard (27-feature-toggles.md §4.4)
-│   │   ├── stage_adaptive_toggles.py     # production stage auto-adaptive toggle triggers (27-feature-toggles.md §4.5)
-│   │   ├── studio_policy_engine.py       # studio policy inheritance & mandatory rules engine (27-feature-toggles.md §4.6)
-│   │   ├── toggle_analytics.py           # clearance velocity & review speed analytics (27-feature-toggles.md §4.7)
-│   │   └── offline_fallback.py           # on-set offline local cache fallback & auto-sync (27-feature-toggles.md §4.8)
+│   │   ├── agent_builder_mcp_config.json  # Agent Builder MCP server tool registration config (28-devpost-submission-manifest.md §2)
+│   │   ├── execution_budget_governor.py  # API spend & time SLA budget governor (27-feature-toggles-and-demo-selection.md §4.2)
+│   │   ├── feature_dependency_guard.py   # automated feature dependency safety guard (27-feature-toggles-and-demo-selection.md §4.4)
+│   │   ├── stage_adaptive_toggles.py     # production stage auto-adaptive toggle triggers (27-feature-toggles-and-demo-selection.md §4.5)
+│   │   ├── studio_policy_engine.py       # studio policy inheritance & mandatory rules engine (27-feature-toggles-and-demo-selection.md §4.6)
+│   │   ├── toggle_analytics.py           # clearance velocity & review speed analytics (27-feature-toggles-and-demo-selection.md §4.7)
+│   │   └── offline_fallback.py           # on-set offline local cache fallback & auto-sync (27-feature-toggles-and-demo-selection.md §4.8)
 │   ├── storage/
 │   │   ├── firestore_client.py
 │   │   ├── firestore.rules                # protocol-level create-only rules for ledger_entries (06-data-schema.md §3)
@@ -170,8 +170,8 @@ lienmark/
 │   │       ├── AttorneyOverrideModal.tsx  # attorney sign-off form (06-data-schema.md §2, 09-agent-orchestration.md §7)
 │   │       ├── ClarifyingQuestionModal.tsx # interactive modal for human-in-the-loop action (Beat C)
 │   │       ├── IntakeDropzone.tsx         # glassmorphic drag-and-drop file uploader (30-ui-design-system.md §2.1)
-│   │       ├── FeatureTogglePanel.tsx     # 32-capability feature toggle suite panel (27-feature-toggles.md §1, 30-ui §2.3)
-│   │       └── PresetProfileSelector.tsx  # 1-click clearance preset selector (04-prd.md §5.9, 27-feature-toggles.md §4.1)
+│   │       ├── FeatureTogglePanel.tsx     # 32-capability feature toggle suite panel (27-feature-toggles-and-demo-selection.md §1, 30-ui-design-system.md §2.5)
+│   │       └── PresetProfileSelector.tsx  # 1-click clearance preset selector (04-prd.md §5.9, 27-feature-toggles-and-demo-selection.md §4.1)
 │   ├── lib/
 │   │   └── api_client.ts
 │   ├── next.config.js                     # Next.js configuration

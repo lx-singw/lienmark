@@ -26,6 +26,9 @@ Lienmark operates on a **hybrid B2B SaaS + Usage-Based Transactional** pricing s
 | **Production Pro** | Mid-Tier Studios ($5M–$50M Budget) | **$2,500 / script run** | - Unlimited Script Re-evaluations (Delta Diffing)<br>- Multimodal Visual IP & Logo Detection<br>- FCP XML / DaVinci EDL Timeline Conformer<br>- Form E&O-2026 Audit Certificate |
 | **Studio Enterprise** | Major Studios (A24, Netflix, Universal) | **$50,000 / year** (Unlimited) | - All 32 Bounded Autonomy Capabilities<br>- Multi-Tenant Studio Policy Engine<br>- E&O Insurance Partner Webhook API<br>- Dedicated SLA & Custom Compliance Rules |
 
+> [!NOTE]
+> **Product Positioning & Customer Targeting**: Per `03-post-mvp-scope.md` §3, cash-poor indie filmmakers are not the primary enterprise target customer. The $500 Indie Pass serves as an automated, zero-touch self-serve top-of-funnel intake channel, while core recurring revenue relies on Production Pro ($2,500/run) and Studio Enterprise ($50k/yr) partnerships with completion bond companies and E&O insurance underwriters.
+
 ---
 
 ## 🚀 2. Go-To-Market (GTM) Strategy

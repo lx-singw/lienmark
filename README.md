@@ -84,17 +84,18 @@ Insurers (**E&O**) and **completion bond companies** require verifiable, auditab
 
 ---
 
-## 🤖 5-Agent Bounded Autonomy Architecture & Autonomous Beats
+## 🤖 6-Agent Bounded Autonomy Architecture & Autonomous Beats
 
 Lienmark operates under the core design principle **"Flexible Investigation, Deterministic Validation"**: agents possess unconstrained autonomy over research depth, tool choice, multi-hop lead chasing, and mid-run claim discovery, while all ledger commits and liability boundaries remain strictly validated and human-governed.
 
 Orchestrated natively via **Google Cloud Agent Builder / Gemini Enterprise Agent Platform**:
 
+0. **Discovery Agent** (`DiscoveryAgent`): Background watcher (`poller.py`) and heartbeat monitor (`heartbeat.py`) that autonomously detects new script drops in watched buckets or stale claims needing re-review.
 1. **Intake Agent** (`IntakeAgent`): Ingests all industry-standard screenplay formats (.pdf, Final Draft `.fdx`, `.fountain`, `.txt`), edit decision timelines (`.xml`, `.edl`, `.aaf`), and video cuts via Gemini Multimodal Vision; extracts minimal search phrases (`extracted_description`) while stripping narrative plot to guarantee confidentiality.
 2. **Research Agent** (`ResearchAgent`): Multi-tool investigation agent. Dynamically selects between Parallel's **Search API** (standard registry lookups) and **Task / Deep Extract API** (complex multi-party claims), and executes self-directed multi-hop lead chasing.
 3. **Ledger Agent** (`LedgerAgent`): Enforces append-only immutability at the storage layer; logs automated findings (`agent_finding`), mid-run proposed claims, and formal attorney overrides (`attorney_override`).
 4. **Risk Scoring Agent** (`RiskScoringAgent`): Performs cross-claim relationship reasoning, computes rule-based deterministic confidence scores, and arbitrates source conflicts (e.g. Apollo 11 public domain vs. private footage rights).
-5. **Report Agent** (`Report Agent`): Generates a structured Clearance Intelligence & Verification Audit report complete with inline source citations, notification urgency routing, and attorney sign-off sections.
+5. **Report Agent** (`ReportAgent`): Generates a structured Clearance Intelligence & Verification Audit report complete with inline source citations, notification urgency routing, and attorney sign-off sections.
 
 ### 🌟 Bounded Autonomy Capabilities
 - **Beat A (Proactive Discovery & Urgency Routing)**: Background poller surfacing stale/disputed claims via glowing toast alerts (`ToastContainer.tsx`).

@@ -2,6 +2,12 @@
 
 **Lienmark** is an independent Clearance Intelligence & Verification Audit platform for entertainment rights clearance — an agentic multi-agent system operating on the principle of **Bounded Autonomy ("Flexible Investigation, Deterministic Validation")**. It ingests a script or cut, extracts rights-triggering elements, dynamically selects Parallel's Search & Task APIs for deep multi-hop research, proposes mid-run discovered claims, and records automated findings and human attorney sign-offs to an append-only audit ledger.
 
+## Core Features
+
+- **6-Agent Bounded Autonomy Architecture**: A modular system where an autonomous Discovery Agent watches production buckets and triggers a 5-stage pipeline (`Intake` → `Research` → `Ledger` → `Risk Scoring` → `Report`) operating with investigative autonomy and deterministic validation.
+- **Parallel Search API Integration**: Live web rights verification using Parallel's `parallel-web` Python SDK (`backend/agents/research/parallel_client.py`).
+- **Google Cloud Agent Builder Orchestration**: Native enterprise agent orchestration in `backend/orchestration/agent_builder_config.py`.
+
 ## Long-term thesis, stated once here and in full
 
 The real-estate title insurance model, applied to entertainment. Nobody loves title insurance, but nobody closes a deal without it — boring, mandatory, and hard to dislodge once embedded in standard practice. Lienmark aims to become that layer for entertainment IP: an independent verification service sitting between a studio and everyone it can't fully trust or see — vendors on one side, rights-holders on the other. The full reasoning behind why this specific analogy was chosen, rather than a more generic "SaaS for studios" framing, is in `03-post-mvp-scope.md` §1 — worth reading before pitching this to anyone, since the analogy only lands if the person explaining it actually understands why it's structurally, not just rhetorically, apt.

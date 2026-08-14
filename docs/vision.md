@@ -1,6 +1,6 @@
 # Vision & Mission — Lienmark
 
-This document articulates the long-term vision, core mission statement, problem landscape, and strategic positioning for **Lienmark**.
+> **Note**: This is the unnumbered exact-match entry point for Lienmark's Vision & Mission Document. The expanded, multi-vertical thesis is located in [`docs/24-vision-and-mission.md`](24-vision-and-mission.md).
 
 ---
 

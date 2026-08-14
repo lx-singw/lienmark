@@ -42,17 +42,28 @@ extracted_description: string    # short, non-identifying — e.g. "song 'X' by 
 needs_clarification: boolean     # true if the Intake Agent couldn't confidently type/describe this claim
 proposed_by_agent: string (nullable) # agent ID if claim was discovered mid-run during multi-hop search
 is_delta_modified: boolean       # true if newly introduced or modified in script draft delta diff
+revision_color: string (nullable) # industry revision color ("White", "Blue", "Pink", "Yellow", "Green", "Goldenrod", "Salmon", "Cherry")
 co_occurring_claim_ids: array[string] # claim IDs sharing scene-level proximity (e.g. brand + music)
 genai_provenance_required: boolean # true if synthetic media keywords detected in stage directions
 opt_out_registry_flagged: boolean # true if training opt-out notice found on Spawning.ai/HaveIBeenTrained
 territory_codes: array[string]  # target distribution jurisdictions e.g. ["US", "EU", "UK", "JP"]
 union_option_expires_at: timestamp (nullable) # SAG-AFTRA/WGA option expiration date
+performer_prominence: enum [crowd_background, featured_speaking] (nullable) # SAG-AFTRA crowd vs speaking extra
 usage_classification: enum [background_instrumental, visual_vocal, feature_music, logo_visual] # PRO code
+pro_work_ids: object (nullable) # { iswc, isrc, ascap_id } Work ID target resolution
 visual_bounding_box: object (nullable) # {ymin, xmin, ymax, xmax} coordinates for Multimodal Vision logo detection
+visual_prominence: object (nullable) # { aggregate_duration_seconds, is_out_of_focus } 3s de minimis metric
 edl_timecode_in: string (nullable)  # SMPTE timecode in e.g. "01:14:22:10" from FCP XML / DaVinci EDL
 edl_timecode_out: string (nullable) # SMPTE timecode out e.g. "01:14:28:15"
+timecode_fps: enum [23.976_ndf, 24.0, 29.97_df, 30.0] (nullable) # timeline frame-rate drift guard
 parent_claim_id: string (nullable) # claim ID of prerequisite parent claim (claim_dependency_resolver.py)
 suggested_fair_use_defense: string (nullable) # 4-factor Fair Use defense heuristic (17 U.S.C. § 107)
+is_docudrama_context: boolean    # true if First Amendment biopic/historical figure immunity applies
+is_brand_disparaged: boolean     # true if trademark disparagement detected vs nominative use
+drm_protected: boolean           # false for DMCA Section 1201 anti-circumvention compliance
+licensing_scope: enum [festival_rights_only, worldwide_all_media_perpetual] (nullable) # tiered licensing
+window_stage: enum [us_theatrical, eu_streaming, uk_freetoair] (nullable) # territorial holdback windowing
+flagged_reason: string (nullable) # prompt injection trap reason ("suspicious_embedded_instruction")
 query_plan: array[object] (nullable) # reasoning DAG step array (research_planner.py)
 adapted_extraction_schema: object (nullable) # dynamically synthesized prompt schema (tool_synthesizer.py)
 peer_vote_consensus: string (nullable) # e.g. "3/3_unanimous" consensus vote score (peer_deliberation.py)
@@ -72,15 +83,26 @@ created_at: timestamp
   "needs_clarification": false,
   "proposed_by_agent": null,
   "is_delta_modified": true,
+  "revision_color": "Blue",
   "co_occurring_claim_ids": ["clm_brand_88a"],
   "genai_provenance_required": false,
   "opt_out_registry_flagged": false,
   "territory_codes": ["US", "EU"],
   "union_option_expires_at": null,
+  "performer_prominence": "featured_speaking",
   "usage_classification": "background_instrumental",
+  "pro_work_ids": { "iswc": "T-034.523.901-1", "isrc": "US-AT2-19-00001", "ascap_id": "380192831" },
   "visual_bounding_box": null,
+  "visual_prominence": { "aggregate_duration_seconds": 1.8, "is_out_of_focus": true },
   "edl_timecode_in": "01:14:22:10",
   "edl_timecode_out": "01:14:28:15",
+  "timecode_fps": "23.976_ndf",
+  "is_docudrama_context": false,
+  "is_brand_disparaged": false,
+  "drm_protected": false,
+  "licensing_scope": "worldwide_all_media_perpetual",
+  "window_stage": "us_theatrical",
+  "flagged_reason": null,
   "estimated_licensing_cost_min": 15000.0,
   "estimated_licensing_cost_max": 35000.0,
   "created_at": "2026-08-15T14:22:03Z"
@@ -131,12 +153,15 @@ finding_id: string (ref, nullable — an entry can exist before a finding does, 
 version: integer                 # increments per claim; a version number is never reused
 action_type: enum [agent_finding, attorney_approval, attorney_override, attorney_rejection] # human/agent audit action
 status: enum [pending, cleared, flagged, needs_human_review, attorney_cleared, attorney_flagged]
-superseded_by: string (nullable, ref to a later entry_id — set when a newer entry replaces this one)
+supersedes_entry_id: string (nullable, ref to previous entry_id — backward pointer maintaining 100% create-only rules)
+superseded_by: string (nullable, ref to a later entry_id — virtual index or backward-linked resolution)
 written_at: timestamp
 written_by_agent: string         # agent ID or human attorney ID/email — part of the audit trail
 reviewed_by: string (nullable)   # attorney name/ID/email when action_type is attorney_approval or attorney_override
 override_reason: string (nullable) # detailed legal rationale for attorney override or approval
 legal_citation_ref: string (nullable) # legal document, license contract ref, or statutory exemption cited by attorney
+ledger_entry_hash: string (SHA-256 link to previous entry's hash in chain for tamper-evidence)
+verification_ttl_days: integer   # default: 30 days clearance re-verification TTL
 attorney_signature_hash: string (nullable) # dual-key RSA-256 digital signature hash (dual_key_signer.py)
 statutory_rule_eval: object (nullable) # pure Python statutory legal rule evaluation output (statutory_rule_engine.py)
 attorney_rejection_directive: string (nullable) # human counsel instruction on rejection (attorney_rejection_router.py)
@@ -150,14 +175,13 @@ offline_queued_queries: array[string] # queued queries for auto-sync on reconnec
 ```
 
 **Worked example 1 (Automated Research Versioning):** imagine claim `clm_7f3a9b` is first researched and comes back `cleared` (version 1, `action_type: agent_finding`). Weeks later, the production is re-evaluated before a distribution deal closes, and a new Parallel search surfaces a fresh dispute over that same song's rights. The correct behavior is **not** to edit the version-1 entry. Instead:
-1. A new `research_findings` document is created reflecting the new dispute
-2. A new `ledger_entries` document is created: `version: 2`, `status: flagged`, `action_type: agent_finding`, referencing the new finding
-3. The version-1 entry gets its `superseded_by` field set to the version-2 entry's ID
-4. Both entries remain permanently queryable — anyone auditing the ledger can see the full history: it was cleared, then later flagged, and exactly when and why each state existed
+1. A new `research_findings` document is created reflecting the new dispute.
+2. A new `ledger_entries` document is created: `version: 2`, `status: flagged`, `action_type: agent_finding`, referencing the new finding and setting `supersedes_entry_id: "ldg_ver1_id"`.
+3. Both entries remain permanently queryable — anyone auditing the ledger can see the full history without executing an `UPDATE` call on Firestore.
 
 **Worked example 2 (Human Attorney Override Versioning):** Continuing from Example 1, suppose production legal counsel reviews the `flagged` claim (version 2) and provides an executed synchronization license agreement (#SYNC-2026-884) proving rights were secured off-platform. The attorney submits an override in the UI:
-1. A new `ledger_entries` document is created: `version: 3`, `status: attorney_cleared`, `action_type: attorney_override`, `reviewed_by: "attorney_jane_doe@productionlegal.com"`, `override_reason: "Executed master & sync license agreement verified on file"`, `legal_citation_ref: "License Agreement #SYNC-2026-884"`
-2. The version-2 entry gets its `superseded_by` field set to the version-3 entry's ID
+1. A new `ledger_entries` document is created: `version: 3`, `status: attorney_cleared`, `action_type: attorney_override`, `supersedes_entry_id: "ldg_ver2_id"`, `reviewed_by: "attorney_jane_doe@productionlegal.com"`, `override_reason: "Executed master & sync license agreement verified on file"`, `legal_citation_ref: "License Agreement #SYNC-2026-884"`.
+2. All entries remain 100% immutable and append-only.
 3. The complete audit trail (v1 automated clear $\rightarrow$ v2 automated flag $\rightarrow$ v3 human attorney clearance) is preserved immutably for underwriters and bond companies without erasing the historical agent findings.
 
 ### `risk_scores`

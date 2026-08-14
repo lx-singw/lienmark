@@ -89,7 +89,7 @@ Devpost hackathons typically weight all four criteria equally (25% each) unless 
 This criterion rewards **depth of integration**, not just presence of integration. A team that calls Parallel once for a single generic search will score lower here than a team that shows Parallel being called repeatedly, purposefully, per-claim, with visibly different results driving visibly different downstream agent behavior.
 
 **Our specific answer:**
-- Five distinct agents (Intake, Research, Ledger, Risk Scoring, Report), each with a clearly separated responsibility — this alone demonstrates more architectural sophistication than a single-prompt wrapper
+- Six distinct agents (`Discovery`, `Intake`, `Research`, `Ledger`, `Risk Scoring`, `Report`), each with a single responsibility, clear inputs and outputs, and a structured schema boundary (defined in `06-data-schema.md` and `09-agent-orchestration.md`).
 - The Research Agent issues **N independent Parallel Search API calls** in a single pipeline run (one per extracted claim), not one blended query — this is the clearest way to demonstrate "effective use," since judges can literally count distinct, purposeful calls
 - Deterministic, rule-based scoring logic layered on top of LLM-driven extraction — this shows engineering judgment about *where* to use an LLM and where not to, which is a mark of a team that understands the technology rather than just wrapping it
 - Real, tested failure handling (a Parallel call can fail/timeout without crashing the pipeline) — production-grade engineering, not hackathon-grade shortcuts

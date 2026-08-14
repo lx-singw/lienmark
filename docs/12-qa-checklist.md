@@ -21,9 +21,10 @@ Run this in full, ideally by a teammate who did **not** write the code being che
 - [ ] Open `backend/agents/research/parallel_client.py` directly on GitHub and confirm the Parallel SDK import and a real, callable function are visible in the file itself — not just referenced in the README (see `01-hackathon-scope.md` §4 for exactly why this specific check exists)
 - [ ] Confirm the call is to the **Search API** specifically, not solely the Task or Extract API, per the exact wording of the requirement
 - [ ] Confirm Google Cloud Agent Builder / Gemini usage is similarly visible and callable in `backend/orchestration/agent_builder_config.py`, not just described
-- [ ] Execute `python scripts/verify_integrations.py` from a fresh clone and confirm it completes in <5 seconds, outputting live Parallel Search API verification payloads and Firestore append-only ledger write checks
+- [ ] Execute `python scripts/verify_integrations.py` and `python scripts/verify_ledger_integrity.py` from a fresh clone and confirm they complete in <5 seconds, outputting live Parallel Search API verification payloads and cryptographic SHA-256 hash-chain ledger integrity checks
 - [ ] Test `demo/sample_script_adversarial.pdf` fixture against the Intake Agent and confirm prompt injection text is trapped as `suspicious_embedded_instruction` without bypassing rules
 - [ ] Trigger a real pipeline run and confirm — via logs, or a visible network call, or a debug panel — that a live API call actually fires against Parallel at that moment, not a cached or pre-recorded response
+- [ ] Confirm generation of the **Form E&O-2026 Title Clearance Certificate PDF** (`chain_of_title_cert.py`) and dual-key RSA-256 digital signature verification (`dual_key_signer.py`) in the `output/` directory
 
 ## 4. License and repo hygiene
 
@@ -46,7 +47,7 @@ Run this in full, ideally by a teammate who did **not** write the code being che
 - [ ] Public on YouTube or Vimeo, and confirm the privacy setting from a logged-out browser (an "unlisted" video with the wrong setting, or an accidentally-private one, is a real and common failure mode)
 - [ ] Shows the software actually functioning — a fresh, honest re-watch asking "does this look like a screen recording of real software, or does it look like a scripted trailer" (see `01-hackathon-scope.md` §6 for why this distinction is explicitly called out in the rules)
 - [ ] English audio, or accurate English subtitles if not
-- [ ] The conflict-arbitration beat (1:45–2:10 in the shot list) is present and clearly explained, not rushed or cut for time
+- [ ] The conflict-arbitration beat (0:45–1:45 in the shot list) is present and clearly explained, not rushed or cut for time
 - [ ] The graceful-failure moment is present and visibly doesn't crash the pipeline
 
 ## 7. Devpost submission form
@@ -55,7 +56,7 @@ Run this in full, ideally by a teammate who did **not** write the code being che
 - [ ] Parallel selected as the track
 - [ ] All required links (hosted URL, video, repo) are pasted correctly — click each one from the submitted form itself, not from your own bookmarks, to confirm they resolve correctly as submitted
 - [ ] Technologies-used field lists Google Cloud Agent Builder, Gemini, and Parallel explicitly
-- [ ] Submission is completed with real buffer time before the Sep 7, 2:00 PM PDT deadline — not attempted for the first time in the final hour, when a form issue or upload failure has no recovery time
+- [ ] Submission is completed with real buffer time before the Sep 7, 2026 at 21:00 UTC / 2:00 PM PDT / 10:00 PM GMT+1 deadline — not attempted for the first time in the final hour, when a form issue or upload failure has no recovery time
 - [ ] **Team size is at or under the 4-person cap** (`01-hackathon-scope.md` §5) — confirm this explicitly, not just assume it, especially if the team composition shifted at any point during the build
 - [ ] **Every team member is individually registered on the official Devpost portal**, not just the person submitting the form (`01-hackathon-scope.md` §5) — this needs each person to have completed their own registration, and it's worth confirming this a few days before the deadline, not on submission day
 - [ ] **Every team member independently meets the age/eligibility requirement** for their country of residence (`01-hackathon-scope.md` §5) — worth a direct one-line confirmation from each person, not an assumption

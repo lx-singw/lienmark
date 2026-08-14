@@ -10,7 +10,7 @@ Designed specifically for submission to **Agentic Cinema: The Blockbuster Hackat
 
 * **Core Focus**: Deliver a zero-friction, working proof-of-concept demonstrating live Parallel Search API integration, multi-agent orchestration, and deterministic risk scoring.
 * **In-Scope Deliverables**:
-  1. **5-Agent Pipeline**: Intake, Research, Ledger, Risk Scoring, and Report Agents operating sequentially in `pipeline.py`.
+  1. **6-Agent Pipeline**: Discovery, Intake, Research, Ledger, Risk Scoring, and Report Agents operating sequentially in `pipeline.py`.
   2. **Proactive Background Watcher (Beat A)**: Discovery Agent surfacing glowing toast alerts (`ToastContainer.tsx`).
   3. **Multi-Tool & Multi-Hop Iteration (Beat B)**: Research Agent selecting Parallel Search vs. Task API and reformulating queries on low confidence.
   4. **Human-in-the-Loop Action (Beat C)**: Interactive `ClarifyingQuestionModal.tsx` for targeted legal questions.

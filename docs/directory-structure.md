@@ -7,7 +7,7 @@
 ## Quick Reference Links
 
 * **Full Directory Structure Specification**: [`docs/08-directory-structure.md`](08-directory-structure.md)
-* **Agent Module Layout**: [`docs/08-directory-structure.md#1-top-level-layout`](08-directory-structure.md#L42-L75)
-* **Frontend Component Architecture**: [`docs/08-directory-structure.md#1-top-level-layout`](08-directory-structure.md#L84-L102)
-* **Test Suite Organization**: [`docs/08-directory-structure.md#1-top-level-layout`](08-directory-structure.md#L109-L116)
-* **Deployment & Setup Scripts**: [`docs/08-directory-structure.md#1-top-level-layout`](08-directory-structure.md#L117-L125)
+* **Agent Module Layout**: [`docs/08-directory-structure.md#1-top-level-layout`](08-directory-structure.md#1-top-level-layout)
+* **Frontend Component Architecture**: [`docs/08-directory-structure.md#1-top-level-layout`](08-directory-structure.md#1-top-level-layout)
+* **Test Suite Organization**: [`docs/08-directory-structure.md#1-top-level-layout`](08-directory-structure.md#1-top-level-layout)
+* **Deployment & Setup Scripts**: [`docs/08-directory-structure.md#1-top-level-layout`](08-directory-structure.md#1-top-level-layout)

@@ -35,13 +35,22 @@ Lienmark is engineered to deliver a **sleek, high-trust, enterprise dark-mode in
 
 ### 2.1 Glassmorphic Intake File Dropzone (`IntakeDropzone.tsx`)
 - Sleek drag-and-drop zone with animated border gradients on drag-over.
-- Real-time progress bar with step-by-step agent status indicators (*"Intake: SHA-256 Hashing -> Research: Parallel Search -> Risk Scoring: Rule Engine"*).
+- Real-time progress bar with step-by-step agent status indicators (*"Intake: SHA-256 Hashing $\rightarrow$ Research: Parallel Search $\rightarrow$ Risk Scoring: Rule Engine"*).
 
-### 2.2 Interactive Attorney Override Modal (`AttorneyOverrideModal.tsx`)
+### 2.2 Proactive Toast Notification Container (`ToastContainer.tsx`)
+- Glowing toast alert container surfacing background Discovery Agent notifications (Beat A) with priority color coding (`emerald` clear, `gold` stale re-review, `rose` dispute alert).
+
+### 2.3 Interactive Clarifying Question Modal (`ClarifyingQuestionModal.tsx`)
+- Modern glassmorphism modal for mid-run human legal input (Beat C), prompting counsel for specific missing parameters with pre-populated citation choices.
+
+### 2.4 Interactive Attorney Override Modal (`AttorneyOverrideModal.tsx`)
 - Split-pane layout: Left pane shows script snippet & Parallel Search API evidence; Right pane shows pre-populated legal citations (17 U.S.C. § 107) and RSA-256 digital signature canvas.
 
-### 2.3 Feature Toggle Suite Config (`FeatureTogglePanel.tsx`)
-- Slide-over drawer with 1-click **Preset Clearance Profile** pills (*Indie, Blockbuster, Global Co-Pro*) and 32 individual toggle switches with hover tooltips explaining capability functions.
+### 2.5 Feature Toggle Suite Config (`FeatureTogglePanel.tsx`)
+- Slide-over drawer displaying 32 individual toggle switches with hover tooltips explaining capability functions.
+
+### 2.6 1-Click Clearance Preset Selector (`PresetProfileSelector.tsx`)
+- Quick-select profile pills (*Indie Film, Hollywood Blockbuster, Global Co-Production, GenAI-Assisted Production*) that instantly configure active feature toggle matrices.
 
 ---
 

@@ -8,7 +8,7 @@
 
 To ensure Lienmark remains lightweight, fast, and adaptable across indie budgets ($1M) and studio blockbusters ($200M+), **all 32 Bounded Autonomy capabilities are modular and opt-in**.
 
-Production legal officers and line producers configure active modules via the **Clearance Intelligence Suite Config** panel (`src/components/FeatureTogglePanel.tsx` / `backend/config/clearance_config.json`).
+Production legal officers and line producers configure active modules via the **Clearance Intelligence Suite Config** panel (`frontend/app/components/FeatureTogglePanel.tsx` / `backend/config/clearance_config.json`).
 
 ### Configuration Payload (`clearance_config.json`)
 ```json
@@ -18,14 +18,13 @@ Production legal officers and line producers configure active modules via the **
     "proactive_file_watcher": true,
     "sha256_script_dedup": true,
     "parallel_search_api": true,
-    "parallel_task_api": false,
-    "multi_hop_lead_chasing": true,
     "conflict_arbitration": true,
     "fair_use_pre_analyzer": true,
     "attorney_override_modal": true,
     "dual_key_signatures": true,
     "eo_certificate_generator": true,
     "ledger_hash_integrity_auditor": true,
+    "prompt_injection_defense": true,
 
     "visual_ip_detection": false,
     "edl_timeline_conformer": false,
@@ -34,7 +33,21 @@ Production legal officers and line producers configure active modules via the **
     "multi_jurisdiction_routing": false,
     "ascap_music_cue_sheet": false,
     "statutory_damages_calculator": false,
-    "eo_binder_webhook_api": false
+    "eo_binder_webhook_api": false,
+    "wrap_delivery_checklist": false,
+    "inverse_domain_steering": false,
+    "source_authority_weighting": false,
+    "scene_proximity_clustering": false,
+    "strategy_switching": false,
+    "script_delta_diffing": false,
+    "attorney_legal_citation_engine": false,
+    "web_archive_fallback": false,
+    "risk_trend_regression_tracking": false,
+    "autonomous_dispute_escalation": false,
+    "licensing_cost_calculator": false,
+    "consensus_verification_protocol": false,
+    "self_correction_loop": false,
+    "inter_agent_negotiation_protocol": false
   }
 }
 ```

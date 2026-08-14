@@ -40,14 +40,14 @@ Lienmark is an event-driven, multi-agent microservice architecture orchestrated 
 │  │   Poller Beat A)   │     │   Vision & Regex)  │     │   Parallel SDK)    │                  │
 │  └────────────────────┘     └────────────────────┘     └─────────┬──────────┘                  │
 │                                                                  │                             │
-│  ┌────────────────────┐     ┌────────────────────┐               │ Live Parallel API           │
-│  │    Report Agent    │ <── │ Risk Scoring Agent │ <─────────────┘ Search/Task Calls           │
-│  │  (Verification     │     │  (Deterministic    │                                             │
-│  │   Audit Output)    │     │   Rules Engine)    │                                             │
-│  └─────────┬──────────┘     └─────────┬──────────┘                                             │
-└────────────┼──────────────────────────┼────────────────────────────────────────────────────────┘
-             │                          │ Immutable Writes
-             ▼                          ▼
+│  ┌────────────────────┐     ┌────────────────────┐     ┌─────────▼──────────┐                  │
+│  │    Report Agent    │ <── │ Risk Scoring Agent │ <── │    Ledger Agent    │                  │
+│  │  (Verification     │     │  (Deterministic    │     │  (Append-Only      │                  │
+│  │   Audit Output)    │     │   Rules Engine)    │     │   Store & Hash)    │                  │
+│  └─────────┬──────────┘     └─────────┬──────────┘     └─────────┬──────────┘                  │
+└────────────┼──────────────────────────┼──────────────────────────┼─────────────────────────────┘
+             │                          │                          │ Immutable Ledger Writes
+             ▼                          ▼                          ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
 │                                 STORAGE & GOVERNANCE LAYER                                     │
 │  ┌─────────────────────────────────┐      ┌─────────────────────────────────────────────────┐  │
@@ -66,24 +66,28 @@ Lienmark is an event-driven, multi-agent microservice architecture orchestrated 
 * **Framework**: Next.js 14+ (App Router) with TypeScript.
 * **Styling**: Vanilla CSS Design Tokens (`frontend/app/globals.css`) enforcing dark mode (`#0B0F17`), glassmorphism (`backdrop-filter: blur(12px)`), and status glowing keyframes.
 * **Key Components**:
-  - `ClaimsTable.tsx`: Live-updating claims breakdown (cleared, flagged, pending human review).
+  - `ClaimsTable.tsx`: Live-updating claims breakdown (cleared, flagged, pending human review) via Firestore real-time client listeners.
   - `ToastContainer.tsx`: Proactive notification alerts surfaced by the Discovery Agent (Beat A).
   - `ClarifyingQuestionModal.tsx`: Modern glassmorphism modal for mid-run human legal input (Beat C).
+  - `AttorneyOverrideModal.tsx`: Modern split-pane legal sign-off modal with pre-populated citations and RSA-256 signature canvas.
+  - `FeatureTogglePanel.tsx`: 32-capability feature toggle panel drawer.
+  - `PresetProfileSelector.tsx`: 1-click clearance profile selector.
 
 ### 2.2 API & Gateway Layer (`backend/main.py`)
 * **Framework**: FastAPI hosted on Google Cloud Run.
 * **Authentication**: OIDC JWT validation via Google Identity Platform; IAM service account credentials.
 * **Concurrency**: `asyncio.gather()` for parallel claim research with `asyncio.Semaphore(10)` rate limiting.
+* **Endpoints**: `/api/v1/pipeline/run`, `/api/v1/claims`, `/api/v1/attorney-override`, `/api/v1/report/{production_id}`, `/api/v1/ledger/{production_id}`, `/api/v1/underwriting/bind-policy`.
 
 ### 2.3 Agentic Orchestration Layer (`backend/orchestration/`)
 * **Platform**: Google Cloud Agent Builder / Gemini Enterprise Agent Platform.
 * **Agents**:
-  1. `IntakeAgent`: Script extraction & confidential term minimalization (`query_builder.py`).
-  2. `ResearchAgent`: Dynamic tool selector (`parallel_search_api` vs `parallel_task_api`) & multi-hop search.
-  3. `LedgerAgent`: Application-layer append-only ledger coordinator (`append_only_store.py`).
-  4. `RiskScoringAgent`: Rule-based deterministic risk engine & conflict arbiter (`deterministic_rules.py`).
-  5. `ReportAgent`: Clearance Intelligence audit report generator (`report_formatter.py`).
-  6. `DiscoveryAgent`: Background watcher & proactive poller (`poller.py`).
+  1. `DiscoveryAgent`: Background watcher (`poller.py`) & heartbeat monitor (`heartbeat.py`).
+  2. `IntakeAgent`: Script extraction & confidential term minimalization (`script_hasher.py`, `genai_provenance.py`).
+  3. `ResearchAgent`: Dynamic tool selector (`parallel_client.py`, `parallel_mcp_client.py`, `query_builder.py`).
+  4. `LedgerAgent`: Application-layer append-only ledger coordinator (`append_only_store.py`, `dual_key_signer.py`).
+  5. `RiskScoringAgent`: Rule-based deterministic risk engine & conflict arbiter (`statutory_rule_engine.py`, `fair_use_analyzer.py`).
+  6. `ReportAgent`: Clearance Intelligence audit report generator (`report_formatter.py`, `chain_of_title_cert.py`, `eo_binder_api.py`).
 
 ### 2.4 Storage & Governance Layer (`backend/storage/`)
 * **Database**: Google Cloud Firestore.
@@ -92,20 +96,20 @@ Lienmark is an event-driven, multi-agent microservice architecture orchestrated 
 
 ---
 
-## 3. End-to-End Data Flow Trace
+## 3. End-to-End Data Flow Trace (Sequence A)
 
 ```
-[1. User Upload] ──> Script PDF uploaded to Next.js dashboard
-                          │
-[2. Intake Agent] ──> Multimodal vision extracts claims & non-identifying search terms
-                          │
-[3. Research Agent] ─> Parallel Search/Task API called concurrently per claim
-                          │
-[4. Risk Scoring] ──> Rule-based deterministic engine computes risk scores & arbitrates conflicts
-                          │
-[5. Ledger Agent] ──> Writes immutable agent_finding entry to Firestore ledger (create-only)
-                          │
-[6. Attorney HITL] ─> Human counsel reviews flagged claim & submits attorney_override
-                          │
-[7. Report Agent] ──> Generates audit report with clickable domain citations
+[1. Discovery / Upload] ──> Script PDF placed in watched GCS bucket or uploaded via dropzone
+                                   │
+[2. Intake Agent] ───────> Multimodal vision extracts claims & builds minimal search terms (query_builder.py)
+                                   │
+[3. Research Agent] ─────> Parallel Search/Task API / MCP called concurrently per claim
+                                   │
+[4. Ledger Agent] ───────> Writes raw findings & initial ledger entry (supersedes_entry_id backward pointer)
+                                   │
+[5. Risk Scoring Agent] ──> Pure Python statutory engine computes risk scores & arbitrates conflicts
+                                   │
+[6. Attorney HITL] ──────> Human counsel reviews flagged claim & submits attorney_override in UI modal
+                                   │
+[7. Report Agent] ───────> Generates audit report & Form E&O-2026 title clearance certificate with citations
 ```

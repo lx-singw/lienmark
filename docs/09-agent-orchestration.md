@@ -414,13 +414,13 @@ Lienmark implements 4 core Google Cloud Enterprise architectural patterns:
 - **Gemini Flash-Lite (Pipeline Ingest Workers)**: Powering `claim_extraction.py` and `script_hasher.py` for high-volume structured script extraction.
 
 ### 11.2 Google Agent-to-Agent (A2A) Protocol (`a2a_protocol.py`)
-- Standardized JSON message envelopes exchanged across agent boundaries (`backend/agents/orchestration/a2a_protocol.py`), defining typed inter-agent headers (`sender_agent`, `recipient_agent`, `conversation_token`) to ensure seamless interoperability.
+- Standardized JSON message envelopes exchanged across agent boundaries (`backend/orchestration/a2a_protocol.py`), defining typed inter-agent headers (`sender_agent`, `recipient_agent`, `conversation_token`) to ensure seamless interoperability.
 
 ### 11.3 Vertex AI Search Grounding Engine (`vertex_grounding.py`)
 - Grounding claim research against private studio contract repositories (`backend/agents/research/vertex_grounding.py`) to prevent LLM hallucinations on corporate IP rights.
 
 ### 11.4 Cloud Logging & BigQuery Agent Thought Tracer (`cloud_logging_tracer.py`)
-- Live observability into agent reasoning steps and tool execution traces via Google Cloud Logging and BigQuery telemetry streams (`backend/agents/orchestration/cloud_logging_tracer.py`).
+- Live observability into agent reasoning steps and tool execution traces via Google Cloud Logging and BigQuery telemetry streams (`backend/orchestration/cloud_logging_tracer.py`).
 
 ---
 

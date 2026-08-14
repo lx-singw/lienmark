@@ -18,30 +18,32 @@ GOOGLE_APPLICATION_CREDENTIALS=./secrets/service-account.json   # local dev only
                                                                     # this var is never read in production
 
 # ── Gemini / Agent Builder ────────────────────────────────────
-GEMINI_MODEL=gemini-2.5-pro          # confirm the current, correct model string against
-                                        # live Google Cloud documentation before build — this string
-                                        # changes over time and an outdated value will fail silently
-                                        # or fall back to unexpected behavior
+GEMINI_MODEL=gemini-2.5-pro          # Gemini Pro: Orchestration & Deliberation
+GEMINI_FLASH_MODEL=gemini-2.5-flash    # Gemini Flash: Tool Calling & Scoring
+GEMINI_FLASH_LITE_MODEL=gemini-2.5-flash-lite # Gemini Flash-Lite: Ingestion Workers
 AGENT_BUILDER_PROJECT_ID=lienmark-hackathon
 AGENT_BUILDER_LOCATION=us-central1
 
-# ── Parallel ───────────────────────────────────────────────────
+# ── Parallel & MCP ─────────────────────────────────────────────
 PARALLEL_API_KEY=                     # NEVER filled in here — stored only in Secret Manager
                                         # as `parallel-api-key`; only the Research Agent's
                                         # service account may access it (see §4 below)
-PARALLEL_SEARCH_API_BASE_URL=https://api.parallel.ai   # confirm exact base URL against
-                                                            # current Parallel SDK docs before build
+PARALLEL_SEARCH_API_BASE_URL=https://api.parallel.ai
+PARALLEL_MCP_SERVER_URL=https://search.parallel.ai/mcp # Parallel MCP server endpoint
 
 # ── Firestore ──────────────────────────────────────────────────
 FIRESTORE_PROJECT_ID=lienmark-hackathon
 FIRESTORE_DATABASE=(default)
 
-# ── App config ─────────────────────────────────────────────────
+# ── App & Governance Config ────────────────────────────────────
 ENVIRONMENT=development               # development | staging | production
 LOG_LEVEL=info
-DEMO_MODE=true                        # enables the deliberate-failure demo trigger (see below);
-                                        # must be false in any real, non-demo deployment —
-                                        # this flag should never ship enabled to a real customer
+DEMO_MODE=true                        # enables the deliberate-failure demo trigger
+MAX_API_SPEND_USD=10.00               # budget governor spend cap ($10.00 default)
+MAX_PIPELINE_LATENCY_SECONDS=15        # SLA latency ceiling (<15s)
+GCS_WATCH_BUCKET=gs://studio-locked-drafts/ # Discovery Agent watcher bucket
+SIR_DEDUCTIBLE_USD=25000.0            # E&O Self-Insured Retention deductible ($25k)
+VERIFICATION_TTL_DAYS=30              # Clearance re-verification TTL (30 days)
 
 # ── Frontend ───────────────────────────────────────────────────
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
@@ -49,8 +51,6 @@ NEXT_PUBLIC_ENVIRONMENT=development
 
 # ── Human-in-the-loop threshold ───────────────────────────────
 RISK_CONFIDENCE_THRESHOLD=0.7         # claims scoring below this value route to needs_human_review
-                                        # (see 04-prd.md §5.4 for why this threshold exists at all,
-                                        # and 09-agent-orchestration.md for exactly how it's applied)
 ```
 
 **On `DEMO_MODE` specifically:** this deserves a moment of explanation, since it's an unusual variable to include in a production-shaped `.env` file at all. The MVP scope deliberately requires demonstrating a graceful failure on camera (see `02-mvp-scope.md` §3 and the Pitch Deck's demo shot list) — rather than hoping a real Parallel timeout happens to occur naturally during the recording window (unreliable, and not something you can plan a video around), `DEMO_MODE=true` should enable a code path that deterministically simulates one claim's Parallel call failing, so the failure-handling behavior can be shown reliably and repeatedly while rehearsing the video. This flag existing at all is itself a small piece of evidence of deliberate engineering, worth mentioning if a judge asks how the failure moment in the video was achieved — the honest answer ("we built a controlled way to demonstrate our own failure handling") is a *better* answer than pretending it was a lucky, unplanned real failure.
@@ -60,8 +60,7 @@ RISK_CONFIDENCE_THRESHOLD=0.7         # claims scoring below this value route to
 | Secret name in Secret Manager | Used by | Access scope |
 |---|---|---|
 | `parallel-api-key` | Research Agent only | Research Agent service account, read-only |
-| `firestore-writer-creds` | Ledger Agent, Intake Agent (for the `claims` collection only) | Respective agent service accounts, write-scoped per collection, not project-wide |
-| `gemini-api-key` (if not using Application Default Credentials) | All agents, via Agent Builder | Shared across agents, but prefer Application Default Credentials over a raw API key wherever the Agent Builder setup allows it — ADC avoids having a long-lived key material to manage and rotate at all |
+| `gemini-api-key` (if not using ADC) | All agents, via Agent Builder | Shared across agents; prefer Application Default Credentials (ADC) over raw API key |
 
 ## 4. Per-agent IAM / service account mapping — this is the literal implementation of §1's least-privilege principle, and of the hackathon's "Studio Head enforcing Cloud IAM" framing
 
@@ -69,11 +68,12 @@ This table is not a nice-to-have documentation exercise — it should be the act
 
 | Agent | Service account | Permissions |
 |---|---|---|
-| Intake Agent | `sa-intake@...` | Read uploaded documents from Cloud Storage; write to the `claims` collection only |
-| Research Agent | `sa-research@...` | Access the `parallel-api-key` secret; read `claims`; write to `research_findings` only |
-| Ledger Agent | `sa-ledger@...` | Read `claims` and `research_findings`; **create-only** (no update, no delete — enforced by Firestore security rules, see `06-data-schema.md` §3) on `ledger_entries` |
-| Risk Scoring Agent | `sa-scoring@...` | Read `ledger_entries`; write to `risk_scores` only |
-| Report Agent | `sa-report@...` | Read all collections (it needs the full picture to compile a report); write to `reports` only |
+| Discovery Agent | `sa-discovery@lienmark-hackathon.iam.gserviceaccount.com` | Read `gs://studio-locked-drafts/` Cloud Storage buckets; write to `agent_state_store` and `productions` Firestore collections |
+| Intake Agent | `sa-intake@lienmark-hackathon.iam.gserviceaccount.com` | Read uploaded script documents from Cloud Storage; write to `claims` and `productions` collections |
+| Research Agent | `sa-research@lienmark-hackathon.iam.gserviceaccount.com` | Access the `parallel-api-key` secret; read `claims`; write to `research_findings` only |
+| Ledger Agent | `sa-ledger@lienmark-hackathon.iam.gserviceaccount.com` | Read `claims` and `research_findings`; **create-only** (no update, no delete — enforced by Firestore security rules, see `06-data-schema.md` §3) on `ledger_entries` |
+| Risk Scoring Agent | `sa-scoring@lienmark-hackathon.iam.gserviceaccount.com` | Read `ledger_entries` and `research_findings`; write to `risk_scores` only |
+| Report Agent | `sa-report@lienmark-hackathon.iam.gserviceaccount.com` | Read all collections (it needs the full picture to compile a report); write to `reports` only |
 
 **Worth stating explicitly why this granularity matters, beyond "it's good practice":** if any single agent's code has a bug — say, an errant write attempt from the Risk Scoring Agent that accidentally targets the `ledger_entries` collection instead of `risk_scores` — the least-privilege IAM setup means that write attempt fails at the infrastructure level, regardless of what the application code tried to do. This is a meaningfully stronger guarantee than "our code is careful not to do that," and it's the kind of design detail a technically sophisticated judge (or a real security-conscious buyer down the line) would specifically look for.
 
