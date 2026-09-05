@@ -1,0 +1,89 @@
+1
+00:00:00,000 --> 00:00:08,000
+In film production, the hardest problem in rights clearance isn't finding a copyright record once.
+It’s knowing whether yesterday’s legal sign-off still protects today’s evolving cut and changing external evidence.
+
+2
+00:00:08,000 --> 00:00:15,000
+That silent divergence is clearance drift.
+Rescanning an entire binder across every revision wastes $18,000 and delays studio delivery by three weeks.
+Unmonitored drift risks catastrophic E&O warranty claims.
+
+3
+00:00:15,000 --> 00:00:25,000
+Here is our baseline: Shadows Over Broadway, Script Cut Version 7.
+Production counsel Sarah Jenkins, Esq. reviewed and approved twelve distinct rights-bearing assets under Policy E&O-2026.1-DEVPOST.
+
+4
+00:00:25,000 --> 00:00:35,000
+Every decision is bound to its exact scene context, duration, private agreements, and external evidence snapshots.
+In Version 7, the clearance file is 100% complete and fully verified.
+
+5
+00:00:35,000 --> 00:00:45,000
+Now, production delivers Version 8.
+A traditional tool either rescans everything or goes blind.
+Lienmark's Gemini 2.5 Flash semantic delta engine instantly ingests the new cut and isolates two distinct drift modalities.
+
+6
+00:00:45,000 --> 00:00:55,000
+First: creative drift. In Scene 42, the director zoomed in on this 1946 Crime Detective magazine poster.
+It went from a two-second background blur into a fourteen-second focal shot with dialogue, collapsing the prior de minimis fair use defense.
+
+7
+00:00:55,000 --> 00:01:05,000
+Second: external evidence drift. For the Scene 18 jazz cue Midnight Serenade, the script did not change by a single word.
+But out in the real world, music copyright registries updated, creating an adverse ownership dispute with Vanguard Media.
+
+8
+00:01:05,000 --> 00:01:15,000
+Watch the Deterministic Lineage Parity Guarantee:
+Lienmark analyzes the causal dependency graph in backend/core/invalidation_engine.py.
+Ten decisions have identical context hashes and stable public evidence. Lienmark carries all ten decisions forward automatically.
+
+9
+00:01:15,000 --> 00:01:25,000
+That is 10 carried forward legal approvals:
+zero dollars spent on redundant attorney re-review, and zero external queries dispatched.
+Only the two affected decisions are reopened for counsel attention.
+
+10
+00:01:25,000 --> 00:01:35,000
+Instead of firing twelve expensive web searches, our budget governor dispatches the Parallel Search API in backend/services/parallel_service.py to re-ground strictly the two affected assets.
+That is an 83.3% query reduction at runtime.
+
+11
+00:01:35,000 --> 00:01:45,000
+For Item 11, Parallel searches the Library of Congress catalog in 142 milliseconds,
+retrieving authoritative evidence that the 1946 registration expired without renewal, confirming the artwork is in the public domain.
+
+12
+00:01:45,000 --> 00:01:55,000
+For Item 12, Parallel queries ASCAP ACE repertory records, uncovering that sync rights were assigned to Vanguard Media last month.
+Stance: Contradictory. Lienmark strictly fails closed—public evidence never automatically clears a conflict.
+
+13
+00:01:55,000 --> 00:02:05,000
+Here is the human checkpoint: Lienmark separates AI decision support from legal adjudication.
+For Item 11, Sarah Jenkins reviews the 4D breakdown, confirms public domain doctrine under 17 U.S.C. § 304, and clicks Re-Attest.
+
+14
+00:02:05,000 --> 00:02:15,000
+Via Next.js Server Actions, Item 11 optimistically updates to 1 re-attested.
+The event is permanently chained into our tamper-evident SHA-256 audit ledger, preserving cryptographic proof of counsel sign-off.
+
+15
+00:02:15,000 --> 00:02:25,000
+For Item 12, counsel will not clear an adverse copyright claim.
+She designates the cue as 1 exception.
+Lienmark records the rejection, completing human review for Version 8.
+
+16
+00:02:25,000 --> 00:02:35,000
+Finally, user exports the Form E&O-2026 Exceptions Schedule compiled by backend/core/exceptions_schedule.py.
+Rendered server-side for underwriter delivery, this document satisfies the mandatory clearance warranty conditions for carrier policy binding.
+
+17
+00:02:35,000 --> 00:02:45,000
+Notice the mathematical conservation: 10 carried forward + 1 re-attested + 1 exception = 12 total under our 12 -> 10/2 -> 1/1 pipeline holding 12 = 10 + 1 + 1.
+Clear, version-bound risk transparency for underwriters, brokers, and producers. That is Lienmark.
