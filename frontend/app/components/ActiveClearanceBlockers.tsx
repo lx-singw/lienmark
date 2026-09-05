@@ -98,11 +98,12 @@ export const ActiveClearanceBlockers: React.FC<ActiveClearanceBlockersProps> = (
                   Blocker 1 of 2
                 </span>
                 <span className="text-xs font-mono font-bold text-slate-400">
-                  Key: poster_noir_detective_magazine
+                  Key: poster_noir_detective_magazine | Timecode: 00:44:12
                 </span>
               </div>
               <h4 className="text-sm font-bold text-white mt-1.5 flex items-center gap-2">
                 <span>Item 11 (Scene 42 Noir Poster)</span>
+                <span className="text-[11px] font-mono text-amber-400 bg-amber-950/60 border border-amber-500/30 px-1.5 py-0.5 rounded">00:44:12</span>
                 {isItem11Resolved && (
                   <span className="inline-flex items-center gap-1 rounded bg-emerald-900/80 px-2 py-0.2 text-[11px] font-semibold text-emerald-300 border border-emerald-500/40">
                     <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
@@ -207,11 +208,12 @@ export const ActiveClearanceBlockers: React.FC<ActiveClearanceBlockersProps> = (
                   Blocker 2 of 2
                 </span>
                 <span className="text-xs font-mono font-bold text-slate-400">
-                  Key: music_cue_midnight_serenade
+                  Key: music_cue_midnight_serenade | Timecode: 00:19:40
                 </span>
               </div>
               <h4 className="text-sm font-bold text-white mt-1.5 flex items-center gap-2">
                 <span>Item 12 (Scene 18 Jazz Cue)</span>
+                <span className="text-[11px] font-mono text-rose-400 bg-rose-950/60 border border-rose-500/30 px-1.5 py-0.5 rounded">00:19:40</span>
                 {isItem12Resolved && (
                   <span className="inline-flex items-center gap-1 rounded bg-rose-900/80 px-2 py-0.2 text-[11px] font-semibold text-rose-300 border border-rose-500/40">
                     <AlertOctagon className="h-3 w-3" aria-hidden="true" />
