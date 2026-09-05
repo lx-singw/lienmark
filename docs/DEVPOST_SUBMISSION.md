@@ -28,6 +28,7 @@
 | **Target Policy Version** | `E&O-2026.1-DEVPOST` |
 | **Conservation Law** | `12 = 10 + 1 + 1` (10 Carried + 1 Re-Attested + 1 Exception) |
 | **Artifact Recipients** | Entertainment Errors & Omissions (E&O) Underwriters, MGAs, Insurance Brokers, Completion Guarantors |
+| **Team / Authorship** | Linda Singwane (`lx-singw`), Lead Systems Architect & Sole Entrant (`singwane.linda.m@gmail.com`) |
 
 ---
 

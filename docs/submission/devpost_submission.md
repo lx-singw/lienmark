@@ -17,6 +17,14 @@
 
 ---
 
+### Team Roster & Authorship Eligibility
+* **Entrant & Lead Systems Architect:** Linda Singwane (`lx-singw`)
+* **Role & Responsibilities:** Sole Entrant, Lead Systems Architect, Full-Stack & AI Integration Engineer (overall architecture, Gemini 2.5 Flash / Agent Builder / Parallel Search API integration, Next.js frontend, deterministic DAG engine, verification suites, and compliance documentation).
+* **Contact Email:** `singwane.linda.m@gmail.com`
+* **Contest Eligibility:** 100% compliant sole entrant under Official Rules §4, §6, and §7. All code, fixtures, models, and assets created originally during the hackathon contest window (Jul 27 – Sep 9, 2026).
+
+---
+
 ### Elevator Pitch
 
 #### One-Sentence Pitch

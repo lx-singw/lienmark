@@ -139,7 +139,7 @@ The cold judge verification harness [`scripts/run_cold_judge_audit.py`](../../sc
     * Cryptographic Private Keys: `-----BEGIN (?:RSA|DSA|EC|OPENSSH|PRIVATE) KEY-----`
     * Unmasked Bearer Tokens: `\bBearer\s+([a-zA-Z0-9_\-\.]{25,})\b`
     * Configuration Passwords: `(?i)(?:password|client_secret)\s*[:=]\s*["']([^"'\r\n]{8,})["']`
-  - Safe test mocks (e.g. `AIzaSyD00000000000000000000000000000000` in unit test assertions) isolated and strictly differentiated from real credentials.
+  - Safe test mocks (e.g. `AIzaSy...MOCK...` in unit test assertions) isolated and strictly differentiated from real credentials.
 - **Results**: **0 leaked Google API keys, 0 leaked OpenAI/Parallel keys, 0 leaked private keys, 0 unmasked production credentials**.
 - **Verdict**: **PASSED** (Execution duration: 7.076s across 234 files).
 
