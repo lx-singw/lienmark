@@ -198,6 +198,9 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
           )}
         </div>
 
+        <p className="text-xs text-slate-400">
+          Detect clearance drift, selectively revalidate affected evidence, and keep sign-offs aligned with every production version.
+        </p>
         <p className="text-sm text-slate-400 flex flex-wrap items-center gap-x-2 gap-y-1">
           <span>
             Production: <strong className="text-slate-200">{projectName}</strong>{' '}

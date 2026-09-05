@@ -2,14 +2,14 @@
 
 [![Agentic Cinema: Parallel Track](https://img.shields.io/badge/Hackathon-Agentic%20Cinema%20(Parallel%20Track)-38bdf8)](https://agentic-cinema.devpost.com/)
 [![Toolchain-Google AntiGravity](https://img.shields.io/badge/Toolchain-Google%20AntiGravity%20(Approved)-10b981)](https://agentic-cinema.devpost.com/forum_topics/44644-question-about-the-ai-usage-limitation-grafana-track)
-[![Tests Passing](https://img.shields.io/badge/Pytest-377%2F377%20Passing-emerald)](tests/)
+[![Tests Passing](https://img.shields.io/badge/Pytest-463%2F463%20Passing-emerald)](tests/)
 [![Quality Gate](https://img.shields.io/badge/Quality%20Gate-5%2F5%20Passing-blue)](scripts/run_quality_gate.py)
 [![Query Reduction](https://img.shields.io/badge/Query%20Reduction-83.3%25%20Saved-purple)](#-the-core-magic-moment-12--102--11)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> **Lienmark is clearance change control for E&O: it determines whether prior entertainment-rights clearance decisions still carry forward when a film's cut or attributable external evidence changes.**
+> **Detect clearance drift, selectively revalidate affected evidence, and keep sign-offs aligned with every production version.**
 
-Rather than a generic search report or contract scanner, Lienmark binds counsel clearance decisions to a deterministic dependency graph. When a cut changes, Lienmark carries unaffected approvals forward, reopens only affected claims, uses **Parallel Search API** for targeted live re-investigation, and produces an underwriter-ready **Exceptions Schedule**.
+Lienmark is clearance change control for E&O: it determines whether prior entertainment-rights clearance decisions still carry forward when a film's cut or attributable external evidence changes. Rather than a generic search report or contract scanner, Lienmark binds counsel clearance decisions to a deterministic dependency graph. When a cut changes, Lienmark carries unaffected approvals forward, reopens only affected claims, uses **Parallel Search API** for targeted live re-investigation, and produces an underwriter-ready **Exceptions Schedule**.
 
 ---
 
@@ -27,19 +27,28 @@ python scripts/run_rehearsal.py
 # 3. Run Live Integration Smoke Probe (Gemini 2.5 Flash, Parallel Search, Agent Builder)
 python scripts/run_live_smoke.py
 
-# 4. Run Open-Source License Compliance Audit (20/20 OSI-Approved Permissive)
+# 4. Run Automated Feature Freeze Auditor (Release candidate baseline lock)
+python scripts/verify_feature_freeze.py
+
+# 5. Run Video Take Recording Harness (Three clean deployed runs telemetry)
+python scripts/record_take_harness.py
+
+# 6. Run Submission Consistency Validator (Artifact parity across all 7 surfaces)
+python scripts/verify_submission_consistency.py
+
+# 7. Run Open-Source License Compliance Audit (20/20 OSI-Approved Permissive)
 python scripts/run_license_audit.py
 
-# 5. Run Complete Deterministic Test Suite (377 passed in ~33s)
+# 8. Run Complete Deterministic Test Suite (463+ passed)
 python -m pytest tests/ -v
 
-# 6. Run 10-Second CLI Integration Verification Suite
+# 9. Run 10-Second CLI Integration Verification Suite
 python scripts/verify_integrations.py
 
-# 7. Launch Interactive Reviewer Dashboard & REST API
+# 10. Launch Interactive Reviewer Dashboard & REST API
 python -m uvicorn backend.main:app --reload --port 8000
 
-# 8. Launch Interactive Next.js 15 App Router Frontend
+# 11. Launch Interactive Next.js 15 App Router Frontend
 cd frontend && npm run dev
 ```
 Open **`http://localhost:8000`** (or Next.js UI at **`http://localhost:3000`**) in your browser to experience the interactive clearance change control workflow.
@@ -50,7 +59,7 @@ Open **`http://localhost:8000`** (or Next.js UI at **`http://localhost:3000`**) 
 
 Lienmark demonstrates a real Hollywood entertainment clearance scenario comparing **Version 7** (Baseline) vs **Version 8** (Revision):
 
-1. **12 Prior Approvals (V7):** Baseline screenplay has 12 counsel-approved clearance items (props, set dressings, art, wardrobe, music).
+1. **12 Prior Approvals (V7):** Baseline screenplay has 12 counsel-approved clearance items (props, set dressings, art, wardrobe, music) locked under Policy Standard `E&O-2026.1-DEVPOST`.
 2. **Version 8 Ingestion & Semantic Drift:**
    - **Creative Drift:** Item 11 (*Crime Detective Magazine* poster, Scene 42) was a 2-second background blur in V7. In V8, the director zooms in for 14 seconds of focal dialogue where the protagonist reads the headline aloud (`CREATIVE_CONTEXT_ALTERED`).
    - **External Evidence Drift:** Item 12 (*Midnight Serenade* jazz cue, Scene 18) was approved as public domain. In V8, the script is unchanged, but live **Parallel Search** retrieves an August 2026 worldwide exclusive copyright assignment to *Vanguard Media Holdings LLC* (`EXTERNAL_EVIDENCE_SHIFT`).
@@ -63,10 +72,11 @@ Lienmark demonstrates a real Hollywood entertainment clearance scenario comparin
 5. **Counsel Disposition & Exceptions Schedule:**
    - Counsel re-attests the poster under Public Domain doctrine.
    - Counsel marks the jazz cue as an unresolved exception (to be replaced or licensed).
-   - Emits the version-bound **Form E&O-2026 Exceptions Schedule**.
+   - Emits the version-bound **Form E&O-2026 Exceptions Schedule** under Policy Standard `E&O-2026.1-DEVPOST`.
 
 ### The Mathematical Conservation Invariant ($12 = 10 + 1 + 1$)
 The total baseline claims are mathematically conserved across every stage of the workflow:
+The conservation law is stated with exact precision: 12 = 10 + 1 + 1 (10 carried forward + 1 re-attested + 1 unresolved exception).
 $$\text{Total Baseline Claims } (12) = \text{Carried Forward } (10) + \text{Re-Attested } (1) + \text{Unresolved Exception } (1)$$
 
 $$\mathbf{12 = 10 + 1 + 1}$$
@@ -117,7 +127,7 @@ $$\mathbf{12 = 10 + 1 + 1}$$
 ## 📜 Devpost & Toolchain Compliance
 
 * **Competition:** Agentic Cinema: The Blockbuster Hackathon (Google Cloud + Devpost).
-* **Track:** Parallel Track ($15,000 Prize Pool).
+* **Track:** Parallel Track ($15,000 Prize Pool) & Core Agentic Cinema Track.
 * **Official Deadline:** September 9, 2026 at 2:00 PM PDT / 23:00 SAST.
 * **Compliance:** Reconstructed directly inside **Google AntiGravity** in strict adherence to Devpost Manager Janet Fang's official ruling ([Forum Topic 44644](https://agentic-cinema.devpost.com/forum_topics/44644-question-about-the-ai-usage-limitation-grafana-track)).
 
@@ -139,6 +149,9 @@ $$\mathbf{12 = 10 + 1 + 1}$$
 | `scripts/run_rehearsal.py` | 7-phase rehearsal harness | Clean-session execution validating all 6 invariants in 44ms runtime. |
 | `scripts/run_live_smoke.py` | Live integration runner | Live provider probes with explicit UTC timestamp logging and masked credentials. |
 | `scripts/run_license_audit.py` | License compliance runner | Verifies 20/20 dependencies satisfy 100% OSI-approved permissive licenses. |
+| `scripts/verify_feature_freeze.py` | Release candidate auditor | Standalone gate verifying commit pin, policy lock, dependencies, and media rights. |
+| `scripts/record_take_harness.py` | Video takes harness | Executes and validates 3 consecutive clean deployed runs with zero state leakage. |
+| `scripts/verify_submission_consistency.py` | Submission consistency validator | Audits artifact parity, mathematical invariants, and zero prohibited phrases across all 7 surfaces. |
 | `scripts/verify_integrations.py` | 60-second judge verifier | Fast CLI check for Gemini, Parallel, and Invalidation Engine. |
 
 ---
@@ -183,9 +196,12 @@ $$\mathbf{12 = 10 + 1 + 1}$$
 │   ├── run_quality_gate.py   # Unified 5-gate automated quality runner
 │   ├── run_rehearsal.py      # 7-phase clearance lifecycle rehearsal harness
 │   ├── run_live_smoke.py     # Live integration smoke runner with UTC timestamp
+│   ├── verify_feature_freeze.py # Standalone feature freeze & release candidate auditor
+│   ├── record_take_harness.py # Video take recording harness & telemetry validator
+│   ├── verify_submission_consistency.py # Cross-surface submission consistency auditor
 │   ├── run_license_audit.py  # 100% OSI-approved license compliance audit
 │   └── verify_integrations.py# 60-second CLI judge verification script
-├── tests/                    # 22 automated test suites (377 deterministic tests)
+├── tests/                    # 22 automated test suites (463 deterministic tests)
 │   ├── test_invalidation_engine.py
 │   ├── test_e2e_pipeline.py
 │   ├── test_api_endpoints.py

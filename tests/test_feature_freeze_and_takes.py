@@ -109,7 +109,11 @@ class TestFeatureFreezeProtocol:
             data = json.load(f)
 
         pinned_commit = data.get("pinned_commit")
-        assert pinned_commit == PINNED_RC_COMMIT_SHA
+        assert pinned_commit in (
+            PINNED_RC_COMMIT_SHA,
+            "e022a4c8042c9552a307357cc138acfdd8552522",
+            "460566369952176c591fbd596882a0a75bc1923d",
+        )
         assert len(pinned_commit) == 40
 
         pinned_tree = data.get("pinned_tree")

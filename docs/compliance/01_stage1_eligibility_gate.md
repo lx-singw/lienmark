@@ -6,6 +6,7 @@
 > **Audited Date**: September 5, 2026 (Base review: September 1, 2026)  
 > **Project**: [Lienmark — Clearance Change Control for E&O](https://github.com/lx-singw/lienmark)  
 > **Auditor & Entrant**: Linda Singwane (`lx-singw`)  
+> **Track Designation**: Parallel Track ($15,000 Prize Pool)  
 > **Overall Audit Result**: **20 / 20 GATES VERIFIED PASS (100%)**
 
 ---

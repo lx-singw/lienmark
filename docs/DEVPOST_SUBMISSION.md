@@ -23,6 +23,10 @@
 | **Track Category** | **Parallel Track** ($15,000 Prize Pool) |
 | **Core Differentiator** | Maintains continuous clearance validity across creative and external-evidence revisions, selectively reopening only affected decisions rather than running redundant full rescans. |
 | **Target Users** | Production Counsel, Clearance Coordinators, Post-Production Supervisors |
+| **Release Candidate** | `RC-1` (Status: FROZEN) |
+| **Pinned Commit SHA** | `460566369952176c591fbd596882a0a75bc1923d` |
+| **Target Policy Version** | `E&O-2026.1-DEVPOST` |
+| **Conservation Law** | `12 = 10 + 1 + 1` (10 Carried + 1 Re-Attested + 1 Exception) |
 | **Artifact Recipients** | Entertainment Errors & Omissions (E&O) Underwriters, MGAs, Insurance Brokers, Completion Guarantors |
 
 ---

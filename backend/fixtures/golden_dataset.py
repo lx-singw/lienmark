@@ -5,6 +5,7 @@ Contains 12 canonical rights-bearing uses:
 - 10 Unchanged uses (carried forward fail-closed)
 - 1 Creative drift use (Scene 42: poster brought into focal dialogue)
 - 1 External evidence drift use (Scene 18: jazz cue copyright ownership transfer)
+- Mathematical Conservation Law: 12 = 10 + 1 + 1 (10 carried forward + 1 re-attested + 1 unresolved exception)
 Authored strictly under Google AntiGravity for Agentic Cinema compliance.
 """
 

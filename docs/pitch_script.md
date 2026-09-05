@@ -1,4 +1,5 @@
-# Lienmark — Master Pitch Script & Presenter Teleprompter Guide
+# Lienmark — Clearance Change Control for E&O
+## Master Pitch Script & Presenter Teleprompter Guide
 
 > **Document Status:** Authoritative Presenter Pitch Script (Locked)  
 > **Milestone:** Phase 6 Story, Video, and Freeze — Sprint 6A (§11, [`docs/winning/04-build-roadmap.md`](file:///z:/home/lx_singw/projects/lienmark/docs/winning/04-build-roadmap.md))  

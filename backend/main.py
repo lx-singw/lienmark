@@ -1096,7 +1096,7 @@ def serve_dashboard():
     <div class="header">
         <div class="title-group">
             <h1>Lienmark <span class="badge-track">Parallel Track — Agentic Cinema</span></h1>
-            <p class="subtitle">Clearance Change Control for E&O: Version Lineage & Selective Invalidation Engine</p>
+            <p class="subtitle">Detect clearance drift, selectively revalidate affected evidence, and keep sign-offs aligned with every production version.</p>
         </div>
         <div class="hero-actions">
             <button id="btn-run" onclick="runAnalysis()">⚡ Ingest V8 & Detect Drift</button>
