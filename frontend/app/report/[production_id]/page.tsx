@@ -187,6 +187,11 @@ export default async function ReportPage({
           </div>
         </div>
 
+        {/* Statutory Underwriting Disclaimer Banner */}
+        <div className="rounded-lg border border-amber-800/50 bg-amber-950/20 p-3.5 text-xs text-amber-300/90 leading-relaxed">
+          <strong className="font-bold text-amber-200">STATUTORY UNDERWRITING DISCLAIMER:</strong> This Form E&amp;O-2026 Underwriter Exceptions Schedule is an informational clearance change control schedule prepared solely for underwriting risk assessment. This document does NOT constitute insurer approval, binder issuance, policy binding, guarantee of coverage, or legal certainty. Coverage terms and policy binding remain exclusively subject to formal underwriter review and policy issuance.
+        </div>
+
         {/* Executive Summary & Disposition Invariant */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
@@ -515,21 +520,17 @@ export default async function ReportPage({
             </div>
 
             {/* Carrier Underwriter Binder Block */}
-            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-3">
+            <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/40 p-4 space-y-3">
               <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                Carrier Underwriting Syndicate Acceptance
+                Underwriter Acknowledgment (Pending Review)
               </div>
-              <div className="border-b border-slate-700 pb-2 pt-4">
-                <span className="font-serif italic text-lg text-emerald-400 font-semibold">
-                  Arthur Montgomery
-                </span>
+              <div className="border-b border-dashed border-slate-600 pb-2 pt-6 text-center text-xs text-slate-500 font-mono">
+                ____________________________________________________
               </div>
-              <div className="text-xs space-y-0.5 text-slate-400">
-                <div>Senior Vice President &middot; Specialty Entertainment Media Lines</div>
-                <div>Lloyd&apos;s Syndicate 1888 &amp; Hartford Syndicate Group</div>
-                <div>Policy Binder Reference: <span className="font-mono text-slate-300">BND-EO-2026-99214</span></div>
-                <div className="text-emerald-400 font-semibold text-[11px] mt-1">
-                  &bull; BINDER BOUND WITH SECTION 1 EXCLUSION
+              <div className="text-xs space-y-0.5 text-slate-400 text-center">
+                <div>Authorized Carrier / Syndicate Underwriter Signature</div>
+                <div className="text-amber-400 font-semibold text-[11px] mt-1">
+                  &bull; STATUS: PENDING UNDERWRITER REVIEW &mdash; NO COVERAGE BOUND
                 </div>
               </div>
             </div>

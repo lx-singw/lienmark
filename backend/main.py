@@ -7,7 +7,7 @@ Authored strictly under Google AntiGravity for Agentic Cinema compliance.
 import logging
 import os
 from typing import Dict, Any, Optional
-from fastapi import FastAPI, HTTPException, Body
+from fastapi import FastAPI, HTTPException, Body, Response, Query
 
 logger = logging.getLogger("lienmark.api")
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,6 +20,7 @@ from backend.domain.models import (
     ExceptionsSchedule,
     ReviewAction,
     DemoReviewer,
+    ReviewerIdentity,
     FourDimensionalExplanation,
     ReviewQueue,
     ReviewQueueItem,
@@ -281,36 +282,15 @@ def record_counsel_reattestation(request: ReattestationRequest):
 
 
 
-@app.get("/api/reports/exceptions")
-@app.get("/api/reports/form-eo-2026")
-def get_exceptions_schedule():
-    global _latest_run_result, _counsel_reattestations
-    v7_uses, v8_uses, v7_decisions, v8_evidence = get_golden_fixtures()
-
-    validity_results = InvalidationEngine.evaluate_invalidation(
-        base_uses=v7_uses,
-        target_uses=v8_uses,
-        prior_decisions=v7_decisions,
-        evidence_snapshots=v8_evidence,
-        target_version_id="v8",
-    )
-
-    schedule = InvalidationEngine.generate_exceptions_schedule(
-        project_id="proj_blockbuster_cinema",
-        base_version_id="v7",
-        target_version_id="v8",
-        target_uses=v8_uses,
-        validity_results=validity_results,
-        reattestations=_counsel_reattestations,
-    )
-    return schedule.model_dump()
-
-
-@app.get("/report/{production_id}", response_class=HTMLResponse)
-def serve_form_eo_2026_report(production_id: str):
+def _get_reconciled_schedule(
+    project_id: str = "proj_blockbuster_cinema",
+    target_version_id: str = "v8",
+    auto_reconcile_demo: bool = False,
+) -> ExceptionsSchedule:
     """
-    SSR Route for Form E&O-2026 Underwriter Exceptions Schedule.
-    Renders high-fidelity, printable HTML directly on the server tier.
+    Reconciles the exceptions schedule with the latest decisions from counsel_checkpoint_manager
+    and _counsel_reattestations. If Item 11 is re-attested and Item 12 is exception,
+    generates a schedule with 10 carried, 1 re-attested, 1 exception.
     """
     global _counsel_reattestations
     v7_uses, v8_uses, v7_decisions, v8_evidence = get_golden_fixtures()
@@ -320,19 +300,127 @@ def serve_form_eo_2026_report(production_id: str):
         target_uses=v8_uses,
         prior_decisions=v7_decisions,
         evidence_snapshots=v8_evidence,
-        target_version_id="v8",
+        target_version_id=target_version_id,
     )
 
-    schedule = InvalidationEngine.generate_exceptions_schedule(
-        project_id="proj_blockbuster_cinema",
+    effective_reattestations = dict(_counsel_reattestations)
+
+    # Reconcile with latest decisions from counsel_checkpoint_manager
+    events = counsel_checkpoint_manager.get_audit_trail()
+    for ev in events:
+        key = ev.stable_lineage_key
+        is_approved = (
+            ev.new_state == DecisionState.RE_ATTESTED
+            or ev.action == ReviewAction.RE_ATTEST
+            or ev.new_status == DecisionStatus.APPROVED
+        )
+        st = DecisionStatus.APPROVED if is_approved else DecisionStatus.REJECTED
+        rev = ev.reviewer.name if hasattr(ev.reviewer, "name") else str(ev.reviewer)
+        effective_reattestations[key] = ReattestationRequest(
+            decision_id=ev.new_decision_id or ev.prior_decision_id or f"dec_{target_version_id}_{key}",
+            stable_lineage_key=key,
+            version_id=ev.target_version_id or target_version_id,
+            new_status=st,
+            counsel_rationale=ev.rationale,
+            reviewer_name=rev or "Sarah Jenkins, Esq. (Lead Clearance Counsel)",
+        )
+
+    poster_key = "poster_noir_detective_magazine"
+    music_key = "music_cue_midnight_serenade"
+
+    # Default demo state for underwriter report if unset
+    if auto_reconcile_demo:
+        if poster_key not in effective_reattestations:
+            effective_reattestations[poster_key] = ReattestationRequest(
+                decision_id=f"dec_v7_{poster_key}",
+                stable_lineage_key=poster_key,
+                version_id=target_version_id,
+                new_status=DecisionStatus.APPROVED,
+                counsel_rationale="Artwork verified in public domain via LOC registration records retrieved by Parallel Search; non-infringing.",
+                reviewer_name="Sarah Jenkins, Esq. (Lead Clearance Counsel)",
+            )
+        if music_key not in effective_reattestations:
+            effective_reattestations[music_key] = ReattestationRequest(
+                decision_id=f"dec_v7_{music_key}",
+                stable_lineage_key=music_key,
+                version_id=target_version_id,
+                new_status=DecisionStatus.REJECTED,
+                counsel_rationale="Vanguard Media active ownership conflict identified via Parallel Search; replace cue with alternate track.",
+                reviewer_name="Sarah Jenkins, Esq. (Lead Clearance Counsel)",
+            )
+
+    return InvalidationEngine.generate_exceptions_schedule(
+        project_id=project_id,
         base_version_id="v7",
-        target_version_id="v8",
+        target_version_id=target_version_id,
         target_uses=v8_uses,
         validity_results=validity_results,
-        reattestations=_counsel_reattestations,
+        reattestations=effective_reattestations,
+        base_uses=v7_uses,
+        counsel_checkpoint_manager=counsel_checkpoint_manager,
+    )
+
+
+@app.get("/api/reports/exceptions")
+@app.get("/api/reports/form-eo-2026")
+def get_exceptions_schedule():
+    """
+    Returns Form E&O-2026 Exceptions Schedule reconciled with latest decisions
+    from counsel_checkpoint_manager. If Item 11 is re-attested and Item 12 is exception,
+    generates schedule with 10 carried, 1 re-attested, 1 exception.
+    """
+    schedule = _get_reconciled_schedule()
+    return schedule.model_dump()
+
+
+@app.get("/report/{production_id}", response_class=HTMLResponse)
+@app.get("/api/reports/form-eo-2026/html", response_class=HTMLResponse)
+def serve_form_eo_2026_report(production_id: str = "proj_blockbuster_cinema"):
+    """
+    SSR Route for Form E&O-2026 Underwriter Exceptions Schedule.
+    Renders high-fidelity, printable HTML directly on the server tier.
+    Reconciles with latest decisions from counsel_checkpoint_manager.
+    """
+    schedule = _get_reconciled_schedule(
+        project_id=production_id,
+        auto_reconcile_demo=True,
     )
     html_content = InvalidationEngine.render_form_eo_2026_html(schedule)
     return HTMLResponse(content=html_content)
+
+
+@app.get("/api/reports/export")
+def export_exceptions_schedule(
+    production_id: str = "proj_blockbuster_cinema",
+    format: str = Query(default="json", pattern="^(json|html)$"),
+):
+    """
+    Direct export route supporting JSON or HTML attachment download for Form E&O-2026.
+    Reconciles with latest decisions from counsel_checkpoint_manager.
+    """
+    schedule = _get_reconciled_schedule(
+        project_id=production_id,
+        auto_reconcile_demo=True,
+    )
+
+    if format == "html":
+        html_content = InvalidationEngine.render_form_eo_2026_html(schedule)
+        return Response(
+            content=html_content,
+            media_type="text/html",
+            headers={
+                "Content-Disposition": f'attachment; filename="form_eo_2026_{schedule.schedule_id}.html"',
+                "Content-Type": "text/html; charset=utf-8",
+            },
+        )
+    return Response(
+        content=schedule.model_dump_json(indent=2),
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f'attachment; filename="form_eo_2026_{schedule.schedule_id}.json"',
+            "Content-Type": "application/json",
+        },
+    )
 
 
 @app.get("/", response_class=HTMLResponse)

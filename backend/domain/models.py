@@ -233,6 +233,10 @@ class CarrierHeader(BaseModel):
         default="PENDING_REVIEW",
         description="Current status of policy underwriting review",
     )
+    disclaimer: str = Field(
+        default="NON-BINDING RISK ASSESSMENT: This schedule does not constitute an insurance binder or policy. Clearance exceptions and warranties are subject to carrier underwriting review.",
+        description="Statutory non-binding underwriter disclaimer",
+    )
 
 
 class ExceptionsSchedule(BaseModel):
@@ -244,6 +248,10 @@ class ExceptionsSchedule(BaseModel):
     generated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     policy_version: str = "E&O-2026.1-DEVPOST"
     policy_number: str = "E&O-2026.1-DEVPOST"
+    disclaimer: str = Field(
+        default="NON-BINDING CLEARANCE SCHEDULE: Form E&O-2026 is an informational risk assessment schedule for errors and omissions underwriting. It does not bind insurance coverage or certify legal certainty.",
+        description="Statutory non-binding and legal disclaimer",
+    )
     carrier_header: CarrierHeader = Field(default_factory=CarrierHeader)
     production_metadata: Dict[str, Any] = Field(default_factory=dict)
     total_claims: int
@@ -269,7 +277,10 @@ class ExceptionsSchedule(BaseModel):
                 "target_version_id": self.target_version_id,
                 "target_cut_hash": "f9e8d7c6b5a43210fedcba9876543210",
                 "generated_at": self.generated_at,
+                "disclaimer": self.disclaimer,
             }
+        elif "disclaimer" not in self.production_metadata:
+            self.production_metadata["disclaimer"] = self.disclaimer
         exceptions_list = [
             item for item in self.items if item.v8_evaluation_state in ("exception", DecisionState.EXCEPTION.value)
         ]

@@ -42,6 +42,14 @@ export function PrintButton({ scheduleId }: PrintButtonProps) {
       </div>
 
       <div className="flex items-center gap-3">
+        <a
+          href="/api/reports/export?format=json"
+          download={`form_eo_2026_${scheduleId}.json`}
+          className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 hover:bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-300 hover:text-white transition-colors"
+        >
+          <Download className="h-4 w-4 text-emerald-400" />
+          Download JSON Schedule
+        </a>
         <button
           onClick={handlePrint}
           className="flex items-center gap-2 rounded-lg bg-sky-500 hover:bg-sky-400 px-4 py-2 text-xs font-bold text-slate-950 transition-all shadow-md shadow-sky-500/20 active:scale-95"
