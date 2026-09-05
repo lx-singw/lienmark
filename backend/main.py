@@ -539,13 +539,19 @@ def _get_reconciled_schedule(
 
 @app.get("/api/reports/exceptions")
 @app.get("/api/reports/form-eo-2026")
-def get_exceptions_schedule():
+def get_exceptions_schedule(
+    production_id: str = "proj_blockbuster_cinema",
+    auto_reconcile_demo: bool = True,
+):
     """
     Returns Form E&O-2026 Exceptions Schedule reconciled with latest decisions
     from counsel_checkpoint_manager. If Item 11 is re-attested and Item 12 is exception,
     generates schedule with 10 carried, 1 re-attested, 1 exception.
     """
-    schedule = _get_reconciled_schedule()
+    schedule = _get_reconciled_schedule(
+        project_id=production_id,
+        auto_reconcile_demo=auto_reconcile_demo,
+    )
     return schedule.model_dump()
 
 
