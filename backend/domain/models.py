@@ -4,6 +4,9 @@ Canonical Pydantic v2 schemas for version-bound clearance change control.
 Strictly authored under Google AntiGravity for Agentic Cinema compliance.
 """
 
+import hashlib
+import json
+from urllib.parse import urlsplit
 from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, Dict, Any
@@ -118,6 +121,16 @@ class PublicEvidenceSnapshot(BaseModel):
             self.raw_payload_hash = self.payload_hash
         elif not self.payload_hash and self.raw_payload_hash:
             self.payload_hash = self.raw_payload_hash
+        elif not self.raw_payload_hash and not self.payload_hash:
+            payload = {"query": self.query, "max_results": 3, "include_metadata": True}
+            serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+            h = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+            self.raw_payload_hash = h
+            self.payload_hash = h
+        if not self.domain and self.source_url:
+            netloc = urlsplit(self.source_url).netloc
+            if netloc:
+                self.domain = netloc
         return self
 
 
@@ -265,6 +278,81 @@ class ExceptionsSchedule(BaseModel):
             self.unresolved_exceptions = exceptions_list
         elif self.unresolved_exceptions_schedule and not self.unresolved_exceptions:
             self.unresolved_exceptions = self.unresolved_exceptions_schedule
-        elif self.unresolved_exceptions and not self.unresolved_exceptions_schedule:
-            self.unresolved_exceptions_schedule = self.unresolved_exceptions
         return self
+
+
+class PlannedRevalidationRequest(BaseModel):
+    request_id: str = Field(..., description="Unique revalidation request ID")
+    stable_lineage_key: str = Field(..., description="Claim / asset stable lineage key")
+    decision_id: str = Field(..., description="Prior counsel decision ID being evaluated")
+    query: str = Field(..., description="Formulated targeted query tailored for Parallel Search API")
+    reason_code: str = Field(..., description="Reason code triggering revalidation, e.g. CREATIVE_CONTEXT_ALTERED")
+    asset_type: str = Field(default="unknown", description="Asset type: artwork, music, prop, etc.")
+    priority: str = Field(default="high", description="Research priority: high, standard, low")
+    expected_stance: Optional[EvidenceStance] = Field(None, description="Expected stance if predetermined")
+    rationale: str = Field(default="", description="Causal justification for external search")
+    target_use_id: Optional[str] = Field(None, description="Target version creative use ID")
+
+
+class RevalidationPlan(BaseModel):
+    plan_id: str = Field(..., description="Unique revalidation plan ID")
+    target_version_id: str = Field(default="v8", description="Target version evaluated")
+    planned_requests: List[PlannedRevalidationRequest] = Field(default_factory=list)
+    skipped_lineage_keys: List[str] = Field(default_factory=list)
+    total_claims_evaluated: int = Field(default=0)
+    planned_count: int = Field(default=0)
+    skipped_count: int = Field(default=0)
+    api_call_budget_enforced: bool = Field(default=True)
+
+    @model_validator(mode="after")
+    def sync_counts(self) -> "RevalidationPlan":
+        self.planned_count = len(self.planned_requests)
+        self.skipped_count = len(self.skipped_lineage_keys)
+        self.total_claims_evaluated = self.planned_count + self.skipped_count
+        return self
+
+    @property
+    def call_reduction_percentage(self) -> float:
+        if self.total_claims_evaluated == 0:
+            return 0.0
+        return round((self.skipped_count / self.total_claims_evaluated) * 100, 1)
+
+    @property
+    def call_count(self) -> int:
+        return self.planned_count
+
+    @property
+    def revalidation_requests(self) -> List[PlannedRevalidationRequest]:
+        return self.planned_requests
+
+    @property
+    def carried_forward_claims(self) -> List[str]:
+        return self.skipped_lineage_keys
+
+    def __len__(self) -> int:
+        return len(self.planned_requests)
+
+    def __iter__(self):
+        return iter(self.planned_requests)
+
+    def __getitem__(self, idx):
+        return self.planned_requests[idx]
+
+
+class EvidenceReconciliationResult(BaseModel):
+    stable_lineage_key: str = Field(..., description="Lineage key of the reconciled claim")
+    decision_id: str = Field(..., description="Decision identifier being reconciled")
+    raw_stance: EvidenceStance = Field(..., description="Raw stance determined from external search")
+    reconciled_stance: EvidenceStance = Field(..., description="Final reconciled stance after contract analysis")
+    has_contract: bool = Field(default=False, description="Whether an active private contract exists for this claim")
+    contract_shield_applied: bool = Field(default=False, description="Whether the contract protected against public catalog shift")
+    contract_id: Optional[str] = Field(None, description="Associated contract agreement ID")
+    decision_state: DecisionState = Field(..., description="Reconciled decision state: carried_forward, stale, exception")
+    revalidation_action: str = Field(default="carry", description="Action: carry, revalidate, manual, close")
+    reason_code: str = Field(..., description="Explanatory reason code")
+    explanation: str = Field(..., description="Human-readable legal reasoning explaining reconciliation")
+    evidence_snapshot: Optional[PublicEvidenceSnapshot] = None
+    citations: List[Dict[str, str]] = Field(default_factory=list)
+    is_license_voided: bool = Field(default=False, description="Whether the license is voided by unshielded contradictory evidence or revocation")
+    requires_counsel_rider: bool = Field(default=False, description="Whether an underwriting exception rider is required")
+

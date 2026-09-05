@@ -299,6 +299,46 @@ export interface DriftEvaluationResult {
   total_duration_ms: number;
 }
 
+export interface PlannedRevalidationRequest {
+  request_id: string;
+  stable_lineage_key: string;
+  decision_id: string;
+  query: string;
+  reason_code: string;
+  asset_type?: string;
+  priority?: string;
+  expected_stance?: EvidenceStance | null;
+  rationale?: string;
+  target_use_id?: string | null;
+}
+
+export interface RevalidationPlan {
+  plan_id: string;
+  target_version_id: string;
+  planned_requests: PlannedRevalidationRequest[];
+  skipped_lineage_keys: string[];
+  total_claims_evaluated: number;
+  planned_count: number;
+  skipped_count: number;
+  api_call_budget_enforced: boolean;
+}
+
+export interface EvidenceReconciliationResult {
+  stable_lineage_key: string;
+  decision_id: string;
+  raw_stance: EvidenceStance;
+  reconciled_stance: EvidenceStance;
+  has_contract: boolean;
+  contract_shield_applied: boolean;
+  contract_id?: string | null;
+  decision_state: DecisionState;
+  revalidation_action: string;
+  reason_code: string;
+  explanation: string;
+  evidence_snapshot?: PublicEvidenceSnapshot | null;
+  citations?: Array<Record<string, string>>;
+}
+
 export type WorkflowRunResult = DriftEvaluationResult;
 
 // ============================================================================

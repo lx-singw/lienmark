@@ -14,6 +14,9 @@ from backend.domain.models import (
     ReattestationRequest,
     ExceptionsScheduleItem,
     ExceptionsSchedule,
+    PlannedRevalidationRequest,
+    RevalidationPlan,
+    EvidenceReconciliationResult,
 )
 
 __all__ = [
@@ -31,4 +34,8 @@ __all__ = [
     "ReattestationRequest",
     "ExceptionsScheduleItem",
     "ExceptionsSchedule",
+    "PlannedRevalidationRequest",
+    "RevalidationPlan",
+    "EvidenceReconciliationResult",
 ]
+

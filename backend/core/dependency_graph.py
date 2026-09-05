@@ -526,20 +526,17 @@ class ClearanceDependencyGraph:
                 causal_path = list(reversed(path)) if path else [root_id, desc_id]
 
                 is_direct = len(causal_path) == 2
-                reason_code = root_info.get("reason_code")
-
-                if not reason_code:
-                    if is_direct:
+                if not is_direct:
+                    reason_code = "UPSTREAM_DEPENDENCY_STALE"
+                else:
+                    reason_code = root_info.get("reason_code")
+                    if not reason_code:
                         if root_node.node_type == NodeType.CREATIVE_USE:
                             reason_code = "CREATIVE_CONTEXT_ALTERED"
-                        elif root_node.node_type == NodeType.EVIDENCE_SNAPSHOT:
-                            reason_code = "EXTERNAL_EVIDENCE_SHIFT"
-                        elif root_node.node_type == NodeType.CONTRACT_AGREEMENT:
+                        elif root_node.node_type in (NodeType.EVIDENCE_SNAPSHOT, NodeType.CONTRACT_AGREEMENT):
                             reason_code = "EXTERNAL_EVIDENCE_SHIFT"
                         else:
                             reason_code = "UPSTREAM_DEPENDENCY_STALE"
-                    else:
-                        reason_code = "UPSTREAM_DEPENDENCY_STALE"
 
                 custom_explanation = root_info.get("explanation")
                 if custom_explanation:
@@ -648,9 +645,12 @@ class ClearanceDependencyGraph:
             graph.add_contract_agreement(c)
             contract_by_key[c.stable_lineage_key] = c
 
+        # Pass 1: Register all CounselDecision nodes first
         for dec in sorted_decisions:
             graph.add_counsel_decision(dec)
 
+        # Pass 2: Wire all causal dependency edges
+        for dec in sorted_decisions:
             if graph.has_node(dec.use_id):
                 graph.add_dependency(
                     dependent_id=dec.decision_id,
@@ -696,6 +696,16 @@ class ClearanceDependencyGraph:
                         kind=DependencyKind.PRIOR_DECISION,
                         description=f"Explicit clearance dependency '{explicit_dep_id}'",
                     )
+                else:
+                    lineage_nodes = graph.get_nodes_by_lineage(explicit_dep_id)
+                    for l_node in lineage_nodes:
+                        if l_node.node_type == NodeType.COUNSEL_DECISION:
+                            graph.add_dependency(
+                                dependent_id=dec.decision_id,
+                                dependency_id=l_node.node_id,
+                                kind=DependencyKind.PRIOR_DECISION,
+                                description=f"Lineage clearance dependency '{explicit_dep_id}'",
+                            )
 
             if dec.supersedes_decision_id and graph.has_node(dec.supersedes_decision_id):
                 graph.add_dependency(

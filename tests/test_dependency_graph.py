@@ -592,3 +592,195 @@ def test_contract_agreement_invalidation_handling():
     assert notice.affected_node_id == "dec_music_track"
     assert notice.root_cause_node_id == "agr_music_lic_01"
     assert notice.reason_code == "CONTRACT_EXPIRED_OR_TERMINATED"
+
+
+# =============================================================================
+# 6. RULE BRANCH & REASON CODE COVERAGE TESTS (SPRINT 2B TASK 3)
+# =============================================================================
+
+def test_rule_branch_creative_context_altered_item_11():
+    """
+    Acceptance Criterion: Test CREATIVE_CONTEXT_ALTERED for Item 11 (Scene 42 poster)
+    naming creative context drift.
+    """
+    v7_uses, v8_uses, v7_decisions, v8_evidence = get_golden_fixtures()
+
+    results = InvalidationEngine.evaluate_invalidation(
+        base_uses=v7_uses,
+        target_uses=v8_uses,
+        prior_decisions=v7_decisions,
+        evidence_snapshots=v8_evidence,
+        target_version_id="v8",
+    )
+
+    poster_key = "poster_noir_detective_magazine"
+    poster_val = next(r for r in results if r.stable_lineage_key == poster_key)
+
+    assert poster_val.state == DecisionState.STALE
+    assert poster_val.reason_code == "CREATIVE_CONTEXT_ALTERED"
+    assert poster_val.revalidation_action == "revalidate"
+    assert poster_val.creative_delta is not None
+    assert poster_val.creative_delta.change_kind == ChangeKind.MATERIALLY_MODIFIED
+    assert len(poster_val.changed_dependency_ids) > 0
+    assert "delta_poster_noir_detective_magazine" in poster_val.changed_dependency_ids[0]
+    assert "materially altered" in (poster_val.explanation or "").lower()
+
+
+def test_rule_branch_external_evidence_shift_item_12():
+    """
+    Acceptance Criterion: Test EXTERNAL_EVIDENCE_SHIFT for Item 12 (Scene 18 jazz cue)
+    naming external evidence stance shift.
+    """
+    v7_uses, v8_uses, v7_decisions, v8_evidence = get_golden_fixtures()
+
+    results = InvalidationEngine.evaluate_invalidation(
+        base_uses=v7_uses,
+        target_uses=v8_uses,
+        prior_decisions=v7_decisions,
+        evidence_snapshots=v8_evidence,
+        target_version_id="v8",
+    )
+
+    music_key = "music_cue_midnight_serenade"
+    music_val = next(r for r in results if r.stable_lineage_key == music_key)
+
+    assert music_val.state == DecisionState.STALE
+    assert music_val.reason_code == "EXTERNAL_EVIDENCE_SHIFT"
+    assert music_val.revalidation_action == "revalidate"
+    assert music_val.evidence_snapshot is not None
+    assert music_val.evidence_snapshot.stance == EvidenceStance.CONTRADICTORY
+    assert len(music_val.changed_dependency_ids) > 0
+    assert "ev_music_midnight" in music_val.changed_dependency_ids[0]
+    assert "evidence" in (music_val.explanation or "").lower() or "vanguard" in (music_val.explanation or "").lower()
+
+
+def test_rule_branch_upstream_dependency_stale_cascading_invalidation():
+    """
+    Acceptance Criterion: Test UPSTREAM_DEPENDENCY_STALE cascading invalidation.
+    1. Downstream decision dependent on Item 11 (poster) is invalidated with UPSTREAM_DEPENDENCY_STALE.
+    2. Independent claims remain CARRIED_FORWARD.
+    3. Multi-hop cascading: A -> B -> C cascades invalidation through the chain.
+    4. When upstream is unchanged (v7 self-eval), downstream carries forward.
+    """
+    v7_uses, v8_uses, v7_decisions, v8_evidence = get_golden_fixtures()
+
+    # Step 1: Create downstream claim B that depends on Item 11 (dec_v7_poster_noir)
+    use_b_v7 = CreativeUse(
+        use_id="use_v7_poster_framed_closeup",
+        version_id="v7",
+        scene_or_timecode="Scene 42b",
+        asset_type="artwork",
+        description="Insert shot of framed magazine logo from Scene 42 poster",
+        duration_or_prominence="Incidental background, 2s",
+        context="Framed cutout on desk",
+        stable_lineage_key="artwork_poster_framed_cutout",
+        context_hash="hash_b_v7",
+    )
+    use_b_v8 = use_b_v7.model_copy(update={"version_id": "v8"})
+
+    dec_b = CounselDecision(
+        decision_id="dec_v7_poster_framed_cutout",
+        use_id="use_v7_poster_framed_closeup",
+        stable_lineage_key="artwork_poster_framed_cutout",
+        applicable_version_id="v7",
+        status=DecisionStatus.APPROVED,
+        rationale="Promotional insert clearance contingent upon underlying Scene 42 poster.",
+        dependency_ids=["dec_v7_poster_noir"],
+    )
+
+    # Step 2: Create derivative claim C that depends on claim B (multi-hop cascade: A -> B -> C)
+    use_c_v7 = CreativeUse(
+        use_id="use_v7_trailer_poster_montage",
+        version_id="v7",
+        scene_or_timecode="Trailer Cut",
+        asset_type="artwork",
+        description="Rapid montage including Scene 42 poster cutout",
+        duration_or_prominence="Promotional montage, 1s",
+        context="Montage sequence",
+        stable_lineage_key="artwork_trailer_poster_montage",
+        context_hash="hash_c_v7",
+    )
+    use_c_v8 = use_c_v7.model_copy(update={"version_id": "v8"})
+
+    dec_c = CounselDecision(
+        decision_id="dec_v7_trailer_poster_montage",
+        use_id="use_v7_trailer_poster_montage",
+        stable_lineage_key="artwork_trailer_poster_montage",
+        applicable_version_id="v7",
+        status=DecisionStatus.APPROVED,
+        rationale="Trailer montage clearance dependent upon framed cutout clearance.",
+        dependency_ids=["dec_v7_poster_framed_cutout"],
+    )
+
+    # Evidence for B and C
+    extended_evidence = dict(v8_evidence)
+    extended_evidence["artwork_poster_framed_cutout"] = PublicEvidenceSnapshot(
+        snapshot_id="ev_poster_cutout",
+        use_id="use_v7_poster_framed_closeup",
+        stable_lineage_key="artwork_poster_framed_cutout",
+        query="clearance cutout",
+        source_url="https://records.publicdomain.org/cutout",
+        source_title="Registry",
+        excerpt="No direct conflicting claim",
+        stance=EvidenceStance.SUPPORTING,
+    )
+    extended_evidence["artwork_trailer_poster_montage"] = PublicEvidenceSnapshot(
+        snapshot_id="ev_poster_montage",
+        use_id="use_v7_trailer_poster_montage",
+        stable_lineage_key="artwork_trailer_poster_montage",
+        query="clearance montage",
+        source_url="https://records.publicdomain.org/montage",
+        source_title="Registry",
+        excerpt="No direct conflicting claim",
+        stance=EvidenceStance.SUPPORTING,
+    )
+
+    # In V8, Item 11 is altered (CREATIVE_CONTEXT_ALTERED)
+    # B and C script contexts are unchanged, but because B depends on Item 11, B cascades to STALE
+    # and C depends on B, so C also cascades to STALE
+    results = InvalidationEngine.evaluate_invalidation(
+        base_uses=v7_uses + [use_b_v7, use_c_v7],
+        target_uses=v8_uses + [use_b_v8, use_c_v8],
+        prior_decisions=v7_decisions + [dec_b, dec_c],
+        evidence_snapshots=extended_evidence,
+        target_version_id="v8",
+    )
+
+    res_map = {r.stable_lineage_key: r for r in results}
+
+    # Verify Item 11 is directly STALE due to creative context
+    assert res_map["poster_noir_detective_magazine"].state == DecisionState.STALE
+    assert res_map["poster_noir_detective_magazine"].reason_code == "CREATIVE_CONTEXT_ALTERED"
+
+    # Verify claim B is STALE via UPSTREAM_DEPENDENCY_STALE
+    assert res_map["artwork_poster_framed_cutout"].state == DecisionState.STALE
+    assert res_map["artwork_poster_framed_cutout"].reason_code == "UPSTREAM_DEPENDENCY_STALE"
+    assert "dec_v7_poster_noir" in res_map["artwork_poster_framed_cutout"].changed_dependency_ids
+    assert res_map["artwork_poster_framed_cutout"].revalidation_action == "revalidate"
+
+    # Verify claim C is STALE via UPSTREAM_DEPENDENCY_STALE (cascading)
+    assert res_map["artwork_trailer_poster_montage"].state == DecisionState.STALE
+    assert res_map["artwork_trailer_poster_montage"].reason_code == "UPSTREAM_DEPENDENCY_STALE"
+    assert "dec_v7_poster_framed_cutout" in res_map["artwork_trailer_poster_montage"].changed_dependency_ids
+
+    # Verify unaffected claim (e.g. telephone prop) remains CARRIED_FORWARD
+    assert res_map["prop_vintage_telephone"].state == DecisionState.CARRIED_FORWARD
+    assert res_map["prop_vintage_telephone"].reason_code == "DEPENDENCIES_SATISFIED_UNCHANGED"
+
+    # Step 3: When upstream is unchanged (v7 self-eval), B and C carry forward
+    v7_supporting_evidence = {
+        k: ev.model_copy(update={"stance": EvidenceStance.SUPPORTING})
+        for k, ev in extended_evidence.items()
+    }
+    results_v7 = InvalidationEngine.evaluate_invalidation(
+        base_uses=v7_uses + [use_b_v7, use_c_v7],
+        target_uses=v7_uses + [use_b_v7, use_c_v7],
+        prior_decisions=v7_decisions + [dec_b, dec_c],
+        evidence_snapshots=v7_supporting_evidence,
+        target_version_id="v7",
+    )
+    res_v7_map = {r.stable_lineage_key: r for r in results_v7}
+    assert res_v7_map["artwork_poster_framed_cutout"].state == DecisionState.CARRIED_FORWARD
+    assert res_v7_map["artwork_poster_framed_cutout"].reason_code == "DEPENDENCIES_SATISFIED_UNCHANGED"
+    assert res_v7_map["artwork_trailer_poster_montage"].state == DecisionState.CARRIED_FORWARD
+    assert res_v7_map["artwork_trailer_poster_montage"].reason_code == "DEPENDENCIES_SATISFIED_UNCHANGED"

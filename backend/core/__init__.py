@@ -21,6 +21,17 @@ from backend.core.semantic_delta import (
     ModelContainmentViolation,
     repair_json_output,
 )
+from backend.core.evidence_reconciler import EvidenceReconciler
+from backend.core.revalidation_planner import (
+    RevalidationPlanner,
+    ResearchPlanner,
+    ReconciliationEngine,
+    EvidenceStanceCategorizer,
+    PlannedRevalidationRequest,
+    RevalidationSearchRequest,
+    RevalidationPlan,
+    EvidenceReconciliationResult,
+)
 
 __all__ = [
     "InvalidationEngine",
@@ -41,4 +52,14 @@ __all__ = [
     "LineageStatus",
     "ModelContainmentViolation",
     "repair_json_output",
+    "EvidenceReconciler",
+    "ReconciliationEngine",
+    "EvidenceStanceCategorizer",
+    "RevalidationPlanner",
+    "ResearchPlanner",
+    "PlannedRevalidationRequest",
+    "RevalidationSearchRequest",
+    "RevalidationPlan",
+    "EvidenceReconciliationResult",
 ]
+

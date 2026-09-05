@@ -1,10 +1,27 @@
 """
 research_planner.py
 
-Lienmark architecture module.
+Lienmark Research & Revalidation Planner.
+Exports RevalidationPlanner, ResearchPlanner, and reconciliation utilities.
+Authored strictly under Google AntiGravity for Agentic Cinema compliance.
 """
 
-import os
+from backend.core.revalidation_planner import (
+    RevalidationSearchRequest,
+    RevalidationPlan,
+    EvidenceStanceCategorizer,
+    ReconciliationResult,
+    ReconciliationEngine,
+    RevalidationPlanner,
+    ResearchPlanner,
+)
 
-def init():
-    pass
+__all__ = [
+    "RevalidationSearchRequest",
+    "RevalidationPlan",
+    "EvidenceStanceCategorizer",
+    "ReconciliationResult",
+    "ReconciliationEngine",
+    "RevalidationPlanner",
+    "ResearchPlanner",
+]

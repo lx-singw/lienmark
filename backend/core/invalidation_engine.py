@@ -393,6 +393,10 @@ class InvalidationEngine:
             # Taxonomy State: STALE / Reason: UPSTREAM_DEPENDENCY_STALE (transitive graph propagation)
             if dec.decision_id in notices_by_decision_id:
                 notice = notices_by_decision_id[dec.decision_id]
+                changed_deps = {notice.root_cause_node_id}
+                for dep_id in dec.dependency_ids:
+                    if dep_id in notice.invalidation_path or dep_id in notices_by_decision_id or dep_id in changed_graph_nodes:
+                        changed_deps.add(dep_id)
                 validity_results.append(
                     DecisionValidity(
                         decision_id=dec.decision_id,
@@ -400,7 +404,7 @@ class InvalidationEngine:
                         stable_lineage_key=key,
                         state=DecisionState.STALE,
                         reason_code=notice.reason_code,
-                        changed_dependency_ids=sorted([notice.root_cause_node_id]),
+                        changed_dependency_ids=sorted(list(changed_deps)),
                         revalidation_action="revalidate",
                         creative_delta=delta,
                         evidence_snapshot=evidence,
@@ -410,9 +414,10 @@ class InvalidationEngine:
                 continue
 
             # Check explicit decision.dependency_ids for direct stale links
+            stale_lineage_keys = {n.affected_lineage_key for n in transitive_notices} | {n.root_cause_lineage_key for n in transitive_notices}
             upstream_stale = [
                 dep_id for dep_id in sorted(dec.dependency_ids)
-                if dep_id in notices_by_decision_id or dep_id in changed_graph_nodes
+                if dep_id in notices_by_decision_id or dep_id in changed_graph_nodes or dep_id in stale_lineage_keys
             ]
             if upstream_stale:
                 explanation = (

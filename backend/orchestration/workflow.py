@@ -13,15 +13,22 @@ from pydantic import BaseModel, Field
 from backend.domain.models import (
     CreativeUse,
     CounselDecision,
+    ContractAgreement,
     DecisionState,
     DecisionValidity,
+    EvidenceReconciliationResult,
+    EvidenceStance,
+    PlannedRevalidationRequest,
     PublicEvidenceSnapshot,
     ReattestationRequest,
+    RevalidationPlan,
     ExceptionsSchedule,
 )
 from backend.core.invalidation_engine import InvalidationEngine
+from backend.core.evidence_reconciler import EvidenceReconciler
 from backend.services.gemini_service import GeminiService, ClearanceBriefing
 from backend.services.parallel_service import ParallelSearchService
+from backend.services.revalidation_planner import RevalidationPlanner
 from backend.fixtures.golden_dataset import (
     get_v7_version,
     get_v8_version,
@@ -31,7 +38,7 @@ from backend.fixtures.golden_dataset import (
 
 class WorkflowStepTrace(BaseModel):
     step_name: str
-    component: str  # Gemini, InvalidationEngine, ParallelSearch
+    component: str  # Gemini, InvalidationEngine, ParallelSearch, RevalidationPlanner, EvidenceReconciler
     status: str
     duration_ms: float
     details: Dict[str, Any] = Field(default_factory=dict)
@@ -48,23 +55,34 @@ class WorkflowRunResult(BaseModel):
     counsel_briefings: Dict[str, ClearanceBriefing]
     execution_traces: List[WorkflowStepTrace]
     total_duration_ms: float
+    revalidation_plan: Optional[RevalidationPlan] = None
+    reconciliation_results: List[EvidenceReconciliationResult] = Field(default_factory=list)
 
 
 class LienmarkWorkflow:
     """
     Main Agentic Workflow for Lienmark.
     Follows Google Cloud Agent Builder / ADK orchestration principles.
+    Wired with RevalidationPlanner and EvidenceReconciler.
     """
 
     def __init__(
         self,
         gemini_service: Optional[GeminiService] = None,
         parallel_service: Optional[ParallelSearchService] = None,
+        revalidation_planner: Optional[RevalidationPlanner] = None,
+        evidence_reconciler: Optional[EvidenceReconciler] = None,
     ):
         self.gemini = gemini_service or GeminiService()
         self.parallel = parallel_service or ParallelSearchService()
+        self.revalidation_planner = revalidation_planner or RevalidationPlanner()
+        self.evidence_reconciler = evidence_reconciler or EvidenceReconciler()
 
-    async def execute_drift_detection(self) -> WorkflowRunResult:
+
+    async def execute_drift_detection(
+        self,
+        contracts: Optional[List[ContractAgreement]] = None,
+    ) -> WorkflowRunResult:
         run_id = f"run_{uuid.uuid4().hex[:8]}"
         overall_start = time.perf_counter()
         traces: List[WorkflowStepTrace] = []
@@ -132,42 +150,95 @@ class LienmarkWorkflow:
             )
         )
 
-        # Step 4: Targeted Parallel Search Refresh for Stale Items
+        # Step 4: Selective Revalidation Planning (RevalidationPlanner)
+        # Selectively plans research ONLY for claims requiring external evidence revalidation
+        # Strictly skips the 10 unchanged carried-forward claims, enforcing minimal API call budget
+        t_plan = time.perf_counter()
+        revalidation_plan = self.revalidation_planner.plan_revalidation(
+            validity_results=validity_results,
+            target_uses=v8_uses,
+            target_version_id="v8",
+        )
+        traces.append(
+            WorkflowStepTrace(
+                step_name="selective_revalidation_planning",
+                component="RevalidationPlanner",
+                status="SUCCESS",
+                duration_ms=round((time.perf_counter() - t_plan) * 1000, 2),
+                details={
+                    "planned_count": revalidation_plan.planned_count,
+                    "skipped_count": revalidation_plan.skipped_count,
+                    "planned_keys": [r.stable_lineage_key for r in revalidation_plan.planned_requests],
+                    "api_call_budget_enforced": revalidation_plan.api_call_budget_enforced,
+                },
+            )
+        )
+
+        # Step 5: Targeted Parallel Search Execution (ParallelSearchService)
+        # Formulates and executes targeted queries tailored for Parallel Search API:
+        # Query 1: 'Shadows of Manhattan Detective Magazine 1944 copyright renewal public domain LOC'
+        # Query 2: 'Midnight Serenade jazz cue ASCAP BMI Vanguard Media copyright assignment dispute'
         refreshed_evidence: Dict[str, PublicEvidenceSnapshot] = {}
-        for item in stale:
+        for req in revalidation_plan.planned_requests:
             t_search = time.perf_counter()
-            query = (
-                "1946 Crime Detective Magazine Shadows Over Broadway copyright renewal"
-                if "poster" in item.stable_lineage_key
-                else "Midnight Serenade jazz sync rights copyright owner 2026"
-            )
             evidence = await self.parallel.search(
-                query=query,
-                use_id=item.decision_id,
-                stable_lineage_key=item.stable_lineage_key,
+                query=req.query,
+                use_id=req.decision_id,
+                stable_lineage_key=req.stable_lineage_key,
+                expected_stance=req.expected_stance,
             )
-            refreshed_evidence[item.stable_lineage_key] = evidence
+            refreshed_evidence[req.stable_lineage_key] = evidence
             traces.append(
                 WorkflowStepTrace(
-                    step_name=f"parallel_targeted_search_{item.stable_lineage_key}",
+                    step_name=f"parallel_targeted_search_{req.stable_lineage_key}",
                     component="Parallel Search API",
-                    status="SUCCESS",
+                    status="SUCCESS" if evidence.stance != EvidenceStance.INSUFFICIENT else "FAIL_CLOSED",
                     duration_ms=round((time.perf_counter() - t_search) * 1000, 2),
                     details={
-                        "query": query,
+                        "query": req.query,
                         "source_title": evidence.source_title,
                         "source_url": evidence.source_url,
                         "stance": evidence.stance.value,
                         "provider_call_id": evidence.provider_call_id,
+                        "http_status": evidence.http_status,
                     },
                 )
             )
 
-        # Step 5: Gemini Clearance Briefings
+        # Step 6: Evidence & Private Contract Reconciliation (EvidenceReconciler)
+        # Categorizes stances and applies private contract reconciliation:
+        # A public catalog ownership shift alone DOES NOT void an existing valid, active, perpetual
+        # private agreement unless an active revocation or judicial injunction is proven.
+        t_recon = time.perf_counter()
+        reconciliation_results = self.evidence_reconciler.reconcile_all(
+            validity_results=validity_results,
+            evidence_snapshots=refreshed_evidence,
+            contracts=contracts,
+            update_validity_in_place=True,
+        )
+        traces.append(
+            WorkflowStepTrace(
+                step_name="evidence_and_contract_reconciliation",
+                component="EvidenceReconciler",
+                status="SUCCESS",
+                duration_ms=round((time.perf_counter() - t_recon) * 1000, 2),
+                details={
+                    "reconciled_claims": len(reconciliation_results),
+                    "contract_shields_applied": sum(1 for r in reconciliation_results if r.contract_shield_applied),
+                    "fail_closed_insufficient": sum(1 for r in reconciliation_results if r.reconciled_stance == EvidenceStance.INSUFFICIENT),
+                },
+            )
+        )
+
+        # Recalculate carried and stale claims following reconciliation
+        carried = [v for v in validity_results if v.state == DecisionState.CARRIED_FORWARD]
+        stale = [v for v in validity_results if v.state == DecisionState.STALE]
+
+        # Step 7: Gemini Clearance Briefings
         briefings: Dict[str, ClearanceBriefing] = {}
         for item in stale:
             ev = refreshed_evidence.get(item.stable_lineage_key)
-            if ev:
+            if ev and ev.stance != EvidenceStance.INSUFFICIENT:
                 briefing = await self.gemini.synthesize_counsel_briefing(
                     asset_name=item.stable_lineage_key,
                     reason_code=item.reason_code,
@@ -222,4 +293,7 @@ class LienmarkWorkflow:
             counsel_briefings=briefings,
             execution_traces=traces,
             total_duration_ms=total_duration,
+            revalidation_plan=revalidation_plan,
+            reconciliation_results=reconciliation_results,
         )
+
