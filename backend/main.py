@@ -86,6 +86,8 @@ _demo_mode: str = "baseline"
 
 
 @app.get("/health")
+@app.get("/healthz")
+@app.get("/readyz")
 @app.get("/api/health")
 def health_check():
     parallel_key = os.getenv("PARALLEL_API_KEY", "")

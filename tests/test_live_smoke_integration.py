@@ -656,3 +656,59 @@ class TestDualModeIntegration:
         assert result.carried_forward_count == 10
         assert result.reopened_count == 2
         assert len(result.execution_traces) >= 6
+
+
+# =============================================================================
+# 6. LIVE CLOUD RUN / HTTP TARGET PROBING TEST SUITE
+# =============================================================================
+
+@pytest.mark.live_smoke
+class TestLiveCloudRunHttpProbe:
+    """Validates live HTTP smoke probing against Cloud Run / local endpoint using execute_live_http_probe."""
+
+    @pytest.mark.live_smoke
+    @pytest.mark.asyncio
+    async def test_live_http_probe_suite_execution(self, tmp_path):
+        """Runs execute_live_http_probe against a local ephemeral test server and validates output artifact."""
+        import threading
+        import uvicorn
+        import asyncio
+        from scripts.run_live_smoke import execute_live_http_probe
+
+        test_port = 8895
+        config = uvicorn.Config(app, host="127.0.0.1", port=test_port, log_level="warning")
+        server = uvicorn.Server(config)
+        thread = threading.Thread(target=server.run, daemon=True)
+        thread.start()
+
+        # Allow server to initialize
+        for _ in range(50):
+            if server.started:
+                break
+            await asyncio.sleep(0.05)
+
+        try:
+            artifact_file = str(tmp_path / "test_live_smoke_http.json")
+            exit_code = await execute_live_http_probe(
+                target_url=f"http://127.0.0.1:{test_port}",
+                output_path=artifact_file,
+                environment="test_cloud_run_staging",
+            )
+            assert exit_code == 0
+            assert os.path.exists(artifact_file)
+
+            with open(artifact_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            assert data["status"] == "PASS"
+            assert data["probe_mode"] == "live_http_service"
+            assert data["environment"] == "test_cloud_run_staging"
+            assert data["audit_summary"]["total_claims_evaluated"] == 12
+            assert data["audit_summary"]["claims_carried_forward"] == 10
+            assert data["audit_summary"]["claims_re_attested"] == 1
+            assert data["audit_summary"]["claims_exceptions"] == 1
+            assert data["audit_summary"]["ledger_tamper_free"] is True
+            assert len(data["tested_endpoints"]) >= 8
+        finally:
+            server.should_exit = True
+

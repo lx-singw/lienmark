@@ -4,10 +4,11 @@
 set -euo pipefail
 
 # ── 1. Configuration & Defaults ───────────────────────────────────────────────
-PROJECT_ID="${GOOGLE_CLOUD_PROJECT:-lienmark-production}"
+PROJECT_ID="${GOOGLE_CLOUD_PROJECT:-benchpress-ai-cloud}"
 REGION="${GCP_REGION:-us-central1}"
 SERVICE_NAME="lienmark"
-IMAGE_TAG="gcr.io/${PROJECT_ID}/${SERVICE_NAME}:latest"
+REPO_NAME="${REPO_NAME:-lienmark-repo}"
+IMAGE_TAG="${IMAGE_TAG:-${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${SERVICE_NAME}:latest}"
 SERVICE_ACCOUNT="${SERVICE_ACCOUNT:-lienmark-sa@${PROJECT_ID}.iam.gserviceaccount.com}"
 
 CPU="${CPU_LIMIT:-2}"

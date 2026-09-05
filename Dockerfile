@@ -1,10 +1,12 @@
 # Multi-stage Production Dockerfile for Lienmark Clearance Change Control (Google Cloud Run)
 # Authored under Google AntiGravity for Agentic Cinema: The Blockbuster Hackathon
 
+ARG PYTHON_VERSION=3.11
+
 # ==============================================================================
 # Stage 1: Builder
 # ==============================================================================
-FROM python:3.11-slim as builder
+FROM python:${PYTHON_VERSION}-slim as builder
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
@@ -29,7 +31,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # ==============================================================================
 # Stage 2: Final Production Runner
 # ==============================================================================
-FROM python:3.11-slim as runner
+FROM python:${PYTHON_VERSION}-slim as runner
 
 # Production container environment configuration
 ENV PYTHONUNBUFFERED=1 \
