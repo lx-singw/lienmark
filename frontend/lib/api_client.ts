@@ -6,6 +6,8 @@
  */
 
 import {
+  ActorType,
+  AuditTrailResponse,
   ClearanceBriefing,
   DecisionState,
   DecisionStatus,
@@ -16,14 +18,22 @@ import {
   HealthResponse,
   ReattestationRequest,
   ReattestationResponse,
+  ReviewActionRequest,
+  ReviewActionType,
+  ReviewQueueItem,
+  ReviewQueueResponse,
+  SupersessionEvent,
   WorkflowRunResult,
 } from './types';
 
 import {
+  getGoldenAuditTrail,
   getGoldenDriftEvaluationResult,
   getGoldenExceptionsSchedule,
   getGoldenFixturesResponse,
   getGoldenHealthResponse,
+  getGoldenReviewQueue,
+  recordGoldenSupersessionEvent,
 } from './fixtures_data';
 
 // ============================================================================
@@ -313,6 +323,135 @@ export class LienmarkApiClient {
         reattestMap[key] = { status: val.status, rationale: val.rationale };
       }
       return getGoldenExceptionsSchedule(reattestMap);
+    }
+  }
+
+  /**
+   * GET /api/review/queue
+   * Retrieves the active review queue of stale decisions awaiting counsel adjudication.
+   */
+  async getReviewQueue(timeoutMs?: number): Promise<ReviewQueueResponse> {
+    try {
+      return await this.request<ReviewQueueResponse>(
+        '/api/review/queue',
+        { method: 'GET' },
+        timeoutMs
+      );
+    } catch (error: unknown) {
+      if (!this.enableFallback) throw error;
+      this.log('warn', 'FastAPI review queue unreachable; serving golden fallback queue', error);
+      const queueItems = getGoldenReviewQueue(this.fallbackReattestations);
+      return {
+        items: queueItems,
+        total_pending: queueItems.filter((i) => i.status === 'pending').length,
+        total_resolved: queueItems.filter((i) => i.status === 'resolved').length,
+        base_version: 'v7',
+        target_version: 'v8',
+      };
+    }
+  }
+
+  /**
+   * POST /api/review/action
+   * Submits clearance counsel adjudication ('re_attest', 'reject', 'exception') and records supersession event.
+   */
+  async submitReviewAction(
+    payload: ReviewActionRequest,
+    timeoutMs?: number
+  ): Promise<SupersessionEvent> {
+    try {
+      return await this.request<SupersessionEvent>(
+        '/api/review/action',
+        {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        },
+        timeoutMs
+      );
+    } catch (error: unknown) {
+      if (!this.enableFallback) throw error;
+      const lineageKey = payload.lineage_key || payload.stable_lineage_key || 'unknown_claim';
+      const rationaleText = payload.rationale || payload.counsel_rationale || '';
+
+      this.log(
+        'warn',
+        `FastAPI review action unreachable; executing deterministic fallback for ${lineageKey} (${payload.action})`,
+        error
+      );
+
+      const isApproved = payload.action === ReviewActionType.RE_ATTEST;
+      const newStatus = isApproved ? DecisionStatus.APPROVED : DecisionStatus.REJECTED;
+      const newState = isApproved ? DecisionState.RE_ATTESTED : DecisionState.EXCEPTION;
+      const reviewerName = payload.reviewer_name || 'Sarah Jenkins, Esq. (Lead Clearance Counsel)';
+
+      // Update local fallback session state
+      this.fallbackReattestations[lineageKey] = {
+        status: newStatus,
+        rationale: rationaleText,
+        reviewer: reviewerName,
+      };
+
+      const timestamp = new Date().toISOString();
+      const mockHashPayload = `${lineageKey}::${payload.action}::${rationaleText}::${timestamp}`;
+      let hash = 0;
+      for (let i = 0; i < mockHashPayload.length; i++) {
+        hash = (hash << 5) - hash + mockHashPayload.charCodeAt(i);
+        hash |= 0;
+      }
+      const eventHash = `mock_sha256_${Math.abs(hash).toString(16).padStart(16, '0')}${Date.now().toString(16)}`;
+
+      const supersessionEvent: SupersessionEvent = {
+        event_id: `evt_fb_${lineageKey}_${Date.now()}`,
+        stable_lineage_key: lineageKey,
+        target_version_id: payload.target_version_id || payload.version_id || 'v8',
+        prior_decision_id: payload.decision_id || `dec_v7_${lineageKey}`,
+        superseding_decision_id: `dec_v8_${lineageKey}_counsel`,
+        actor_type: ActorType.HUMAN_COUNSEL,
+        action: payload.action,
+        resulting_state: newState,
+        resulting_status: newStatus,
+        counsel_rationale: rationaleText,
+        reviewer_name: reviewerName,
+        reviewer_title: 'Lead Clearance Counsel (Fictional Demo Reviewer)',
+        is_fictional_demo_reviewer: true,
+        timestamp,
+        event_hash: eventHash,
+      };
+
+      recordGoldenSupersessionEvent(supersessionEvent);
+      return supersessionEvent;
+    }
+  }
+
+  /**
+   * GET /api/review/history
+   * Retrieves append-only audit trail / supersession log events.
+   */
+  async getAuditTrail(lineageKey?: string, timeoutMs?: number): Promise<AuditTrailResponse> {
+    const endpoint = lineageKey ? `/api/review/history?lineage_key=${encodeURIComponent(lineageKey)}` : '/api/review/history';
+    try {
+      const raw = await this.request<any>(endpoint, { method: 'GET' }, timeoutMs);
+      if (Array.isArray(raw)) {
+        return {
+          lineage_key: lineageKey || null,
+          total_events: raw.length,
+          is_ledger_tamper_free: true,
+          chain_head_hash: raw[0]?.event_hash || '',
+          events: raw,
+        };
+      }
+      return raw as AuditTrailResponse;
+    } catch (error: unknown) {
+      if (!this.enableFallback) throw error;
+      this.log('warn', 'FastAPI audit trail unreachable; compiling deterministic fallback log', error);
+      const events = getGoldenAuditTrail(lineageKey);
+      return {
+        lineage_key: lineageKey || null,
+        total_events: events.length,
+        is_ledger_tamper_free: true,
+        chain_head_hash: events[0]?.event_hash || '',
+        events,
+      };
     }
   }
 }

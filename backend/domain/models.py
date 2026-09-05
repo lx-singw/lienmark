@@ -6,10 +6,11 @@ Strictly authored under Google AntiGravity for Agentic Cinema compliance.
 
 import hashlib
 import json
+import uuid
 from urllib.parse import urlsplit
 from datetime import datetime, timezone
 from enum import Enum
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -355,4 +356,328 @@ class EvidenceReconciliationResult(BaseModel):
     citations: List[Dict[str, str]] = Field(default_factory=list)
     is_license_voided: bool = Field(default=False, description="Whether the license is voided by unshielded contradictory evidence or revocation")
     requires_counsel_rider: bool = Field(default=False, description="Whether an underwriting exception rider is required")
+
+
+class ReviewAction(str, Enum):
+    RE_ATTEST = "re_attest"
+    REJECT = "reject"
+    EXCEPTION = "exception"
+
+
+class ReviewerIdentity(BaseModel):
+    reviewer_id: str = Field(
+        default="counsel_sjenkins_001",
+        description="Unique identifier for the reviewing attorney",
+    )
+    name: str = Field(
+        default="Sarah Jenkins, Esq.",
+        description="Full legal name of the clearance counsel",
+    )
+    title: str = Field(
+        default="Lead Production Clearance Counsel",
+        description="Professional title on the production clearance team",
+    )
+    organization: str = Field(
+        default="Lienmark Legal Partners LLP",
+        description="Fictional law firm or clearance agency",
+    )
+    is_fictional_demo: bool = Field(
+        default=True,
+        description="Immutable flag denoting demonstration / simulated legal identity",
+    )
+    disclaimer: str = Field(
+        default="DEMO / FICTIONAL COUNSEL ONLY - NOT LEGAL ADVICE",
+        description="Mandatory disclaimer attached to all demo review decisions",
+    )
+    disclaimers: List[str] = Field(
+        default_factory=lambda: ["DEMO / FICTIONAL COUNSEL ONLY - NOT LEGAL ADVICE"],
+        description="Demo counsel statutory disclaimers list",
+    )
+
+    @model_validator(mode="after")
+    def sync_disclaimers(self) -> "ReviewerIdentity":
+        if self.disclaimer and self.disclaimer not in self.disclaimers:
+            self.disclaimers.append(self.disclaimer)
+        return self
+
+
+DemoReviewer = ReviewerIdentity
+
+
+class FourDimensionalExplanation(BaseModel):
+    stable_lineage_key: str = Field(..., description="Stable lineage key for the claim")
+    decision_id: str = Field(..., description="Prior decision ID evaluated")
+    creative_change: str = Field(..., description="Dimension 1: Creative change summary or stability")
+    evidence_change: str = Field(..., description="Dimension 2: Public registry or search excerpt")
+    private_fact: str = Field(..., description="Dimension 3: Private contract terms or contract absence")
+    policy_reason: str = Field(..., description="Dimension 4: Statutory policy reason code and citation")
+    system_recommendation: str = Field(default="REVALIDATE", description="AI system recommendation")
+
+    @property
+    def creative_change_summary(self) -> str:
+        return self.creative_change
+
+    @property
+    def creative_stability(self) -> str:
+        return self.creative_change
+
+    @property
+    def loc_public_domain_search_excerpt(self) -> str:
+        return self.evidence_change
+
+    @property
+    def adverse_assignment_excerpt(self) -> str:
+        return self.evidence_change
+
+    @property
+    def contract_absence(self) -> str:
+        return self.private_fact
+
+    @property
+    def contract_terms(self) -> str:
+        return self.private_fact
+
+    @property
+    def policy_reason_code(self) -> str:
+        return self.policy_reason
+
+    @property
+    def statutory_policy_reason(self) -> str:
+        return self.policy_reason
+
+
+class ReviewQueueItem(BaseModel):
+    stable_lineage_key: str = Field(..., description="Lineage key connecting this use across versions")
+    asset_type: str = Field(default="unknown", description="Asset type")
+    description: str = Field(default="", description="Detailed description")
+    scene_or_timecode: str = Field(default="", description="Scene or timecode")
+    current_state: DecisionState = Field(default=DecisionState.STALE, description="Current decision state")
+    prior_decision: CounselDecision = Field(..., description="Inspectable prior counsel decision")
+    creative_change_summary: str = Field(default="", description="Before vs after context, prominence, dialogue")
+    evidence_change_summary: str = Field(default="", description="Provider, stance, citations, snippet")
+    private_fact_summary: str = Field(default="", description="Licensor, scope, term, active status")
+    statutory_policy_reason: str = Field(default="", description="Reason code, statutory basis e.g. 17 U.S.C. § 504(c), § 205(e)")
+    system_recommendation: str = Field(default="REVALIDATE", description="AI system recommendation")
+    available_actions: List[ReviewAction] = Field(
+        default_factory=lambda: [ReviewAction.RE_ATTEST, ReviewAction.REJECT, ReviewAction.EXCEPTION],
+        description="Available actions for counsel review",
+    )
+    # Compatibility fields
+    queue_id: str = Field(default_factory=lambda: f"qitem_{uuid.uuid4().hex[:8]}")
+    prior_decision_id: str = ""
+    current_status: DecisionStatus = DecisionStatus.APPROVED
+    explanation_4d: Optional[FourDimensionalExplanation] = None
+    evidence_snapshot: Optional[PublicEvidenceSnapshot] = None
+    contract: Optional[ContractAgreement] = None
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+    @model_validator(mode="before")
+    @classmethod
+    def sync_explanation_before(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if not data.get("queue_id"):
+                data["queue_id"] = f"qitem_{data.get('stable_lineage_key', uuid.uuid4().hex[:8])}"
+            if "explanation_4d" in data and data["explanation_4d"]:
+                exp = data["explanation_4d"]
+                if isinstance(exp, dict):
+                    if not data.get("creative_change_summary"):
+                        data["creative_change_summary"] = exp.get("creative_change", "")
+                    if not data.get("evidence_change_summary"):
+                        data["evidence_change_summary"] = exp.get("evidence_change", "")
+                    if not data.get("private_fact_summary"):
+                        data["private_fact_summary"] = exp.get("private_fact", "")
+                    if not data.get("statutory_policy_reason"):
+                        data["statutory_policy_reason"] = exp.get("policy_reason", "")
+                elif hasattr(exp, "creative_change"):
+                    if not data.get("creative_change_summary"):
+                        data["creative_change_summary"] = getattr(exp, "creative_change", "")
+                    if not data.get("evidence_change_summary"):
+                        data["evidence_change_summary"] = getattr(exp, "evidence_change", "")
+                    if not data.get("private_fact_summary"):
+                        data["private_fact_summary"] = getattr(exp, "private_fact", "")
+                    if not data.get("statutory_policy_reason"):
+                        data["statutory_policy_reason"] = getattr(exp, "policy_reason", "")
+        return data
+
+    @model_validator(mode="after")
+    def sync_fields_after(self) -> "ReviewQueueItem":
+        if not self.prior_decision_id and self.prior_decision:
+            self.prior_decision_id = self.prior_decision.decision_id
+        if self.current_status is None and self.prior_decision:
+            self.current_status = self.prior_decision.status
+        if self.explanation_4d is None:
+            self.explanation_4d = FourDimensionalExplanation(
+                stable_lineage_key=self.stable_lineage_key,
+                decision_id=self.prior_decision_id or (self.prior_decision.decision_id if self.prior_decision else ""),
+                creative_change=self.creative_change_summary,
+                evidence_change=self.evidence_change_summary,
+                private_fact=self.private_fact_summary,
+                policy_reason=self.statutory_policy_reason,
+                system_recommendation=self.system_recommendation,
+            )
+        return self
+
+
+class ReviewQueue(BaseModel):
+    queue_id: str = Field(default_factory=lambda: f"queue_{uuid.uuid4().hex[:8]}")
+    target_version_id: str = "v8"
+    base_version_id: str = "v7"
+    items: List[ReviewQueueItem] = Field(default_factory=list)
+    total_stale_count: int = 0
+    generated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+    @model_validator(mode="after")
+    def sync_stale_count(self) -> "ReviewQueue":
+        self.total_stale_count = len(self.items)
+        return self
+
+    def __len__(self) -> int:
+        return len(self.items)
+
+    def __iter__(self):
+        return iter(self.items)
+
+    def __getitem__(self, idx: Union[int, str]):
+        if isinstance(idx, int):
+            return self.items[idx]
+        for it in self.items:
+            if it.stable_lineage_key == idx or it.prior_decision_id == idx:
+                return it
+        raise KeyError(f"Item '{idx}' not found in review queue")
+
+
+class SupersessionEvent(BaseModel):
+    event_id: str = Field(default_factory=lambda: f"evt_{uuid.uuid4().hex[:12]}")
+    stable_lineage_key: str = Field(..., description="Asset lineage key")
+    action: ReviewAction = Field(..., description="Review action taken: re_attest, reject, exception")
+    prior_decision_id: str = Field(..., description="ID of prior decision being superseded")
+    new_decision_id: str = Field(default="", description="ID of new decision created")
+    prior_status: DecisionStatus = Field(default=DecisionStatus.APPROVED, description="Status prior to review")
+    new_status: DecisionStatus = Field(default=DecisionStatus.APPROVED, description="Status after review")
+    prior_state: DecisionState = Field(default=DecisionState.STALE, description="State prior to review")
+    new_state: DecisionState = Field(default=DecisionState.RE_ATTESTED, description="State after review")
+    reviewer: ReviewerIdentity = Field(default_factory=ReviewerIdentity, description="Identity of reviewing counsel")
+    rationale: str = Field(default="", description="Counsel explanation")
+    system_recommendation: str = Field(default="REVALIDATE", description="AI recommendation")
+    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    changed_dependencies: List[str] = Field(default_factory=list)
+    evidence_citations: List[Dict[str, str]] = Field(default_factory=list)
+    event_hash: str = Field(default="", description="SHA-256 tamper-evident hash of event contents")
+    # Compatibility fields
+    target_version_id: str = Field(default="v8")
+    parent_event_hash: Optional[str] = Field(default=None)
+    prior_decision: Optional[CounselDecision] = Field(default=None)
+    new_decision: Optional[CounselDecision] = Field(default=None)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+    @property
+    def counsel_rationale(self) -> str:
+        return self.rationale
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_event_data(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if not data.get("rationale") and data.get("counsel_rationale"):
+                data["rationale"] = data["counsel_rationale"]
+            elif not data.get("counsel_rationale") and data.get("rationale"):
+                data["counsel_rationale"] = data["rationale"]
+            if not data.get("new_decision_id"):
+                ver = data.get("target_version_id", "v8")
+                key = data.get("stable_lineage_key", "claim")
+                data["new_decision_id"] = f"dec_{ver}_{key}_{uuid.uuid4().hex[:6]}"
+            if not data.get("event_id"):
+                data["event_id"] = f"evt_{uuid.uuid4().hex[:12]}"
+        return data
+
+    @model_validator(mode="after")
+    def compute_event_hash(self) -> "SupersessionEvent":
+        if not self.event_hash or len(self.event_hash) != 64:
+            action_val = self.action.value if hasattr(self.action, "value") else str(self.action)
+            state_val = self.new_state.value if hasattr(self.new_state, "value") else str(self.new_state)
+            status_val = self.new_status.value if hasattr(self.new_status, "value") else str(self.new_status)
+            reviewer_name = self.reviewer.name if isinstance(self.reviewer, ReviewerIdentity) else getattr(self.reviewer, "name", str(self.reviewer))
+
+            payload = {
+                "action": action_val,
+                "counsel_rationale": self.rationale,
+                "event_id": self.event_id,
+                "new_state": state_val,
+                "new_status": status_val,
+                "prior_decision_id": self.prior_decision_id,
+                "reviewer_name": reviewer_name,
+                "stable_lineage_key": self.stable_lineage_key,
+                "system_recommendation": self.system_recommendation,
+                "target_version_id": self.target_version_id,
+                "timestamp": self.timestamp,
+            }
+            serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+            self.event_hash = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+        return self
+
+    @staticmethod
+    def compute_canonical_hash(
+        event_id: str,
+        prior_decision_id: str,
+        target_version_id: str,
+        stable_lineage_key: str,
+        action: str,
+        reviewer_name: str,
+        counsel_rationale: str,
+        new_state: str,
+        new_status: str,
+        system_recommendation: str,
+        timestamp: str,
+    ) -> str:
+        payload = {
+            "action": action,
+            "counsel_rationale": counsel_rationale,
+            "event_id": event_id,
+            "new_state": new_state,
+            "new_status": new_status,
+            "prior_decision_id": prior_decision_id,
+            "reviewer_name": reviewer_name,
+            "stable_lineage_key": stable_lineage_key,
+            "system_recommendation": system_recommendation,
+            "target_version_id": target_version_id,
+            "timestamp": timestamp,
+        }
+        serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+class ReviewActionRequest(BaseModel):
+    stable_lineage_key: Optional[str] = None
+    decision_id: Optional[str] = None
+    action: ReviewAction
+    counsel_rationale: Optional[str] = None
+    rationale: Optional[str] = None
+    reviewer: Optional[Union[ReviewerIdentity, Dict[str, Any]]] = None
+    reviewer_name: Optional[str] = None
+    version_id: str = "v8"
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_action_payload(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if not data.get("counsel_rationale") and data.get("rationale"):
+                data["counsel_rationale"] = data["rationale"]
+            elif not data.get("rationale") and data.get("counsel_rationale"):
+                data["rationale"] = data["counsel_rationale"]
+            if not data.get("stable_lineage_key") and data.get("claim_id"):
+                data["stable_lineage_key"] = data["claim_id"]
+            if "action" in data and isinstance(data["action"], str):
+                data["action"] = data["action"].lower()
+        return data
+
+
+class UnauthorizedApprovalError(ValueError):
+    """Raised when an unauthenticated approval or unauthorized auto-approval of a stale claim is attempted."""
+    pass
+
+
+class FailClosedSecurityViolation(RuntimeError):
+    """Raised when fail-closed safety invariants are breached."""
+    pass
+
 

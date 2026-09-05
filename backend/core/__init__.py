@@ -32,6 +32,12 @@ from backend.core.revalidation_planner import (
     RevalidationPlan,
     EvidenceReconciliationResult,
 )
+from backend.core.counsel_checkpoint import (
+    CounselCheckpointManager,
+    CounselCheckpointEngine,
+    CounselCheckpointService,
+    counsel_checkpoint_manager,
+)
 
 __all__ = [
     "InvalidationEngine",
@@ -61,5 +67,8 @@ __all__ = [
     "RevalidationSearchRequest",
     "RevalidationPlan",
     "EvidenceReconciliationResult",
+    "CounselCheckpointManager",
+    "CounselCheckpointEngine",
+    "CounselCheckpointService",
+    "counsel_checkpoint_manager",
 ]
-

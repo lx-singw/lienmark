@@ -386,3 +386,257 @@ export interface HealthCheckResponse {
 }
 
 export type HealthResponse = HealthCheckResponse;
+
+// ============================================================================
+// Sprint 3A: Counsel Checkpoint & Audit Trail Domain Types
+// ============================================================================
+
+export const ReviewAction = {
+  RE_ATTEST: 're_attest',
+  REJECT: 'reject',
+  EXCEPTION: 'exception',
+} as const;
+
+export type ReviewAction = (typeof ReviewAction)[keyof typeof ReviewAction];
+
+export const ReviewActionType = ReviewAction;
+export type ReviewActionType = ReviewAction;
+
+export const ActorType = {
+  HUMAN_COUNSEL: 'HUMAN_COUNSEL',
+  AI_SYSTEM_RECOMMENDATION: 'AI_SYSTEM_RECOMMENDATION',
+} as const;
+
+export type ActorType = (typeof ActorType)[keyof typeof ActorType];
+
+/**
+ * ReviewerIdentity represents the reviewing clearance counsel.
+ * Strictly flagged as demo/fictional counsel under competition guidelines.
+ */
+export interface ReviewerIdentity {
+  reviewer_id: string;
+  name: string;
+  title: string;
+  organization: string;
+  is_fictional_demo: boolean;
+  disclaimer: string;
+  disclaimers?: string[];
+  bar_number?: string | null;
+}
+
+export type DemoReviewer = ReviewerIdentity;
+
+/**
+ * Historical counsel decision record from a prior script revision (e.g. Cut v7).
+ */
+export interface PriorDecisionDetails {
+  decision_id: string;
+  version_id?: string;
+  applicable_version_id?: string;
+  status: DecisionStatus | string;
+  rationale: string;
+  reviewer_display_name: string;
+  reviewed_at: string;
+  context_hash?: string;
+  scope_or_conditions?: string | null;
+}
+
+/**
+ * Four-dimensional explanation breakdown for counsel review.
+ */
+export interface FourDimensionalExplanation {
+  stable_lineage_key: string;
+  decision_id: string;
+  creative_change: string;
+  evidence_change: string;
+  private_fact: string;
+  policy_reason: string;
+  system_recommendation?: string;
+  creative_change_summary?: string;
+  loc_public_domain_search_excerpt?: string;
+  contract_absence?: string;
+  statutory_policy_reason?: string;
+}
+
+/**
+ * Detailed four-dimensional legal reasoning breakdown for counsel adjudication.
+ */
+export interface CreativeChangeDimension {
+  has_changed: boolean;
+  materiality: 'none' | 'low' | 'medium' | 'high' | string;
+  scene: string;
+  before_prominence: string;
+  after_prominence: string;
+  before_context?: string;
+  after_context?: string;
+  context_description: string;
+  dialogue_shift?: string;
+  reason_codes: string[];
+}
+
+export interface ExternalEvidenceDimension {
+  has_changed: boolean;
+  stance: EvidenceStance | string;
+  source_title: string;
+  source_url: string;
+  excerpt: string;
+  query_issued: string;
+  provider: string;
+  provider_call_id?: string | null;
+  retrieval_latency_ms?: number | null;
+  payload_hash?: string | null;
+}
+
+export interface PrivateAgreementDimension {
+  has_contract: boolean;
+  agreement_id?: string | null;
+  licensor?: string | null;
+  licensee?: string | null;
+  grant_scope?: string | null;
+  scope?: string | null;
+  term?: string | null;
+  term_in_perpetuity?: boolean;
+  section_205_e_status: string;
+  contract_shield_applied: boolean;
+  status_note: string;
+}
+
+export interface StatutoryPolicyDimension {
+  reason_code: string;
+  policy_rule: string;
+  statutory_reference: string;
+  doctrine: string;
+  eo_risk_rating: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | string;
+  statutory_exposure: string;
+  explanation: string;
+}
+
+export interface ExplanationFourDimensions {
+  creative_change: CreativeChangeDimension;
+  external_evidence_change: ExternalEvidenceDimension;
+  private_agreement_facts: PrivateAgreementDimension;
+  statutory_policy_reason: StatutoryPolicyDimension;
+}
+
+/**
+ * System clearance recommendation generated for counsel review.
+ */
+export interface SystemRecommendation {
+  suggested_action: ReviewAction | string;
+  suggested_status: DecisionStatus | string;
+  confidence: number;
+  rationale: string;
+  counsel_briefing?: ClearanceBriefing | null;
+}
+
+/**
+ * ReviewQueueItem models an individual claim awaiting counsel review.
+ */
+export interface ReviewQueueItem {
+  stable_lineage_key: string;
+  asset_type: string;
+  description?: string;
+  scene_or_timecode?: string;
+  current_state: DecisionState;
+  prior_decision: PriorDecisionDetails | CounselDecision | any;
+  four_dimensions: ExplanationFourDimensions;
+  system_recommendation: SystemRecommendation | string;
+  creative_change_summary?: string;
+  evidence_change_summary?: string;
+  private_fact_summary?: string;
+  statutory_policy_reason?: string;
+  available_actions?: ReviewAction[];
+  queue_id?: string;
+  queue_item_id?: string;
+  asset_name?: string;
+  scene?: string;
+  prior_decision_id?: string;
+  current_status?: DecisionStatus;
+  explanation_4d?: FourDimensionalExplanation;
+  status?: 'pending' | 'resolved' | string;
+  target_version_id?: string;
+  created_at?: string;
+}
+
+/**
+ * Append-only immutable supersession audit record.
+ */
+export interface SupersessionEvent {
+  event_id: string;
+  stable_lineage_key: string;
+  action: ReviewAction | 'REVALIDATE' | string;
+  prior_decision_id: string;
+  event_hash: string;
+  timestamp: string;
+  actor_type?: ActorType | string;
+  reviewer?: ReviewerIdentity | any;
+  reviewer_name?: string;
+  reviewer_title?: string;
+  is_fictional_demo_reviewer?: boolean;
+  counsel_rationale?: string;
+  rationale?: string;
+  resulting_state?: DecisionState | string;
+  resulting_status?: DecisionStatus | string;
+  new_state?: DecisionState;
+  new_status?: DecisionStatus;
+  prior_state?: DecisionState;
+  prior_status?: DecisionStatus;
+  new_decision_id?: string;
+  superseding_decision_id?: string;
+  system_recommendation?: string;
+  target_version_id?: string;
+  changed_dependencies?: string[];
+  evidence_citations?: Array<Record<string, string>>;
+  parent_hash?: string | null;
+  parent_event_hash?: string | null;
+  prior_decision?: CounselDecision | PriorDecisionDetails | null;
+  new_decision?: CounselDecision | null;
+  statutory_notes?: string;
+  four_dimensions_snapshot?: ExplanationFourDimensions | null;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Request payload for submitting a counsel review decision.
+ */
+export interface ReviewActionRequest {
+  action: ReviewAction;
+  stable_lineage_key?: string;
+  lineage_key?: string;
+  counsel_rationale?: string;
+  rationale?: string;
+  decision_id?: string;
+  reviewer?: ReviewerIdentity | Record<string, unknown>;
+  reviewer_name?: string;
+  version_id?: string;
+  target_version_id?: string;
+}
+
+/**
+ * Review Queue API response wrapper.
+ */
+export interface ReviewQueueResponse {
+  items: ReviewQueueItem[];
+  queue?: ReviewQueueItem[];
+  total_count?: number;
+  total_stale_count?: number;
+  total_pending?: number;
+  total_resolved?: number;
+  base_version?: string;
+  target_version?: string;
+  target_version_id?: string;
+}
+
+/**
+ * Audit Trail API response wrapper.
+ */
+export interface AuditTrailResponse {
+  events: SupersessionEvent[];
+  total_events: number;
+  is_ledger_tamper_free?: boolean;
+  chain_head_hash?: string;
+  integrity_details?: string;
+  lineage_key?: string | null;
+}
+
+

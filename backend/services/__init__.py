@@ -17,6 +17,15 @@ __all__ = [
     "RevalidationPlan",
     "PlannedRevalidationRequest",
     "MinimalBudgetViolationError",
+    "CounselCheckpointManager",
+    "CounselCheckpointEngine",
+    "CounselCheckpointService",
+    "counsel_checkpoint_manager",
 ]
 
-
+from backend.core.counsel_checkpoint import (
+    CounselCheckpointManager,
+    CounselCheckpointEngine,
+    CounselCheckpointService,
+    counsel_checkpoint_manager,
+)

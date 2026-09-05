@@ -17,6 +17,16 @@ from backend.domain.models import (
     PlannedRevalidationRequest,
     RevalidationPlan,
     EvidenceReconciliationResult,
+    ReviewAction,
+    ReviewerIdentity,
+    DemoReviewer,
+    FourDimensionalExplanation,
+    ReviewQueueItem,
+    ReviewQueue,
+    SupersessionEvent,
+    ReviewActionRequest,
+    UnauthorizedApprovalError,
+    FailClosedSecurityViolation,
 )
 
 __all__ = [
@@ -37,5 +47,15 @@ __all__ = [
     "PlannedRevalidationRequest",
     "RevalidationPlan",
     "EvidenceReconciliationResult",
+    "ReviewAction",
+    "ReviewerIdentity",
+    "DemoReviewer",
+    "FourDimensionalExplanation",
+    "ReviewQueueItem",
+    "ReviewQueue",
+    "SupersessionEvent",
+    "ReviewActionRequest",
+    "UnauthorizedApprovalError",
+    "FailClosedSecurityViolation",
 ]
 

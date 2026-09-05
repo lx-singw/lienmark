@@ -9,15 +9,24 @@
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { apiClient } from '@/lib/api_client';
 import {
+  AuditTrailResponse,
   DecisionStatus,
   DriftEvaluationResult,
   ExceptionsSchedule,
   ReattestationRequest,
   ReattestationResponse,
+  ReviewAction,
+  ReviewActionRequest,
+  ReviewActionType,
+  ReviewQueueItem,
+  ReviewQueueResponse,
+  SupersessionEvent,
 } from '@/lib/types';
 import {
+  getGoldenAuditTrail,
   getGoldenDriftEvaluationResult,
   getGoldenExceptionsSchedule,
+  getGoldenReviewQueue,
 } from '@/lib/fixtures_data';
 
 export interface ActionResponse<T> {
@@ -184,3 +193,167 @@ export async function getExceptionsScheduleAction(
     }
   }
 }
+
+/**
+ * Fetches the Counsel Checkpoint Review Queue of stale decisions awaiting human disposition.
+ * Calls backend GET /api/review/queue with deterministic golden fallback.
+ *
+ * @returns Promise<ActionResponse<ReviewQueueItem[]>>
+ */
+export async function fetchReviewQueueAction(): Promise<ActionResponse<ReviewQueueItem[]>> {
+  console.log('[Action:fetchReviewQueueAction] Fetching Counsel Checkpoint Review Queue');
+
+  try {
+    const response: ReviewQueueResponse = await apiClient.getReviewQueue();
+    return {
+      success: true,
+      data: response.items,
+    };
+  } catch (error: unknown) {
+    console.warn(
+      '[Action:fetchReviewQueueAction] Upstream API call failed, activating deterministic golden fallback:',
+      error
+    );
+    try {
+      const fallbackQueue = getGoldenReviewQueue();
+      return {
+        success: true,
+        data: fallbackQueue,
+      };
+    } catch (fallbackError: unknown) {
+      return {
+        success: false,
+        error:
+          fallbackError instanceof Error
+            ? fallbackError.message
+            : 'Failed to retrieve Counsel Checkpoint Review Queue',
+      };
+    }
+  }
+}
+
+/**
+ * Submits clearance counsel review adjudication ('re_attest', 'reject', or 'exception').
+ * Calls backend POST /api/review/action, appends a tamper-evident SupersessionEvent,
+ * and invalidates relevant Next.js cache tags.
+ *
+ * @param action - Adjudication action: 're_attest' | 'reject' | 'exception'
+ * @param lineageKey - Stable lineage key of the asset
+ * @param rationale - Legal rationale and statutory notes from counsel
+ * @param reviewerName - Optional display name of reviewer (defaults to Sarah Jenkins, Esq.)
+ * @returns Promise<ActionResponse<SupersessionEvent>>
+ */
+export async function submitReviewAction(
+  action: 're_attest' | 'reject' | 'exception',
+  lineageKey: string,
+  rationale: string,
+  reviewerName: string = 'Sarah Jenkins, Esq. (Lead Clearance Counsel)'
+): Promise<ActionResponse<SupersessionEvent>> {
+  console.log(
+    `[Action:submitReviewAction] Submitting ${action} for ${lineageKey} by ${reviewerName}`
+  );
+
+  // Defensive validation
+  const validActions = ['re_attest', 'reject', 'exception'];
+  if (!action || !validActions.includes(action)) {
+    return {
+      success: false,
+      error: `Invalid review action '${action}'. Must be one of: ${validActions.join(', ')}`,
+    };
+  }
+
+  if (!lineageKey || typeof lineageKey !== 'string' || lineageKey.trim().length === 0) {
+    return {
+      success: false,
+      error: 'Invalid request: lineageKey is required',
+    };
+  }
+
+  if (!rationale || typeof rationale !== 'string' || rationale.trim().length < 3) {
+    return {
+      success: false,
+      error: 'Counsel rationale must be at least 3 characters long',
+    };
+  }
+
+  try {
+    const payload: ReviewActionRequest = {
+      action: action as ReviewAction,
+      stable_lineage_key: lineageKey.trim(),
+      lineage_key: lineageKey.trim(),
+      rationale: rationale.trim(),
+      counsel_rationale: rationale.trim(),
+      reviewer_name: reviewerName.trim(),
+      target_version_id: 'v8',
+    };
+
+    const event: SupersessionEvent = await apiClient.submitReviewAction(payload);
+
+    // Revalidate paths & tags to refresh review dashboard and exceptions schedule
+    revalidatePath('/');
+    revalidatePath('/report/[production_id]', 'page');
+    revalidatePath('/report/proj_blockbuster_cinema');
+    revalidateTag('review-queue');
+    revalidateTag('audit-trail');
+    revalidateTag('exceptions-schedule');
+
+    return {
+      success: true,
+      data: event,
+    };
+  } catch (error: unknown) {
+    console.error('[Action:submitReviewAction] Error recording review action:', error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to record clearance counsel adjudication',
+      details: error,
+    };
+  }
+}
+
+/**
+ * Retrieves the append-only audit trail / supersession log for compliance and underwriter review.
+ * Calls backend GET /api/review/history with golden fallback.
+ *
+ * @param lineageKey - Optional lineage key filter
+ * @returns Promise<ActionResponse<SupersessionEvent[]>>
+ */
+export async function fetchAuditTrailAction(
+  lineageKey?: string
+): Promise<ActionResponse<SupersessionEvent[]>> {
+  console.log(
+    `[Action:fetchAuditTrailAction] Fetching audit trail ${lineageKey ? `for ${lineageKey}` : '(all events)'}`
+  );
+
+  try {
+    const response: AuditTrailResponse = await apiClient.getAuditTrail(lineageKey);
+    return {
+      success: true,
+      data: response.events,
+    };
+  } catch (error: unknown) {
+    console.warn(
+      '[Action:fetchAuditTrailAction] Upstream API call failed, activating deterministic golden fallback:',
+      error
+    );
+    try {
+      const fallbackEvents = getGoldenAuditTrail(lineageKey);
+      return {
+        success: true,
+        data: fallbackEvents,
+      };
+    } catch (fallbackError: unknown) {
+      return {
+        success: false,
+        error:
+          fallbackError instanceof Error
+            ? fallbackError.message
+            : 'Failed to retrieve clearance audit trail',
+      };
+    }
+  }
+}
+
