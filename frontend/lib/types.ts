@@ -23,6 +23,8 @@ export const DecisionState = {
   STALE: 'stale',
   RE_ATTESTED: 're_attested',
   EXCEPTION: 'exception',
+  REMOVED: 'removed',
+  NEW: 'new',
 } as const;
 
 export type DecisionState = (typeof DecisionState)[keyof typeof DecisionState];
@@ -133,6 +135,21 @@ export interface CounselDecision {
 }
 
 /**
+ * ContractAgreement models legal clearance contracts, option purchase agreements, or licenses.
+ */
+export interface ContractAgreement {
+  agreement_id: string;
+  stable_lineage_key: string;
+  licensor: string;
+  licensee: string;
+  scope: string;
+  term: string;
+  agreement_hash: string;
+  is_active: boolean;
+  metadata?: Record<string, unknown>;
+}
+
+/**
  * DecisionValidity captures the deterministic evaluation of a prior counsel decision
  * against subsequent version deltas and external evidence.
  */
@@ -146,6 +163,7 @@ export interface DecisionValidity {
   revalidation_action: 'carry' | 'revalidate' | 'close' | 'manual' | string;
   evidence_snapshot?: PublicEvidenceSnapshot | null;
   creative_delta?: CreativeDelta | null;
+  explanation?: string | null;
 }
 
 /**

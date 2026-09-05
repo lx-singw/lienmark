@@ -23,6 +23,8 @@ class DecisionState(str, Enum):
     STALE = "stale"
     RE_ATTESTED = "re_attested"
     EXCEPTION = "exception"
+    REMOVED = "removed"
+    NEW = "new"
 
 
 class DecisionStatus(str, Enum):
@@ -119,6 +121,18 @@ class PublicEvidenceSnapshot(BaseModel):
         return self
 
 
+class ContractAgreement(BaseModel):
+    agreement_id: str = Field(..., description="Unique clearance contract or license agreement identifier")
+    stable_lineage_key: str = Field(..., description="Lineage key connecting this contract to a creative use/claim")
+    licensor: str = Field(..., description="Party granting rights or license")
+    licensee: str = Field(default="Production Co.", description="Party receiving rights")
+    scope: str = Field(default="Worldwide, all media in perpetuity", description="Permitted scope and distribution rights")
+    term: str = Field(default="Perpetuity", description="Duration or expiration term of agreement")
+    agreement_hash: str = Field(..., description="Cryptographic hash of the contract terms and covenants")
+    is_active: bool = Field(default=True, description="Whether the contract is currently active and in effect")
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
 class CounselDecision(BaseModel):
     decision_id: str
     use_id: str
@@ -144,6 +158,7 @@ class DecisionValidity(BaseModel):
     revalidation_action: str = Field(default="carry")  # carry, revalidate, close, manual
     evidence_snapshot: Optional[PublicEvidenceSnapshot] = None
     creative_delta: Optional[CreativeDelta] = None
+    explanation: Optional[str] = Field(default=None, description="Detailed human-readable explanation naming specific changed dependencies")
 
 
 class ReattestationRequest(BaseModel):

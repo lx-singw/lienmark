@@ -31,6 +31,7 @@ from backend.core.semantic_delta import (
     ModelContainmentViolation,
     repair_json_output,
 )
+from backend.core.invalidation_engine import InvalidationEngine
 from backend.services.gemini_service import GeminiService
 from backend.fixtures.golden_dataset import (
     get_golden_fixtures,
@@ -162,6 +163,25 @@ def test_repair_json_invalid_empty():
         repair_json_output("   \n\t  ")
 
 
+def test_repair_json_fail_closed_on_irrecoverable_text():
+    """
+    Verify fail-closed behavior on completely truncated, invalid, or irrecoverable text.
+    Any non-JSON prose or corrupt text without recoverable JSON structure must raise ValueError.
+    """
+    irrecoverable_samples = [
+        "",
+        "   \n\t  ",
+        "This is not a JSON object, completely irrecoverable prose from model hallucination.",
+        "None",
+        "<html><body>502 Bad Gateway: Upstream Model Server Unreachable</body></html>",
+        "```text\nThere was an internal model error.\n```",
+    ]
+    for sample in irrecoverable_samples:
+        with pytest.raises(ValueError):
+            repair_json_output(sample)
+
+
+
 # =============================================================================
 # 2. SEMANTIC LINEAGE TRACKER TESTS
 # =============================================================================
@@ -224,6 +244,47 @@ def test_lineage_tracker_added_and_removed():
     assert resolved["prop_vintage_telephone"][1] is None
     assert resolved["prop_silver_briefcase"][0] is None
     assert resolved["prop_silver_briefcase"][1] is not None
+
+
+def test_lineage_tracker_modifications():
+    """
+    Verify SemanticLineageTracker accurately tracks creative use modifications
+    across versions when narrative context, duration, or prominence changes.
+    """
+    v7_uses, v8_uses, _, _ = get_golden_fixtures()
+
+    # In golden dataset, Item 11 (poster) is modified between v7 and v8
+    tracker = SemanticLineageTracker(base_uses=v7_uses, target_uses=v8_uses)
+    assert len(tracker.modified) == 1
+    poster_mod = tracker.modified[0]
+    assert poster_mod.stable_lineage_key == "poster_noir_detective_magazine"
+    assert poster_mod.status == LineageStatus.MODIFIED
+    assert "context_hash" in poster_mod.changed_fields
+    assert "duration_or_prominence" in poster_mod.changed_fields
+    assert "context" in poster_mod.changed_fields
+    assert "CONTEXT_HASH_MISMATCH" in poster_mod.reason_codes
+    assert "PROMINENCE_ESCALATED" in poster_mod.reason_codes
+    assert "SCRIPT_DIALOGUE_MODIFIED" in poster_mod.reason_codes
+
+    # Custom modification test: modify telephone prop context and duration
+    custom_target = [u.model_copy() for u in v7_uses]
+    phone_idx = next(i for i, u in enumerate(custom_target) if u.stable_lineage_key == "prop_vintage_telephone")
+    custom_target[phone_idx] = custom_target[phone_idx].model_copy(
+        update={
+            "duration_or_prominence": "Featured close-up dialogue shot, 15s",
+            "context": "Detective picks up phone receiver and screams into mouthpiece.",
+            "context_hash": "custom_phone_hash_modified",
+        }
+    )
+
+    custom_tracker = SemanticLineageTracker(base_uses=v7_uses, target_uses=custom_target)
+    phone_pair = custom_tracker.get_pair("prop_vintage_telephone")
+    assert phone_pair is not None
+    assert phone_pair.status == LineageStatus.MODIFIED
+    assert "duration_or_prominence" in phone_pair.changed_fields
+    assert "context" in phone_pair.changed_fields
+    assert "context_hash" in phone_pair.changed_fields
+
 
 
 # =============================================================================
@@ -326,7 +387,37 @@ def test_discrimination_material_dialogue_mention():
     assert result.recommended_action == "revalidate"
 
 
+def test_discrimination_cosmetic_telephone_pacing_shift():
+    """
+    Verify that non-material cosmetic shift (e.g. vintage telephone prop dialogue
+    pacing from 4s to 5s without prominence change) evaluates to is_material=False,
+    clearance_risk_level='low', and recommended_action='carry'.
+    """
+    engine = SemanticDeltaEngine()
+    v7_uses, _, _, _ = get_golden_fixtures()
+    phone_v7 = next(u for u in v7_uses if u.stable_lineage_key == "prop_vintage_telephone")
+
+    # Dialogue pacing slightly extended from 4s to 5s while remaining incidental background
+    phone_v8 = phone_v7.model_copy(
+        update={
+            "duration_or_prominence": "Incidental background set dressing, 5s",
+            "context": "Office establishing shot, protagonist enters holding trench coat and pauses briefly.",
+            "context_hash": "hash_phone_5s_pacing",
+        }
+    )
+
+    result = engine.evaluate_delta(base_use=phone_v7, target_use=phone_v8)
+    assert result.is_material is False
+    assert result.clearance_risk_level == "low"
+    assert result.recommended_action == "carry"
+
+    delta = engine.generate_creative_delta(base_use=phone_v7, target_use=phone_v8, delta_analysis=result)
+    assert delta.change_kind == ChangeKind.UNCHANGED
+    assert delta.materiality == "none"
+
+
 # =============================================================================
+
 # 4. MODEL CONTAINMENT GUARDRAIL TESTS
 # =============================================================================
 
@@ -387,7 +478,61 @@ def test_model_containment_guardrail_prevents_decision_mutation():
         )
 
 
+def test_model_containment_cannot_mutate_counsel_decision_without_invalidation_engine():
+    """
+    Asserts that a DeltaAnalysisResult or GeminiService response alone cannot mutate
+    a CounselDecision.status from APPROVED to anything else without being processed
+    by InvalidationEngine.evaluate_invalidation().
+    """
+    v7_uses, v8_uses, v7_decisions, v8_evidence = get_golden_fixtures()
+    poster_decision = next(d for d in v7_decisions if d.stable_lineage_key == "poster_noir_detective_magazine")
+
+    # 1. Baseline: V7 counsel decision is APPROVED
+    assert poster_decision.status == DecisionStatus.APPROVED
+
+    # 2. Generate a high-risk material DeltaAnalysisResult recommending 'revalidate'
+    model_result = DeltaAnalysisResult(
+        is_material=True,
+        prominence_shift="Escalated from 2s background blur to 14s close-up focal dialogue",
+        narrative_impact="Character actively interacts with artwork and quotes text aloud",
+        clearance_risk_level="high",
+        statutory_fair_use_impact="De minimis fair use defense under 17 U.S.C. § 107 eliminated",
+        recommended_action="revalidate",
+    )
+
+    # Assert model result recommends revalidation with high risk
+    assert model_result.is_material is True
+    assert model_result.recommended_action == "revalidate"
+    assert model_result.clearance_risk_level == "high"
+
+    # Guardrail Check 1: DeltaAnalysisResult alone CANNOT mutate CounselDecision.status
+    assert poster_decision.status == DecisionStatus.APPROVED
+
+    # Guardrail Check 2: Direct model application attempt is blocked
+    engine = SemanticDeltaEngine()
+    with pytest.raises(ModelContainmentViolation):
+        engine.apply_model_output_to_decision(model_result, poster_decision)
+
+    # 3. Only deterministic InvalidationEngine has legal authority to evaluate status
+    validity_results = InvalidationEngine.evaluate_invalidation(
+        base_uses=v7_uses,
+        target_uses=v8_uses,
+        prior_decisions=v7_decisions,
+        evidence_snapshots=v8_evidence,
+        target_version_id="v8",
+    )
+    poster_validity = next(v for v in validity_results if v.stable_lineage_key == "poster_noir_detective_magazine")
+
+    # InvalidationEngine evaluates the state as STALE for version 8
+    assert poster_validity.state == DecisionState.STALE
+    assert poster_validity.revalidation_action == "revalidate"
+
+    # Guardrail Check 3: The historical CounselDecision remains strictly immutable (APPROVED for v7)
+    assert poster_decision.status == DecisionStatus.APPROVED
+
+
 # =============================================================================
+
 # 5. GEMINI SERVICE INTEGRATION & RETRY LOGIC TESTS
 # =============================================================================
 
@@ -439,7 +584,13 @@ def test_golden_expected_deltas_all_12_items():
 
     assert len(deltas) == 12, "Must contain exactly 12 items"
 
-    # Item 11: Creative drift (poster)
+    # Index 10 corresponds to Item 11 (poster_noir_detective_magazine)
+    item_11 = deltas[10]
+    assert item_11.is_material is True
+    assert item_11.clearance_risk_level == "high"
+    assert item_11.recommended_action == "revalidate"
+
+    # Item 11 by key: Creative drift (poster)
     poster = deltas["poster_noir_detective_magazine"]
     assert poster.is_material is True
     assert poster.clearance_risk_level == "high"
@@ -451,9 +602,15 @@ def test_golden_expected_deltas_all_12_items():
     assert music.clearance_risk_level == "low"
     assert music.recommended_action == "carry"
 
+    # Exactly 1 item marked material across all 12 items
+    material_items = [k for k, d in deltas.items() if d.is_material]
+    assert len(material_items) == 1, f"Expected exactly 1 material item, found {len(material_items)}"
+    assert material_items[0] == "poster_noir_detective_magazine"
+
     # Items 1-10: All non-material
     for key, d in deltas.items():
         if key != "poster_noir_detective_magazine":
             assert d.is_material is False, f"Item {key} should have is_material=False"
             assert d.clearance_risk_level == "low", f"Item {key} should have clearance_risk_level='low'"
             assert d.recommended_action == "carry", f"Item {key} should have recommended_action='carry'"
+

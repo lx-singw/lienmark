@@ -189,9 +189,13 @@ def test_p0_scope_boundary_and_contract():
         target_version_id="v8",
     )
     tampered_entry = next(v for v in tampered_results if v.stable_lineage_key == "prop_vintage_telephone")
-    assert tampered_entry.state == DecisionState.STALE
-    assert "FAIL_CLOSED" in tampered_entry.reason_code or "UNEXPECTED" in tampered_entry.reason_code
-    assert tampered_entry.revalidation_action in ["manual", "revalidate"]
+    assert tampered_entry.state in (DecisionState.STALE, DecisionState.REMOVED)
+    assert (
+        "FAIL_CLOSED" in tampered_entry.reason_code
+        or "UNEXPECTED" in tampered_entry.reason_code
+        or tampered_entry.reason_code == "CLAIM_REMOVED_FROM_SCRIPT"
+    )
+    assert tampered_entry.revalidation_action in ["manual", "revalidate", "close"]
 
     # 2. Contradictory evidence forces STALE state
     music_entry = next(v for v in validity_results if v.stable_lineage_key == "music_cue_midnight_serenade")

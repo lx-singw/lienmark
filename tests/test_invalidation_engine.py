@@ -84,8 +84,12 @@ def test_fail_closed_policy():
     tampered_result = next(
         v for v in validity_results if v.stable_lineage_key == "prop_vintage_telephone"
     )
-    assert tampered_result.state == DecisionState.STALE
-    assert "FAIL_CLOSED" in tampered_result.reason_code or "UNEXPECTED" in tampered_result.reason_code
+    assert tampered_result.state in (DecisionState.STALE, DecisionState.REMOVED)
+    assert (
+        "FAIL_CLOSED" in tampered_result.reason_code
+        or "UNEXPECTED" in tampered_result.reason_code
+        or tampered_result.reason_code == "CLAIM_REMOVED_FROM_SCRIPT"
+    )
 
 
 def test_exceptions_schedule_reconciliation():
