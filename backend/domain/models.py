@@ -7,7 +7,7 @@ Strictly authored under Google AntiGravity for Agentic Cinema compliance.
 from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ChangeKind(str, Enum):
@@ -89,6 +89,26 @@ class PublicEvidenceSnapshot(BaseModel):
     cached_or_live: str = Field(default="live")
     provider_call_id: Optional[str] = None
     retrieval_latency_ms: Optional[float] = None
+    domain: Optional[str] = None
+    citation: Optional[str] = None
+    raw_payload_hash: Optional[str] = None
+    http_status: Optional[int] = None
+    call_count: Optional[int] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    payload_hash: Optional[str] = Field(None, description="SHA-256 hash of search request payload for tamper-evident provenance")
+    snippet: Optional[str] = Field(None, description="Attributable snippet or excerpt from search hit")
+
+    @model_validator(mode="after")
+    def sync_snippet_and_hashes(self) -> "PublicEvidenceSnapshot":
+        if self.snippet is None and self.excerpt:
+            self.snippet = self.excerpt
+        elif self.excerpt is None and self.snippet:
+            self.excerpt = self.snippet
+        if not self.raw_payload_hash and self.payload_hash:
+            self.raw_payload_hash = self.payload_hash
+        elif not self.payload_hash and self.raw_payload_hash:
+            self.payload_hash = self.raw_payload_hash
+        return self
 
 
 class CounselDecision(BaseModel):

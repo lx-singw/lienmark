@@ -111,6 +111,7 @@ export interface PublicEvidenceSnapshot {
   cached_or_live: 'cached' | 'live' | string;
   provider_call_id?: string | null;
   retrieval_latency_ms?: number | null;
+  payload_hash?: string | null;
 }
 
 /**
