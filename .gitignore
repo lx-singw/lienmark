@@ -11,3 +11,7 @@ __pycache__/
 docs/winning/
 .codex/
 .legacy_archive/
+.pytest_cache/
+*.tsbuildinfo
+dist_test/
+next-env.d.ts
