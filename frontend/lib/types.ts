@@ -250,7 +250,10 @@ export interface ClaimEvidence {
   excerpt: string;
   stance: EvidenceStance;
   latency_ms: number | null;
+  retrieval_latency_ms?: number | null;
+  retrieved_at?: string | null;
   call_id: string | null;
+  is_degraded?: boolean | null;
 }
 
 export interface EvaluatedClaim {
@@ -482,9 +485,12 @@ export interface ExternalEvidenceDimension {
   excerpt: string;
   query_issued: string;
   provider: string;
+  retrieved_at?: string | null;
   provider_call_id?: string | null;
   retrieval_latency_ms?: number | null;
   payload_hash?: string | null;
+  is_degraded?: boolean | null;
+  degraded_reason?: string | null;
 }
 
 export interface PrivateAgreementDimension {

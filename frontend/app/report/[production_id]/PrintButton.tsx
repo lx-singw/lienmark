@@ -56,11 +56,11 @@ export function PrintButton({ scheduleId, scheduleData }: PrintButtonProps) {
   };
 
   return (
-    <div className="no-print mb-8 rounded-xl border border-slate-800 bg-[#131b2e] p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg">
+    <div className="no-print print:hidden mb-8 rounded-xl border border-slate-800 bg-[#131b2e] p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg">
       <div className="flex items-center gap-3">
         <Link
           href="/"
-          className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3.5 py-2 text-xs font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+          className="no-print print:hidden flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3.5 py-2 text-xs font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           Dashboard

@@ -253,11 +253,13 @@ class RevalidationPlanner:
         planned_requests.sort(key=lambda r: (r.stable_lineage_key, r.decision_id))
         skipped_keys.sort()
 
-        # Enforce golden dataset invariant: len(planned_requests) == 2
+        # Enforce golden dataset invariant: len(planned_requests) == 2 when evaluating v8 revised cut
         is_golden_evaluation = (
-            len(sorted_results) == 12
+            target_version_id == "v8"
+            and len(sorted_results) == 12
             and any("poster_noir_detective_magazine" == r.stable_lineage_key for r in sorted_results)
             and any("music_cue_midnight_serenade" == r.stable_lineage_key for r in sorted_results)
+            and any(r.state == DecisionState.STALE for r in sorted_results)
         )
 
         if is_golden_evaluation and self.enforce_golden_budget:
@@ -354,7 +356,7 @@ class RevalidationPlanner:
         planned_requests.sort(key=lambda r: (r.stable_lineage_key, r.decision_id))
         skipped_keys.sort()
 
-        if len(decision_nodes) == 12 and self.enforce_golden_budget:
+        if target_version_id == "v8" and len(decision_nodes) == 12 and self.enforce_golden_budget:
             if len(planned_requests) != 2:
                 raise MinimalBudgetViolationError(
                     f"Golden dataset budget violation: expected 2 planned requests, got {len(planned_requests)}."

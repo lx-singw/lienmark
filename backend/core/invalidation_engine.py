@@ -892,8 +892,8 @@ class InvalidationEngine:
         th {{ background: #f1f5f9; padding: 10px; text-align: left; border: 1px solid #cbd5e1; font-weight: 700; }}
         @media print {{
             body {{ padding: 0; margin: 20mm; font-size: 11pt; }}
-            .no-print {{ display: none !important; }}
-            tr {{ break-inside: avoid; }}
+            .no-print, .print-hide {{ display: none !important; }}
+            tr {{ break-inside: avoid; page-break-inside: avoid; }}
         }}
     </style>
 </head>

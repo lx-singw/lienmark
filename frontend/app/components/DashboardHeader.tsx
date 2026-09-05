@@ -32,6 +32,8 @@ export interface DashboardHeaderProps {
   auditEventCount: number;
   isRunningEvaluation: boolean;
   isPending?: boolean;
+  targetVersionId?: 'v8' | 'v7';
+  onToggleTargetVersion?: (version: 'v8' | 'v7') => void;
   onRunEvaluation: () => void;
   onOpenAuditTrail: () => void;
   exceptionsScheduleUrl?: string;
@@ -50,6 +52,8 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   auditEventCount,
   isRunningEvaluation,
   isPending = false,
+  targetVersionId = 'v8',
+  onToggleTargetVersion,
   onRunEvaluation,
   onOpenAuditTrail,
   exceptionsScheduleUrl = '/report/proj_blockbuster_cinema',
@@ -72,16 +76,41 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             </h1>
           </div>
 
-          {/* Script Cut Comparison Badge */}
+          {/* Script Cut Comparison Version Toggle */}
           <div
-            className="inline-flex items-center gap-1.5 rounded-md border border-slate-700 bg-slate-800/90 px-2.5 py-1 text-xs font-mono text-slate-300 shadow-sm"
-            title={`Revision comparison from ${baseVersionLabel} (${shortBaseHash}) to ${targetVersionLabel} (${shortTargetHash})`}
+            className="inline-flex items-center rounded-lg border border-slate-700 bg-slate-900/90 p-1 text-xs font-mono shadow-sm"
+            role="group"
+            aria-label="Script Cut Version Comparison Selection"
           >
-            <GitCompare className="h-3.5 w-3.5 text-sky-400" aria-hidden="true" />
-            <span>
-              {baseVersionLabel} &rarr; {targetVersionLabel}
+            <span className="text-slate-400 px-2 py-0.5 flex items-center gap-1">
+              <GitCompare className="h-3.5 w-3.5 text-sky-400" aria-hidden="true" />
+              <span>v7 &rarr;</span>
             </span>
-            <span className="text-[10px] text-slate-400 border-l border-slate-700 pl-1.5 flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={() => onToggleTargetVersion?.('v8')}
+              className={`px-2.5 py-1 rounded text-xs transition-colors focus:outline-none focus:ring-1 focus:ring-sky-400 ${
+                targetVersionId === 'v8'
+                  ? 'bg-sky-500/25 text-sky-200 font-bold border border-sky-500/40 shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="Compare v7 against v8 Revised Cut (2 Stale Claims Detected)"
+            >
+              v8 Revised
+            </button>
+            <button
+              type="button"
+              onClick={() => onToggleTargetVersion?.('v7')}
+              className={`px-2.5 py-1 rounded text-xs transition-colors focus:outline-none focus:ring-1 focus:ring-emerald-400 ${
+                targetVersionId === 'v7'
+                  ? 'bg-emerald-500/25 text-emerald-200 font-bold border border-emerald-500/40 shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="Evaluate (v7, v7) Baseline Parity (Zero Clearance Drift)"
+            >
+              v7 Parity (Zero Drift)
+            </button>
+            <span className="text-[10px] text-slate-500 border-l border-slate-800 pl-2 pr-1 hidden sm:flex items-center gap-0.5">
               <Hash className="h-2.5 w-2.5 text-slate-500" aria-hidden="true" />
               {shortBaseHash} &rarr; {shortTargetHash}
             </span>

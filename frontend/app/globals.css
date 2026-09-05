@@ -92,6 +92,9 @@
 @media print {
   /* Suppress all interactive browser UI */
   .no-print,
+  .print-hidden,
+  .print\:hidden,
+  [data-print="hidden"],
   nav,
   header,
   footer.app-footer,
@@ -188,6 +191,7 @@
     font-weight: 600 !important;
   }
 
+  .break-inside-avoid,
   .print-break-inside-avoid {
     break-inside: avoid !important;
     page-break-inside: avoid !important;

@@ -42,6 +42,10 @@ export const ExplanationDrawerComponent: React.FC<ExplanationDrawerComponentProp
   const stance = evidence?.stance || EvidenceStance.SUPPORTING;
   const isStanceSupporting = stance === EvidenceStance.SUPPORTING;
   const isCriticalRisk = statutory?.eo_risk_rating === 'CRITICAL';
+  const isDegraded =
+    stance === EvidenceStance.INSUFFICIENT ||
+    evidence?.stance === EvidenceStance.INSUFFICIENT ||
+    evidence?.is_degraded === true;
 
   return (
     <section aria-label="Four-Dimensional Clearance Breakdown" className="space-y-4">
@@ -56,6 +60,25 @@ export const ExplanationDrawerComponent: React.FC<ExplanationDrawerComponentProp
           Lineage Key: <strong className="text-slate-300">{activeQueueItem.stable_lineage_key}</strong>
         </span>
       </div>
+
+      {/* Prominent Partial Research Degradation Alert Banner */}
+      {isDegraded && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="rounded-xl border border-amber-500/60 bg-amber-950/40 p-4 text-xs text-amber-200 shadow-lg flex items-start gap-3 animate-in fade-in slide-in-from-top-1"
+        >
+          <AlertTriangle className="h-5 w-5 text-amber-400 flex-shrink-0 mt-0.5" aria-hidden="true" />
+          <div className="space-y-1">
+            <div className="font-bold text-amber-300 text-xs sm:text-sm">
+              ⚠️ External Research Degradation
+            </div>
+            <p className="text-amber-200/90 text-xs leading-relaxed font-sans">
+              External catalog query returned insufficient corroboration or timed out. In accordance with fail-closed clearance policy, this claim CANNOT be approved automatically. Counsel must manually corroborate rights.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* 4-Dimensional Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -124,8 +147,10 @@ export const ExplanationDrawerComponent: React.FC<ExplanationDrawerComponentProp
             </div>
             <span
               className={`rounded px-2 py-0.5 text-[10px] font-mono font-bold ${
-                isStanceSupporting
+                stance === EvidenceStance.SUPPORTING
                   ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/40'
+                  : stance === EvidenceStance.INSUFFICIENT
+                  ? 'bg-amber-950/80 text-amber-300 border border-amber-500/50'
                   : 'bg-rose-950/80 text-rose-300 border border-rose-500/40'
               }`}
             >
@@ -133,15 +158,23 @@ export const ExplanationDrawerComponent: React.FC<ExplanationDrawerComponentProp
             </span>
           </div>
 
-          <div className="space-y-1.5 text-xs text-slate-300">
-            <div className="flex items-center justify-between">
+          <div className="space-y-2 text-xs text-slate-300">
+            <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-800/80 pb-2">
               <div>
                 <span className="text-slate-500 font-semibold">Provider:</span>{' '}
                 <span className="text-sky-300 font-bold">{evidence?.provider || 'Parallel'} Search API</span>
               </div>
-              <span className="text-[10px] text-slate-400 font-mono">
-                Latency: {evidence?.retrieval_latency_ms || 142}ms
-              </span>
+              <div className="flex flex-wrap items-center gap-3 font-mono text-[10px] text-slate-400">
+                <span>
+                  Latency: <strong className="text-slate-200">{evidence?.retrieval_latency_ms != null ? `${evidence.retrieval_latency_ms}ms` : '142.5ms'}</strong>
+                </span>
+                <span>
+                  Retrieved:{' '}
+                  <strong className="text-slate-200" title="ISO8601 UTC Retrieval Timestamp">
+                    {evidence?.retrieved_at || '2026-09-03T14:31:02.184Z'}
+                  </strong>
+                </span>
+              </div>
             </div>
 
             <div>

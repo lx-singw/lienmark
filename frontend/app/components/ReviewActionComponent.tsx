@@ -16,6 +16,8 @@ import {
   Scale,
   Sparkles,
   UserCheck,
+  Loader2,
+  RefreshCw,
 } from 'lucide-react';
 import { ReviewQueueItem } from '@/lib/types';
 
@@ -122,10 +124,30 @@ export const ReviewActionComponent: React.FC<ReviewActionComponentProps> = ({
         />
       </div>
 
+      {/* Idempotency status banner if item has already been adjudicated */}
+      {activeItem.status === 'resolved' && (
+        <div className="rounded-xl border border-sky-500/30 bg-sky-950/30 px-3.5 py-2 text-xs text-sky-200 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <RefreshCw className="h-3.5 w-3.5 text-sky-400" aria-hidden="true" />
+            <span>
+              Decision Active: <strong className="font-mono text-white">{activeItem.current_state.toUpperCase()}</strong>.
+              Submitting updates this decision cleanly (idempotent supersession).
+            </span>
+          </div>
+          <span className="text-[10px] font-mono text-sky-400/80">IDEMPOTENT</span>
+        </div>
+      )}
+
       {/* Three Distinct Action Buttons */}
       <div className="pt-1">
-        <div className="text-[11px] font-mono text-slate-400 uppercase tracking-wider mb-2">
-          Select One of Three Mandated Adjudication Actions:
+        <div className="text-[11px] font-mono text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
+          <span>Select One of Three Mandated Adjudication Actions:</span>
+          {isSubmitting && (
+            <span className="text-sky-400 text-[10px] font-sans font-medium animate-pulse flex items-center gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+              <span>Submitting to clearance ledger...</span>
+            </span>
+          )}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* 1. Re-Attest (Approve) — Green */}
@@ -133,11 +155,21 @@ export const ReviewActionComponent: React.FC<ReviewActionComponentProps> = ({
             type="button"
             onClick={() => onAction('re_attest')}
             disabled={isDisabled}
-            className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-400 py-3 px-4 text-xs font-bold text-white transition-all shadow-lg shadow-emerald-950/40 active:scale-98 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+            aria-busy={isSubmitting}
+            className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-400 disabled:cursor-not-allowed py-3 px-4 text-xs font-bold text-white transition-all shadow-lg shadow-emerald-950/40 active:scale-98 focus:outline-none focus:ring-2 focus:ring-emerald-400"
             aria-label="Re-Attest and Approve this claim under Public Domain or License"
           >
-            <CheckCircle2 className="h-4 w-4 text-emerald-200" aria-hidden="true" />
-            <span>Re-Attest (Approve)</span>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin text-emerald-200" aria-hidden="true" />
+                <span>Recording Attestation...</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="h-4 w-4 text-emerald-200" aria-hidden="true" />
+                <span>Re-Attest (Approve)</span>
+              </>
+            )}
           </button>
 
           {/* 2. Reject (De-Clear) — Red */}
@@ -145,11 +177,21 @@ export const ReviewActionComponent: React.FC<ReviewActionComponentProps> = ({
             type="button"
             onClick={() => onAction('reject')}
             disabled={isDisabled}
-            className="flex items-center justify-center gap-2 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:bg-slate-700 disabled:text-slate-400 py-3 px-4 text-xs font-bold text-white transition-all shadow-lg shadow-rose-950/40 active:scale-98 focus:outline-none focus:ring-2 focus:ring-rose-400"
+            aria-busy={isSubmitting}
+            className="flex items-center justify-center gap-2 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:bg-slate-700 disabled:text-slate-400 disabled:cursor-not-allowed py-3 px-4 text-xs font-bold text-white transition-all shadow-lg shadow-rose-950/40 active:scale-98 focus:outline-none focus:ring-2 focus:ring-rose-400"
             aria-label="Reject and De-Clear this asset from production"
           >
-            <AlertOctagon className="h-4 w-4 text-rose-200" aria-hidden="true" />
-            <span>Reject (De-Clear)</span>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin text-rose-200" aria-hidden="true" />
+                <span>Rejecting Asset...</span>
+              </>
+            ) : (
+              <>
+                <AlertOctagon className="h-4 w-4 text-rose-200" aria-hidden="true" />
+                <span>Reject (De-Clear)</span>
+              </>
+            )}
           </button>
 
           {/* 3. Leave as Exception (Form E&O Schedule) — Amber */}
@@ -157,11 +199,21 @@ export const ReviewActionComponent: React.FC<ReviewActionComponentProps> = ({
             type="button"
             onClick={() => onAction('exception')}
             disabled={isDisabled}
-            className="flex items-center justify-center gap-2 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:bg-slate-700 disabled:text-slate-400 py-3 px-4 text-xs font-bold text-white transition-all shadow-lg shadow-amber-950/40 active:scale-98 focus:outline-none focus:ring-2 focus:ring-amber-400"
+            aria-busy={isSubmitting}
+            className="flex items-center justify-center gap-2 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:bg-slate-700 disabled:text-slate-400 disabled:cursor-not-allowed py-3 px-4 text-xs font-bold text-white transition-all shadow-lg shadow-amber-950/40 active:scale-98 focus:outline-none focus:ring-2 focus:ring-amber-400"
             aria-label="Leave as Unresolved Exception on Form E&O Schedule"
           >
-            <AlertTriangle className="h-4 w-4 text-amber-200" aria-hidden="true" />
-            <span>Leave as Exception (Form E&O Schedule)</span>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin text-amber-200" aria-hidden="true" />
+                <span>Recording Exception...</span>
+              </>
+            ) : (
+              <>
+                <AlertTriangle className="h-4 w-4 text-amber-200" aria-hidden="true" />
+                <span>Leave as Exception (Form E&O Schedule)</span>
+              </>
+            )}
           </button>
         </div>
       </div>

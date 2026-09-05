@@ -679,6 +679,7 @@ export const GOLDEN_REVIEW_QUEUE: ReviewQueueItem[] = [
         provider: 'Parallel',
         provider_call_id: 'prl_call_882910_poster',
         retrieval_latency_ms: 142.5,
+        retrieved_at: '2026-09-03T14:31:02.184Z',
         payload_hash: '6a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef',
       },
       private_agreement_facts: {
@@ -756,6 +757,7 @@ export const GOLDEN_REVIEW_QUEUE: ReviewQueueItem[] = [
         provider: 'Parallel',
         provider_call_id: 'prl_call_993012_music',
         retrieval_latency_ms: 178.2,
+        retrieved_at: '2026-09-03T14:31:04.920Z',
         payload_hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
       },
       private_agreement_facts: {

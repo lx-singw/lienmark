@@ -96,10 +96,12 @@ export default async function ReportPage({
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8 text-slate-100">
       {/* Top Client Print and Download Controls */}
-      <PrintButton
-        scheduleId={schedule.schedule_id || 'sched_proj_blockbuster_cinema_v8'}
-        scheduleData={schedule}
-      />
+      <div className="no-print print:hidden">
+        <PrintButton
+          scheduleId={schedule.schedule_id || 'sched_proj_blockbuster_cinema_v8'}
+          scheduleData={schedule}
+        />
+      </div>
 
       {/* Main Document Body (Print-optimized container) */}
       <div className="print-document rounded-2xl border border-slate-800 bg-[#0f172a] p-6 sm:p-10 shadow-2xl space-y-8">
@@ -245,7 +247,7 @@ export default async function ReportPage({
         {/* ========================================================================= */}
         {/* SECTION I: UNRESOLVED EXCEPTIONS (WARRANTY EXCLUSIONS) */}
         {/* ========================================================================= */}
-        <section className="space-y-4 print-break-inside-avoid">
+        <section className="space-y-4 break-inside-avoid print-break-inside-avoid">
           <div className="flex items-center gap-2 border-b border-rose-800/60 pb-2">
             <AlertOctagon className="h-5 w-5 text-rose-400" />
             <h2 className="text-base font-bold text-white uppercase tracking-wider">
@@ -266,7 +268,7 @@ export default async function ReportPage({
             {exceptionItems.map((exItem) => (
               <div
                 key={exItem.stable_lineage_key}
-                className="rounded-lg border border-rose-600/40 bg-slate-900/90 p-4 space-y-3"
+                className="rounded-lg border border-rose-600/40 bg-slate-900/90 p-4 space-y-3 break-inside-avoid print-break-inside-avoid"
               >
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 border-b border-slate-800 pb-3">
                   <div>
@@ -355,7 +357,10 @@ export default async function ReportPage({
         {/* ========================================================================= */}
         {/* SECTION II: RE-ATTESTED PUBLIC DOMAIN ITEMS */}
         {/* ========================================================================= */}
-        <section className="space-y-4 print-break-inside-avoid">
+        {/* ========================================================================= */}
+        {/* SECTION II: RE-ATTESTED PUBLIC DOMAIN ITEMS */}
+        {/* ========================================================================= */}
+        <section className="space-y-4 break-inside-avoid print-break-inside-avoid">
           <div className="flex items-center gap-2 border-b border-sky-700/60 pb-2">
             <CheckCircle2 className="h-5 w-5 text-sky-400" />
             <h2 className="text-base font-bold text-white uppercase tracking-wider">
@@ -367,7 +372,7 @@ export default async function ReportPage({
             {reattestedItems.map((reItem) => (
               <div
                 key={reItem.stable_lineage_key}
-                className="rounded-xl border border-sky-500/40 bg-sky-950/20 p-4 sm:p-5 space-y-4"
+                className="rounded-xl border border-sky-500/40 bg-sky-950/20 p-4 sm:p-5 space-y-4 break-inside-avoid print-break-inside-avoid"
               >
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 border-b border-slate-800 pb-3">
                   <div>
@@ -455,7 +460,7 @@ export default async function ReportPage({
         {/* ========================================================================= */}
         {/* SECTION III: CERTIFIED CARRIED-FORWARD CLEARANCE REGISTER */}
         {/* ========================================================================= */}
-        <section className="space-y-4 print-break-inside-avoid">
+        <section className="space-y-4 break-inside-avoid print-break-inside-avoid">
           <div className="flex items-center gap-2 border-b border-emerald-700/60 pb-2">
             <CheckCircle2 className="h-5 w-5 text-emerald-400" />
             <h2 className="text-base font-bold text-white uppercase tracking-wider">
@@ -518,7 +523,7 @@ export default async function ReportPage({
         {/* ========================================================================= */}
         {/* SECTION IV: LEGAL COUNSEL ATTESTATION & UNDERWRITER CERTIFICATION */}
         {/* ========================================================================= */}
-        <section className="border-t-2 border-slate-700 pt-6 space-y-6 print-break-inside-avoid">
+        <section className="border-t-2 border-slate-700 pt-6 space-y-6 break-inside-avoid print-break-inside-avoid">
           <div>
             <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
               <Scale className="h-4 w-4 text-sky-400" />
@@ -536,9 +541,9 @@ export default async function ReportPage({
           </div>
 
           {/* Signature Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 break-inside-avoid print-break-inside-avoid">
             {/* Counsel Signature Block */}
-            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-3">
+            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-3 break-inside-avoid print-break-inside-avoid">
               <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                 Clearance Counsel of Record
               </div>
@@ -560,7 +565,7 @@ export default async function ReportPage({
             </div>
 
             {/* Carrier Underwriter Binder Block */}
-            <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/40 p-4 space-y-3">
+            <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/40 p-4 space-y-3 break-inside-avoid print-break-inside-avoid">
               <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                 Underwriter Acknowledgment (Pending Review)
               </div>
