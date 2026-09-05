@@ -1019,3 +1019,29 @@ class InvalidationEngine:
 </body>
 </html>"""
 
+
+def evaluate_version_delta(
+    base_uses: List[CreativeUse],
+    target_uses: List[CreativeUse],
+    prior_decisions: List[CounselDecision],
+    evidence_snapshots: Dict[str, PublicEvidenceSnapshot],
+    target_version_id: str = "v8",
+    contracts: Optional[List[ContractAgreement]] = None,
+    dependency_graph: Optional[ClearanceDependencyGraph] = None,
+) -> List[DecisionValidity]:
+    """
+    Top-level convenience functional wrapper for InvalidationEngine.evaluate_invalidation.
+    Evaluates prior counsel decisions against creative deltas, external evidence,
+    and causal dependency graph lineage.
+    """
+    return InvalidationEngine.evaluate_invalidation(
+        base_uses=base_uses,
+        target_uses=target_uses,
+        prior_decisions=prior_decisions,
+        evidence_snapshots=evidence_snapshots,
+        target_version_id=target_version_id,
+        contracts=contracts,
+        dependency_graph=dependency_graph,
+    )
+
+

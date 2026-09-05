@@ -1,5 +1,5 @@
 # backend/core package
-from backend.core.invalidation_engine import InvalidationEngine
+from backend.core.invalidation_engine import InvalidationEngine, evaluate_version_delta
 from backend.core.dependency_graph import (
     ClearanceDependencyGraph,
     DependencyGraph,
@@ -61,6 +61,7 @@ from backend.core.security import (
 
 __all__ = [
     "InvalidationEngine",
+    "evaluate_version_delta",
     "ClearanceDependencyGraph",
     "DependencyGraph",
     "NodeType",
