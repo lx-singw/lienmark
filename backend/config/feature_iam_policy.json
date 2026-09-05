@@ -3,23 +3,23 @@
     "STUDIO_EXECUTIVE": {
       "allowed_toggles": ["*"],
       "can_override_policy": true,
-      "can_bind_insurance": true
+      "can_export_exceptions_schedule": true
     },
     "PRODUCTION_ATTORNEY": {
       "allowed_toggles": [
         "ENABLE_STATUTORY_RULE_ENGINE",
         "ENABLE_STATUTORY_DAMAGES_CALCULATOR",
         "ENABLE_FAIR_USE_PRE_ANALYZER",
-        "ENABLE_DUAL_KEY_DIGITAL_SIGNATURES",
+        "ENABLE_COUNSEL_ATTESTATION_TRACKER",
         "ENABLE_ATTORNEY_ETHICS_PRE_SCREENING",
         "ENABLE_TIMESTAMPING_AUTHORITY_ANCHOR",
         "ENABLE_ATTORNEY_REJECTION_ROUTER",
-        "ENABLE_ISO_LEGAL_AUDIT_EXPORTER",
+        "ENABLE_AUDIT_TRAIL_EXPORTER",
         "ENABLE_LEGAL_DEFENSE_BRIEF_EXPORTER",
-        "ENABLE_CHAIN_OF_TITLE_CERT_GENERATOR"
+        "ENABLE_EXCEPTIONS_SCHEDULE_GENERATOR"
       ],
       "can_override_policy": false,
-      "can_bind_insurance": false
+      "can_export_exceptions_schedule": false
     },
     "POST_SUPERVISOR": {
       "allowed_toggles": [
@@ -29,7 +29,7 @@
         "ENABLE_MUSIC_CUE_SHEET_EXPORTER"
       ],
       "can_override_policy": false,
-      "can_bind_insurance": false
+      "can_export_exceptions_schedule": false
     },
     "AUTOMATED_AGENT_PIPELINE": {
       "allowed_toggles": [
@@ -46,11 +46,11 @@
         "ENABLE_CLEARANCE_COST_ESTIMATOR",
         "ENABLE_VERTEX_GROUNDING",
         "ENABLE_MULTI_AGENT_PEER_DELIBERATION",
-        "ENABLE_BOND_UNDERWRITING_RISK_SCORE",
+        "ENABLE_POLICY_REVIEW_PRIORITY",
         "ENABLE_CROSS_CLAIM_REASONING"
       ],
       "can_override_policy": false,
-      "can_bind_insurance": false
+      "can_export_exceptions_schedule": false
     }
   }
 }

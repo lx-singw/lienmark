@@ -1,7 +1,7 @@
 {
   "indie_film": {
     "name": "Indie Film Fast-Track",
-    "description": "Streamlined, cost-effective clearance prioritizing core statutory rules, Parallel search, and rapid E&O certification.",
+    "description": "Streamlined clearance prioritizing core statutory rules, Parallel search, and version-bound exceptions schedule exports.",
     "budget_cap_usd": 25.0,
     "sla_seconds": 60,
     "active_toggles": [
@@ -9,13 +9,13 @@
       "ENABLE_STATUTORY_RULE_ENGINE",
       "ENABLE_FAIR_USE_PRE_ANALYZER",
       "ENABLE_PROMPT_INJECTION_DEFENSE",
-      "ENABLE_CHAIN_OF_TITLE_CERT_GENERATOR",
+      "ENABLE_EXCEPTIONS_SCHEDULE_GENERATOR",
       "ENABLE_CIRCUIT_BREAKER_FALLBACK"
     ]
   },
   "hollywood_blockbuster": {
     "name": "Hollywood Blockbuster Studio Tier",
-    "description": "Comprehensive, deep-tier clearance with multimodal logo detection, EDL conforming, guild residual tracking, and completion bond underwriting.",
+    "description": "Comprehensive, deep-tier clearance with multimodal logo detection, EDL conforming, guild residual tracking, and completion bond underwriting review.",
     "budget_cap_usd": 250.0,
     "sla_seconds": 300,
     "active_toggles": [
@@ -37,25 +37,25 @@
       "ENABLE_CONSENSUS_VERIFIER",
       "ENABLE_CLEARANCE_COST_ESTIMATOR",
       "ENABLE_VERTEX_GROUNDING",
-      "ENABLE_DUAL_KEY_DIGITAL_SIGNATURES",
+      "ENABLE_COUNSEL_ATTESTATION_TRACKER",
       "ENABLE_ATTORNEY_ETHICS_PRE_SCREENING",
       "ENABLE_TIMESTAMPING_AUTHORITY_ANCHOR",
       "ENABLE_ATTORNEY_REJECTION_ROUTER",
-      "ENABLE_ISO_LEGAL_AUDIT_EXPORTER",
+      "ENABLE_AUDIT_TRAIL_EXPORTER",
       "ENABLE_STATUTORY_RULE_ENGINE",
       "ENABLE_STATUTORY_DAMAGES_CALCULATOR",
       "ENABLE_FAIR_USE_PRE_ANALYZER",
       "ENABLE_MULTI_AGENT_PEER_DELIBERATION",
-      "ENABLE_BOND_UNDERWRITING_RISK_SCORE",
+      "ENABLE_POLICY_REVIEW_PRIORITY",
       "ENABLE_CROSS_CLAIM_REASONING",
       "ENABLE_LEGAL_DEFENSE_BRIEF_EXPORTER",
-      "ENABLE_CHAIN_OF_TITLE_CERT_GENERATOR",
+      "ENABLE_EXCEPTIONS_SCHEDULE_GENERATOR",
       "ENABLE_MUSIC_CUE_SHEET_EXPORTER"
     ]
   },
   "global_coproduction": {
     "name": "Global Co-Production Multi-Jurisdiction",
-    "description": "Multi-territory cross-border rights arbitration with international public domain analysis and ISO 27001 legal audit manifest exports.",
+    "description": "Multi-territory cross-border rights analysis with international public domain evidence and version-bound audit trail exports.",
     "budget_cap_usd": 150.0,
     "sla_seconds": 180,
     "active_toggles": [
@@ -63,16 +63,16 @@
       "ENABLE_RESEARCH_PLAN_SYNTHESIS",
       "ENABLE_CONSENSUS_VERIFIER",
       "ENABLE_VERTEX_GROUNDING",
-      "ENABLE_DUAL_KEY_DIGITAL_SIGNATURES",
+      "ENABLE_COUNSEL_ATTESTATION_TRACKER",
       "ENABLE_TIMESTAMPING_AUTHORITY_ANCHOR",
-      "ENABLE_ISO_LEGAL_AUDIT_EXPORTER",
+      "ENABLE_AUDIT_TRAIL_EXPORTER",
       "ENABLE_STATUTORY_RULE_ENGINE",
       "ENABLE_STATUTORY_DAMAGES_CALCULATOR",
       "ENABLE_FAIR_USE_PRE_ANALYZER",
       "ENABLE_MULTI_AGENT_PEER_DELIBERATION",
       "ENABLE_CROSS_CLAIM_REASONING",
       "ENABLE_LEGAL_DEFENSE_BRIEF_EXPORTER",
-      "ENABLE_CHAIN_OF_TITLE_CERT_GENERATOR",
+      "ENABLE_EXCEPTIONS_SCHEDULE_GENERATOR",
       "ENABLE_MUSIC_CUE_SHEET_EXPORTER"
     ]
   },
@@ -92,7 +92,7 @@
       "ENABLE_FAIR_USE_PRE_ANALYZER",
       "ENABLE_MULTI_AGENT_PEER_DELIBERATION",
       "ENABLE_LEGAL_DEFENSE_BRIEF_EXPORTER",
-      "ENABLE_CHAIN_OF_TITLE_CERT_GENERATOR"
+      "ENABLE_EXCEPTIONS_SCHEDULE_GENERATOR"
     ]
   }
 }

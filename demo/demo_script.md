@@ -1,51 +1,60 @@
 # Lienmark: 3-Minute Hackathon Demo Script
-**Track:** Parallel | **Challenge:** Agentic Cinema
-**Target Word Count:** ~400 words (Approx. 2 mins 45 seconds at standard speaking pace).
-**Visual Style:** Screen recording of the UI, combined with split-screen terminal output to satisfy the "show the agent functioning" judging requirement. No cinematic trailers.
+
+> **Authoritative Demo Script**: Derived from [`docs/DEVPOST_SUBMISSION.md`](../docs/DEVPOST_SUBMISSION.md) and [`docs/winning/05-demo-and-submission-playbook.md`](../docs/winning/05-demo-and-submission-playbook.md).
+**Track:** Parallel Track ($15,000 Prize Pool) | **Challenge:** Agentic Cinema  
+**Target Duration:** ~2 minutes 45 seconds  
+**Visual Style:** Screen recording of the hosted Reviewer Dashboard, split-screen terminal execution, and active Parallel Search API traces. Zero cinematic fluff; 100% functional software proof.
 
 ---
 
-## Act I: The Problem & Architecture (0:00 - 0:30)
+## Act I: Problem Framing & The Magic Moment (0:00 - 0:40)
 
-**[0:00 - 0:15] Visual:** Title slide briefly, then cross-fade to a split screen: Left side shows a standard folder `poller_watch_dir/`, Right side shows the dark-mode Lienmark React UI with empty Claims Table.
+**[0:00 - 0:15] Visual:** Screen opens on the Lienmark Reviewer Dashboard. The header displays *Shadows Over Broadway — Locked Script Version 7*. The left panel displays **12 reviewed counsel approvals** across script scenes.
 
-**Speaker (Voiceover):**
-"Every film production carries hundreds of unresolved rights claims, costing the industry over 50 million dollars a year in manual legal clearance. We built Lienmark to fix this. It’s an autonomous, 6-agent verification ledger powered by Gemini and the Parallel Search API. It acts as title insurance for Hollywood."
+**Speaker (Voiceover):**  
+"In film production, the hard problem in rights clearance isn't finding an initial copyright record once. It’s knowing whether yesterday’s legal sign-off still protects today’s new cut and changing external evidence. That silent divergence is **clearance drift**—the single biggest driver of preventable delivery delays and multi-million-dollar E&O insurance claims."
 
-**[0:15 - 0:30] Visual:** A mouse cursor drags `sample_script_adversarial.pdf` into the `poller_watch_dir/` on the left. The right side immediately fires a glowing toast notification: *“Discovery Agent: New Script Detected.”* 
+**[0:15 - 0:40] Visual:** User clicks **"⚡ Ingest V8 & Detect Drift"**. In under 600 milliseconds, the metric ribbon snaps:
+- Total Claims: 12
+- Carried Forward: 10 (Green)
+- Reopened (Drift Detected): 2 (Amber)
 
-**Speaker:**
-"Unlike legacy tools, Lienmark is truly agentic. You don't have to click a button. Our proactive Discovery Agent detects a new script drop and triggers the pipeline. The Intake Agent extracts claims and uses SHA-256 deduplication to instantly bypass unchanged scenes, saving API costs."
+**Speaker:**  
+"Lienmark is clearance change control for E&O. It binds every counsel approval directly to its creative usage, contractual scope, and external evidence snapshot. When Revision 8 is ingested, Lienmark does not run a wasteful, noisy 12-item rescan. It traverses the dependency graph, safely carries forward ten unaffected decisions, and instantly reopens exactly two—each with an explicit, machine-readable reason code."
 
-## Act II: Agentic Execution & Conflict Arbitration (0:30 - 1:45)
+---
 
-**[0:30 - 1:15] Visual:** The UI populates with rows of claims. The camera zooms in on one row: *"Archival Audio: Apollo 11 Mission."* A terminal overlay shows the Parallel MCP Client making live API requests.
+## Act II: Two Drifts & Targeted Parallel Search Grounding (0:40 - 1:50)
 
-**Speaker:**
-"Here is where Lienmark excels: Multi-step, live verification. For this Apollo 11 audio claim, our Research Agent dynamically calls the Parallel API to verify ownership. Parallel returns a conflict: NASA claims the footage is public domain, but a private entity claims rights to the synchronized audio master."
+**[0:40 - 1:20] Visual:** User clicks Item 11: *Scene 42 — Noir Detective Magazine Poster*. Right-hand drawer reveals V7 (2-second background blur) vs V8 (14-second focal close-up with character dialogue). Reason code: `CREATIVE_CONTEXT_ALTERED` / `LICENSE_SCOPE_CHANGED`.
 
-**[1:15 - 1:45] Visual:** The row turns yellow (Human Review Flag). The UI displays the Gemini Pro Risk Scoring Agent’s output, separating the conflicting sources and pre-populating a *Fair Use (17 U.S.C. § 107)* defense.
+**Speaker:**  
+"Here is creative drift. In Version 7, this 1946 detective magazine poster was approved as incidental background dressing. But Gemini 2.5 Flash analyzes the semantic delta in Version 8: the director brought the poster into a 14-second focal close-up where the lead actor reads the headline aloud. Our deterministic invalidation engine recognizes that the factual predicate of the de minimis sign-off collapsed, immediately flagging `LICENSE_SCOPE_CHANGED`."
 
-**Speaker:**
-"Instead of hallucinating a guess, our Gemini Pro Risk Scoring agent deterministically arbitrates the conflict. It tags the discrepancy, pre-populates a Fair Use legal defense, and halts the pipeline for Human-in-the-Loop review."
+**[1:20 - 1:50] Visual:** User clicks Item 12: *Scene 18 — Midnight Serenade*. Script context is unchanged (speakeasy jazz cue). Parallel Search API card displays live 200 OK query, source citation (ASCAP Repertory & Billboard Rights Bulletin), and `CONTRADICTORY` stance showing August 2026 rights assignment to Vanguard Media Holdings.
 
-## Act III: The Human & The Ledger (1:45 - 2:30)
+**Speaker:**  
+"Now watch external evidence drift. The script for this jazz cue did not change by a single syllable. But rights in the real world did. Parallel Search API executes at runtime to refresh the external copyright registry. Parallel retrieves live ASCAP bulletin records proving exclusive synchronization rights were reassigned to Vanguard Media last month. Parallel keeps the evidence current; Lienmark keeps the dependent counsel decision aligned with it, catching the contradiction before post-production wraps."
 
-**[1:45 - 2:15] Visual:** The user clicks the flagged row. The `AttorneyOverrideModal.tsx` opens. The user checks a box accepting the Fair Use defense, and clicks "Sign & Clear."
+---
 
-**Speaker:**
-"The production attorney steps in, reviews the Parallel API evidence, and accepts the Fair Use defense. An RSA-256 digital signature is generated, and the Ledger Agent writes the final decision to an immutable Firestore database."
+## Act III: Graph Economy & Human Counsel Re-Attestation (1:50 - 2:35)
 
-**[2:15 - 2:30] Visual:** The UI quickly shows a prompt injection trap. A toast reads: *“Security Alert: Suspicious Embedded Instruction Blocked.”* 
+**[1:50 - 2:15] Visual:** Trace panel displays the 83% search reduction (2 targeted API calls instead of 12 full rescans). Shows fail-closed invariants and reproducible timings.
 
-**Speaker:**
-"And because we’re enterprise-grade, Lienmark automatically traps embedded prompt-injections hidden inside adversarial scripts, isolating the malicious commands before they hit the agent orchestrator."
+**Speaker:**  
+"Notice the architectural discipline: our dependency graph eliminated 83% of redundant API queries by dispatching live searches only to affected nodes. And our policy is strictly fail-closed: public evidence informs review, but never replaces human legal authority. Missing, conflicting, or stale evidence automatically escalates to counsel."
 
-## Act IV: The Close (2:30 - 3:00)
+**[2:15 - 2:35] Visual:** Counsel Re-Attestation modal. User re-attests Item 11 with Public Domain renewal research, leaves Item 12 unresolved, and clicks "Export Exceptions Schedule". The Form E&O-2026 Underwriter Exceptions Schedule renders showing 10 carried forward, 1 re-attested, and 1 active unresolved exception.
 
-**[2:30 - 2:50] Visual:** The user clicks "Export E&O Binder." A clean PDF certificate downloads. The screen cuts to a terminal running `python scripts/verify_ledger_integrity.py`, returning a green *“SHA-256 Hash Chain Valid”* output.
+**Speaker:**  
+"In the reviewer interface, counsel re-attests the poster under public domain renewal findings and marks the jazz cue as an active exception for replacement. Lienmark compiles the reconciled audit trail into a version-bound Form E&O-2026 Exceptions Schedule, giving production counsel and E&O underwriters complete transparency into what was cleared, what changed, and what risks remain."
 
-**Speaker:**
-"Finally, the Report Agent generates a pristine Form E&O-2026 title certificate for the insurance binder. Every decision is backed by a cryptographic hash chain, proving to insurers that the ledger hasn't been tampered with. This is Lienmark. The verification ledger entertainment can’t close without."
+---
 
-**[2:50 - 3:00] Visual:** Final slide. GitHub Repo link. "Vote for Lienmark on Devpost."
+## Act IV: Architectural Trace & Close (2:35 - 2:48)
+
+**[2:35 - 2:48] Visual:** Execution trace showing end-to-end timing: Gemini structured output, Parallel Search latency, and deterministic verification. Closing slide with GitHub repository link and hosted Cloud Run URL.
+
+**Speaker:**  
+"From script cut to underwriter schedule: Lienmark provides clearance change control for E&O. Built on Google AntiGravity, Gemini 2.5 Flash, and Parallel Search."
