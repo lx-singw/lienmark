@@ -7,6 +7,7 @@ Authored strictly under Google AntiGravity for Agentic Cinema compliance.
 import os
 import time
 import json
+import random
 import hashlib
 import logging
 import asyncio
@@ -17,8 +18,10 @@ import httpx
 
 from backend.domain.models import PublicEvidenceSnapshot
 from backend.core.semantic_delta import repair_json_output, DeltaAnalysisResult
+from backend.core.security import redact_secrets
 
 logger = logging.getLogger("lienmark.gemini")
+
 
 
 class ClearanceBriefing(BaseModel):
@@ -46,6 +49,7 @@ class GeminiService:
     """
 
     MODEL_NAME = "gemini-2.5-flash"
+    CLIENT_TIMEOUT: float = 5.0
 
     def __init__(
         self,
@@ -54,14 +58,26 @@ class GeminiService:
         mock_latency_ms: float = 120.0,
         max_retries: int = 3,
         retry_backoff_base: float = 0.15,
+        client_timeout: float = 5.0,
+        timeout: Optional[float] = None,
     ):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY", "")
         self.use_fallback = use_fallback
         self.mock_latency_ms = mock_latency_ms
         self.max_retries = max_retries
         self.retry_backoff_base = retry_backoff_base
+        self.client_timeout = timeout if timeout is not None else client_timeout
         self.call_count: int = 0
         self.last_metrics: Dict[str, Any] = {}
+
+    @property
+    def timeout(self) -> float:
+        """Alias for client_timeout for Sprint 5B reliability interface."""
+        return self.client_timeout
+
+    @timeout.setter
+    def timeout(self, value: float) -> None:
+        self.client_timeout = value
 
     @staticmethod
     def compute_payload_hash(payload: Any) -> str:
@@ -139,7 +155,7 @@ Return a valid JSON object matching this schema:
                             "response_mime_type": "application/json",
                         },
                     }
-                    async with httpx.AsyncClient(timeout=12.0) as client:
+                    async with httpx.AsyncClient(timeout=self.client_timeout) as client:
                         resp = await client.post(url, json=payload)
                         elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
                         if resp.status_code == 200:
@@ -169,18 +185,36 @@ Return a valid JSON object matching this schema:
                                 "call_count": self.call_count,
                             }
                             return result
-                        else:
+                        elif resp.status_code == 429:
+                            retry_after = resp.headers.get("retry-after")
+                            backoff = (
+                                min(float(retry_after), 2.0)
+                                if retry_after and retry_after.replace(".", "", 1).isdigit()
+                                else (self.retry_backoff_base * (2 ** (attempt - 1)) + random.uniform(0.01, 0.08))
+                            )
                             logger.warning(
-                                f"Gemini API returned status {resp.status_code} on attempt {attempt}/{max_retries}."
+                                f"Gemini API rate limit (HTTP 429) on attempt {attempt}/{max_retries}. Backing off {backoff:.2f}s."
                             )
                             if attempt < max_retries:
-                                await asyncio.sleep(self.retry_backoff_base * (2 ** (attempt - 1)))
+                                await asyncio.sleep(backoff)
+                                continue
+                            else:
+                                logger.warning("Gemini rate limit retries exhausted. Using deterministic analysis fallback.")
+                                break
+                        else:
+                            backoff = self.retry_backoff_base * (2 ** (attempt - 1)) + random.uniform(0.01, 0.08)
+                            logger.warning(
+                                f"Gemini API returned status {resp.status_code} on attempt {attempt}/{max_retries}. Backing off {backoff:.2f}s."
+                            )
+                            if attempt < max_retries:
+                                await asyncio.sleep(backoff)
                 except Exception as e:
+                    backoff = self.retry_backoff_base * (2 ** (attempt - 1)) + random.uniform(0.01, 0.08)
                     logger.warning(
-                        f"Gemini API attempt {attempt}/{max_retries} failed: {e}."
+                        f"Gemini API attempt {attempt}/{max_retries} failed: {e}. Backing off {backoff:.2f}s."
                     )
                     if attempt < max_retries:
-                        await asyncio.sleep(self.retry_backoff_base * (2 ** (attempt - 1)))
+                        await asyncio.sleep(backoff)
                     else:
                         logger.warning("All Gemini API retries exhausted. Using deterministic analysis fallback.")
 
@@ -335,7 +369,7 @@ Return a valid JSON object matching this schema:
                             "response_mime_type": "application/json",
                         },
                     }
-                    async with httpx.AsyncClient(timeout=12.0) as client:
+                    async with httpx.AsyncClient(timeout=self.client_timeout) as client:
                         resp = await client.post(url, json=payload)
                         elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
                         if resp.status_code == 200:
@@ -369,18 +403,36 @@ Return a valid JSON object matching this schema:
                                 "call_count": self.call_count,
                             }
                             return briefing
-                        else:
+                        elif resp.status_code == 429:
+                            retry_after = resp.headers.get("retry-after")
+                            backoff = (
+                                min(float(retry_after), 2.0)
+                                if retry_after and retry_after.replace(".", "", 1).isdigit()
+                                else (self.retry_backoff_base * (2 ** (attempt - 1)) + random.uniform(0.01, 0.08))
+                            )
                             logger.warning(
-                                f"Gemini API briefing synthesis returned status {resp.status_code} on attempt {attempt}/{max_retries}."
+                                f"Gemini API briefing rate limit (HTTP 429) on attempt {attempt}/{max_retries}. Backing off {backoff:.2f}s."
                             )
                             if attempt < max_retries:
-                                await asyncio.sleep(self.retry_backoff_base * (2 ** (attempt - 1)))
+                                await asyncio.sleep(backoff)
+                                continue
+                            else:
+                                logger.warning("Gemini briefing rate limit retries exhausted. Using deterministic briefing fallback.")
+                                break
+                        else:
+                            backoff = self.retry_backoff_base * (2 ** (attempt - 1)) + random.uniform(0.01, 0.08)
+                            logger.warning(
+                                f"Gemini API briefing synthesis returned status {resp.status_code} on attempt {attempt}/{max_retries}. Backing off {backoff:.2f}s."
+                            )
+                            if attempt < max_retries:
+                                await asyncio.sleep(backoff)
                 except Exception as e:
+                    backoff = self.retry_backoff_base * (2 ** (attempt - 1)) + random.uniform(0.01, 0.08)
                     logger.warning(
-                        f"Gemini API briefing synthesis attempt {attempt}/{max_retries} failed: {e}."
+                        f"Gemini API briefing synthesis attempt {attempt}/{max_retries} failed: {e}. Backing off {backoff:.2f}s."
                     )
                     if attempt < max_retries:
-                        await asyncio.sleep(self.retry_backoff_base * (2 ** (attempt - 1)))
+                        await asyncio.sleep(backoff)
                     else:
                         logger.warning("All Gemini API briefing retries exhausted. Using deterministic briefing fallback.")
 

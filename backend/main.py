@@ -7,7 +7,7 @@ Authored strictly under Google AntiGravity for Agentic Cinema compliance.
 import logging
 import os
 from typing import Dict, Any, Optional
-from fastapi import FastAPI, HTTPException, Body, Response, Query
+from fastapi import FastAPI, HTTPException, Body, Response, Query, Request
 
 logger = logging.getLogger("lienmark.api")
 from fastapi.middleware.cors import CORSMiddleware
@@ -41,6 +41,25 @@ from backend.fixtures.golden_dataset import (
     get_golden_fixtures,
 )
 
+from backend.core.security import (
+    CorrelationLoggingMiddleware,
+    PayloadSizeLimitMiddleware,
+    IdempotencyMiddleware,
+    SecurityAndReliabilityMiddleware,
+    configure_security_logging,
+    verify_counsel_token,
+    authenticate_counsel_request,
+    mask_credential,
+    get_masked_preview,
+    is_strict_auth_enabled,
+    idempotency_key_manager,
+    MAX_PAYLOAD_SIZE_BYTES,
+    CounselAuthContext,
+)
+
+# Initialize structured correlation and secret redaction logging
+configure_security_logging()
+
 app = FastAPI(
     title="Lienmark Clearance Change Control API",
     description="Deterministic clearance drift detection and E&O underwriter change control.",
@@ -54,6 +73,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(IdempotencyMiddleware)
+app.add_middleware(CorrelationLoggingMiddleware)
+app.add_middleware(PayloadSizeLimitMiddleware)
 
 # Global in-memory state for session review
 _latest_run_result: Optional[WorkflowRunResult] = None
@@ -66,15 +88,53 @@ def health_check():
     parallel_key = os.getenv("PARALLEL_API_KEY", "")
     gemini_key = os.getenv("GEMINI_API_KEY", "")
 
+    parallel_status = mask_credential(parallel_key)
+    gemini_status = mask_credential(gemini_key)
+    strict_auth = is_strict_auth_enabled()
+
     return {
         "status": "healthy",
         "service": "Lienmark E&O Clearance Change Control",
         "provenance": "Google AntiGravity (Agentic Cinema Approved Toolchain)",
         "track": "Parallel Track ($15,000 Prize Pool)",
         "integrations": {
-            "gemini": "configured" if gemini_key else "simulated_deterministic",
-            "parallel_search": "configured" if parallel_key else "simulated_deterministic",
+            "gemini": "configured" if (gemini_key and not gemini_key.startswith("mock")) else "simulated_deterministic",
+            "parallel_search": "configured" if (parallel_key and not parallel_key.startswith("mock")) else "simulated_deterministic",
             "agent_platform": "Google Cloud Agent Builder / ADK",
+        },
+        "credentials": {
+            "gemini": gemini_status,
+            "parallel_search": parallel_status,
+            "gemini_preview": get_masked_preview(gemini_key),
+            "parallel_preview": get_masked_preview(parallel_key),
+        },
+        "credentials_validation": {
+            "gemini_api_key": {
+                "status": gemini_status,
+                "preview": get_masked_preview(gemini_key),
+                "is_secret_redacted": True,
+                "model": "gemini-2.5-flash",
+                "client_timeout_sec": 5.0,
+                "max_retries": 3,
+            },
+            "parallel_api_key": {
+                "status": parallel_status,
+                "preview": get_masked_preview(parallel_key),
+                "is_secret_redacted": True,
+                "client_timeout_sec": 5.0,
+                "max_retries": 3,
+                "fail_closed_stance": "INSUFFICIENT",
+            },
+        },
+        "security": {
+            "counsel_auth_mode": "strict" if strict_auth else "demo",
+            "strict_auth_enabled": strict_auth,
+            "payload_size_limit_bytes": MAX_PAYLOAD_SIZE_BYTES,
+            "payload_size_limit": "1MB",
+            "idempotency_cache": "ACTIVE",
+            "idempotency_cached_records": len(idempotency_key_manager),
+            "secret_redactor": "ACTIVE",
+            "correlation_logging": "ACTIVE",
         },
         "policy_version": InvalidationEngine.POLICY_VERSION,
     }
@@ -309,12 +369,14 @@ def get_review_queue(target_version: str = "v8"):
 
 
 @app.post("/api/review/action")
-def submit_review_action(request: ReviewActionRequest):
+def submit_review_action(request: ReviewActionRequest, http_req: Request = None):
     """
     Executes a human counsel review action (re_attest, reject, exception),
     enforcing fail-closed security gates, generating a tamper-evident SupersessionEvent,
     and recording the transition in the immutable audit ledger.
     """
+    if http_req is not None:
+        verify_counsel_token(http_req)
     try:
         key = request.stable_lineage_key
         if not key and request.decision_id:
@@ -431,8 +493,10 @@ def get_review_audit_trail(lineage_key: Optional[str] = None, stable_lineage_key
 @app.post("/api/review/attest")
 @app.post("/api/attorney/override")
 @app.post("/api/attorney-override")
-def record_counsel_reattestation(request: ReattestationRequest):
+def record_counsel_reattestation(request: ReattestationRequest, http_req: Request = None):
     """Backwards-compatible endpoint for legacy tests and dashboard."""
+    if http_req is not None:
+        verify_counsel_token(http_req)
     global _counsel_reattestations
     _counsel_reattestations[request.stable_lineage_key] = request
     action = ReviewAction.RE_ATTEST if request.new_status == DecisionStatus.APPROVED else ReviewAction.REJECT

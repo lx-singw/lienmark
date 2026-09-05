@@ -42,6 +42,10 @@ class Settings:
     sir_deductible_usd: float = field(default_factory=lambda: float(os.getenv("SIR_DEDUCTIBLE_USD", "25000.0")))
     verification_ttl_days: int = field(default_factory=lambda: int(os.getenv("VERIFICATION_TTL_DAYS", "30")))
     risk_confidence_threshold: float = field(default_factory=lambda: float(os.getenv("RISK_CONFIDENCE_THRESHOLD", "0.7")))
+    require_counsel_auth: bool = field(default_factory=lambda: os.getenv("REQUIRE_COUNSEL_AUTH", "false").lower() in ("true", "1", "yes"))
+    service_timeout_seconds: float = field(default_factory=lambda: float(os.getenv("SERVICE_TIMEOUT_SECONDS", "5.0")))
+    max_service_retries: int = field(default_factory=lambda: int(os.getenv("MAX_SERVICE_RETRIES", "3")))
+    max_payload_size_bytes: int = field(default_factory=lambda: int(os.getenv("MAX_PAYLOAD_SIZE_BYTES", str(1024 * 1024))))
 
 # Singleton instance
 settings = Settings()

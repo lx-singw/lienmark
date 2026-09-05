@@ -7,6 +7,7 @@ Authored strictly under Google AntiGravity for Agentic Cinema compliance.
 import os
 import time
 import json
+import random
 import hashlib
 import logging
 import asyncio
@@ -15,8 +16,10 @@ from urllib.parse import urlsplit
 import httpx
 
 from backend.domain.models import PublicEvidenceSnapshot, EvidenceStance
+from backend.core.security import redact_secrets
 
 logger = logging.getLogger("lienmark.parallel")
+
 
 
 class ParallelSearchService:
@@ -27,6 +30,9 @@ class ParallelSearchService:
     """
 
     PARALLEL_API_URL = os.getenv("PARALLEL_API_URL", "https://api.parallel.ai/v1/search")
+    CLIENT_TIMEOUT: float = 5.0
+    MAX_RETRIES: int = 3
+    RETRY_BACKOFF_BASE: float = 0.25
 
     def __init__(
         self,
@@ -35,14 +41,30 @@ class ParallelSearchService:
         mock_latency_ms: float = 120.0,
         force_fallback: bool = False,
         use_mock: bool = False,
+        client_timeout: float = 5.0,
+        max_retries: int = 3,
+        retry_backoff_base: float = 0.25,
+        timeout: Optional[float] = None,
     ):
         self.api_key = api_key or os.getenv("PARALLEL_API_KEY", "")
         self.use_fallback = use_fallback or force_fallback or use_mock
         self.force_fallback = force_fallback or use_fallback or use_mock
         self.use_mock = use_mock
         self.mock_latency_ms = mock_latency_ms
+        self.client_timeout = timeout if timeout is not None else client_timeout
+        self.max_retries = max_retries
+        self.retry_backoff_base = retry_backoff_base
         self.call_count: int = 0
         self.last_metrics: Dict[str, Any] = {}
+
+    @property
+    def timeout(self) -> float:
+        """Alias for client_timeout for Sprint 5B reliability interface."""
+        return self.client_timeout
+
+    @timeout.setter
+    def timeout(self, value: float) -> None:
+        self.client_timeout = value
 
     @staticmethod
     def compute_payload_hash(payload: Dict[str, Any]) -> str:
@@ -171,159 +193,232 @@ class ParallelSearchService:
 
         # Attempt live API call if not forced into fallback and a valid key exists
         if not effective_fallback and self.api_key and not self.api_key.startswith("mock_") and self.api_key != "mock":
-            try:
-                self.call_count += 1
-                headers = {
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                }
-                async with httpx.AsyncClient(timeout=10.0) as client:
-                    resp = await client.post(
-                        self.PARALLEL_API_URL, headers=headers, json=payload
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            }
+            max_retries = self.max_retries
+            for attempt in range(1, max_retries + 1):
+                try:
+                    self.call_count += 1
+                    async with httpx.AsyncClient(timeout=self.client_timeout) as client:
+                        resp = await client.post(
+                            self.PARALLEL_API_URL, headers=headers, json=payload
+                        )
+                        elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+                        http_status = resp.status_code
+
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            results = data.get("results", [])
+                            provider_call_id = data.get("request_id", f"prl_{int(time.time())}")
+                            top_hit = results[0] if results else {}
+
+                            source_url = top_hit.get("url", "https://search.parallel.ai/evidence")
+                            source_title = top_hit.get("title", "Parallel Attributable Evidence")
+                            excerpt = top_hit.get("snippet", top_hit.get("excerpt", "Attributable excerpt"))
+                            publisher = top_hit.get("source", "Parallel Search Index")
+                            domain = urlsplit(source_url).netloc or "search.parallel.ai"
+                            citation = f"{source_title} ({publisher})" if publisher else source_title
+                            stance = expected_stance or EvidenceStance.SUPPORTING
+
+                            metadata = {
+                                "raw_payload_hash": raw_payload_hash,
+                                "domain": domain,
+                                "citation": citation,
+                                "request_latency_ms": elapsed_ms,
+                                "call_count": self.call_count,
+                                "provider_call_id": provider_call_id,
+                                "http_status_code": http_status,
+                                "use_fallback": False,
+                                "query": redact_secrets(query),
+                                "use_id": use_id,
+                                "stable_lineage_key": stable_lineage_key,
+                                "attempt": attempt,
+                            }
+
+                            self.last_metrics = {
+                                "request_latency_ms": elapsed_ms,
+                                "call_count": self.call_count,
+                                "provider_call_id": provider_call_id,
+                                "http_status_code": http_status,
+                                "raw_payload_hash": raw_payload_hash,
+                                "domain": domain,
+                                "citation": citation,
+                            }
+
+                            return PublicEvidenceSnapshot(
+                                snapshot_id=f"ev_{stable_lineage_key}_{int(time.time())}",
+                                use_id=use_id,
+                                stable_lineage_key=stable_lineage_key,
+                                query=query,
+                                provider="Parallel",
+                                source_url=source_url,
+                                source_title=source_title,
+                                excerpt=excerpt,
+                                snippet=excerpt,
+                                publisher=publisher,
+                                stance=stance,
+                                cached_or_live="live",
+                                provider_call_id=provider_call_id,
+                                retrieval_latency_ms=elapsed_ms,
+                                domain=domain,
+                                citation=citation,
+                                raw_payload_hash=raw_payload_hash,
+                                payload_hash=raw_payload_hash,
+                                http_status=http_status,
+                                call_count=self.call_count,
+                                metadata=metadata,
+                            )
+
+                        elif resp.status_code == 429:
+                            # 429 rate limit backoff handling with jitter
+                            retry_after = resp.headers.get("retry-after")
+                            backoff = (
+                                min(float(retry_after), 2.0)
+                                if retry_after and retry_after.replace(".", "", 1).isdigit()
+                                else (self.retry_backoff_base * (2 ** (attempt - 1)) + random.uniform(0.01, 0.08))
+                            )
+                            logger.warning(
+                                f"Parallel Search API HTTP 429 rate limit on attempt {attempt}/{max_retries}. "
+                                f"Backing off for {backoff:.2f}s."
+                            )
+                            if attempt < max_retries:
+                                await asyncio.sleep(backoff)
+                                continue
+                            else:
+                                logger.error(
+                                    f"Parallel API rate limit retries ({max_retries}) exhausted. "
+                                    "Falling back to fail-closed INSUFFICIENT stance without crashing."
+                                )
+                                return PublicEvidenceSnapshot(
+                                    snapshot_id=f"ev_err_ratelimit_{stable_lineage_key}_{int(time.time())}",
+                                    use_id=use_id,
+                                    stable_lineage_key=stable_lineage_key,
+                                    query=query,
+                                    provider="Parallel",
+                                    source_url="https://search.parallel.ai/errors",
+                                    source_title="Parallel API Rate Limit Exceeded",
+                                    excerpt=f"Search failed with rate limit (HTTP 429) after {max_retries} retries. Fail-closed stance applied.",
+                                    snippet="HTTP 429 Rate Limit Exceeded",
+                                    publisher="Parallel Search Index",
+                                    stance=EvidenceStance.INSUFFICIENT,
+                                    cached_or_live="live",
+                                    provider_call_id=f"prl_err_{int(time.time())}",
+                                    retrieval_latency_ms=elapsed_ms,
+                                    domain="search.parallel.ai",
+                                    citation="Parallel Search Rate Limit Error",
+                                    raw_payload_hash=raw_payload_hash,
+                                    payload_hash=raw_payload_hash,
+                                    http_status=429,
+                                    call_count=self.call_count,
+                                    metadata={"error_status": 429, "fail_closed": True, "retries_exhausted": True},
+                                )
+
+                        elif resp.status_code in (500, 502, 503, 504):
+                            backoff = self.retry_backoff_base * (2 ** (attempt - 1)) + random.uniform(0.01, 0.08)
+                            logger.warning(
+                                f"Parallel API returned status {resp.status_code} on attempt {attempt}/{max_retries}. Backing off {backoff:.2f}s."
+                            )
+                            if attempt < max_retries:
+                                await asyncio.sleep(backoff)
+                                continue
+                            elif fail_closed_on_error:
+                                logger.error(
+                                    f"Parallel API returned status {resp.status_code} after {max_retries} retries. "
+                                    "Applying strict fail-closed policy (marking stance as INSUFFICIENT)."
+                                )
+                                return PublicEvidenceSnapshot(
+                                    snapshot_id=f"ev_err_{stable_lineage_key}_{int(time.time())}",
+                                    use_id=use_id,
+                                    stable_lineage_key=stable_lineage_key,
+                                    query=query,
+                                    provider="Parallel",
+                                    source_url="https://search.parallel.ai/errors",
+                                    source_title="Parallel API Error",
+                                    excerpt=f"Search failed with status {resp.status_code}: {resp.text[:150]}. Fail-closed stance applied.",
+                                    snippet=f"HTTP {resp.status_code} Error",
+                                    publisher="Parallel Search Index",
+                                    stance=EvidenceStance.INSUFFICIENT,
+                                    cached_or_live="live",
+                                    provider_call_id=f"prl_err_{int(time.time())}",
+                                    retrieval_latency_ms=elapsed_ms,
+                                    domain="search.parallel.ai",
+                                    citation="Parallel Search Error",
+                                    raw_payload_hash=raw_payload_hash,
+                                    payload_hash=raw_payload_hash,
+                                    http_status=resp.status_code,
+                                    call_count=self.call_count,
+                                    metadata={"error_status": resp.status_code, "fail_closed": True},
+                                )
+                        else:
+                            logger.warning(
+                                f"Parallel API returned status {resp.status_code}: {resp.text[:200]}. "
+                                "Switching to verified deterministic fallback."
+                            )
+                            break
+                except httpx.TimeoutException:
+                    backoff = self.retry_backoff_base * (2 ** (attempt - 1)) + random.uniform(0.01, 0.08)
+                    logger.warning(
+                        f"Parallel API timed out ({self.client_timeout}s) on attempt {attempt}/{max_retries}. Backing off {backoff:.2f}s."
                     )
-                    elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
-                    http_status = resp.status_code
-
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        results = data.get("results", [])
-                        provider_call_id = data.get("request_id", f"prl_{int(time.time())}")
-                        top_hit = results[0] if results else {}
-
-                        source_url = top_hit.get("url", "https://search.parallel.ai/evidence")
-                        source_title = top_hit.get("title", "Parallel Attributable Evidence")
-                        excerpt = top_hit.get("snippet", top_hit.get("excerpt", "Attributable excerpt"))
-                        publisher = top_hit.get("source", "Parallel Search Index")
-                        domain = urlsplit(source_url).netloc or "search.parallel.ai"
-                        citation = f"{source_title} ({publisher})" if publisher else source_title
-                        stance = expected_stance or EvidenceStance.SUPPORTING
-
-                        metadata = {
-                            "raw_payload_hash": raw_payload_hash,
-                            "domain": domain,
-                            "citation": citation,
-                            "request_latency_ms": elapsed_ms,
-                            "call_count": self.call_count,
-                            "provider_call_id": provider_call_id,
-                            "http_status_code": http_status,
-                            "use_fallback": False,
-                            "query": query,
-                            "use_id": use_id,
-                            "stable_lineage_key": stable_lineage_key,
-                        }
-
-                        self.last_metrics = {
-                            "request_latency_ms": elapsed_ms,
-                            "call_count": self.call_count,
-                            "provider_call_id": provider_call_id,
-                            "http_status_code": http_status,
-                            "raw_payload_hash": raw_payload_hash,
-                            "domain": domain,
-                            "citation": citation,
-                        }
-
+                    if attempt < max_retries:
+                        await asyncio.sleep(backoff)
+                        continue
+                    elif fail_closed_on_error:
+                        logger.error("Parallel API timed out after all retries. Applying strict fail-closed policy (INSUFFICIENT).")
                         return PublicEvidenceSnapshot(
-                            snapshot_id=f"ev_{stable_lineage_key}_{int(time.time())}",
+                            snapshot_id=f"ev_timeout_{stable_lineage_key}_{int(time.time())}",
                             use_id=use_id,
                             stable_lineage_key=stable_lineage_key,
                             query=query,
                             provider="Parallel",
-                            source_url=source_url,
-                            source_title=source_title,
-                            excerpt=excerpt,
-                            snippet=excerpt,
-                            publisher=publisher,
-                            stance=stance,
+                            source_url="https://search.parallel.ai/timeout",
+                            source_title="Parallel Search Timeout",
+                            excerpt=f"Search request timed out after {int(self.client_timeout * 1000)}ms. Fail-closed policy applied: stance marked INSUFFICIENT.",
+                            snippet=f"Request Timeout ({int(self.client_timeout * 1000)}ms)",
+                            publisher="Parallel Search Index",
+                            stance=EvidenceStance.INSUFFICIENT,
                             cached_or_live="live",
-                            provider_call_id=provider_call_id,
-                            retrieval_latency_ms=elapsed_ms,
-                            domain=domain,
-                            citation=citation,
                             raw_payload_hash=raw_payload_hash,
                             payload_hash=raw_payload_hash,
-                            http_status=http_status,
+                            http_status=504,
                             call_count=self.call_count,
-                            metadata=metadata,
+                            metadata={"error": "timeout", "fail_closed": True, "raw_payload_hash": raw_payload_hash},
                         )
-                    elif fail_closed_on_error or resp.status_code in (429, 500, 502, 503, 504):
-                        # Fail-closed policy: mark as INSUFFICIENT
-                        logger.error(
-                            f"Parallel API returned status {resp.status_code}. "
-                            "Applying strict fail-closed policy (marking stance as INSUFFICIENT)."
-                        )
+                except Exception as e:
+                    backoff = self.retry_backoff_base * (2 ** (attempt - 1)) + random.uniform(0.01, 0.08)
+                    logger.warning(
+                        f"Parallel API attempt {attempt}/{max_retries} failed with {e}. Backing off {backoff:.2f}s."
+                    )
+                    if attempt < max_retries:
+                        await asyncio.sleep(backoff)
+                        continue
+                    elif fail_closed_on_error:
+                        logger.error(f"Parallel API call exception: {e}. Applying fail-closed policy (INSUFFICIENT).")
                         return PublicEvidenceSnapshot(
                             snapshot_id=f"ev_err_{stable_lineage_key}_{int(time.time())}",
                             use_id=use_id,
                             stable_lineage_key=stable_lineage_key,
                             query=query,
                             provider="Parallel",
-                            source_url="https://search.parallel.ai/errors",
-                            source_title="Parallel API Error",
-                            excerpt=f"Search failed with status {resp.status_code}: {resp.text[:150]}. Fail-closed stance applied.",
-                            snippet=f"HTTP {resp.status_code} Error",
+                            source_url="https://search.parallel.ai/exception",
+                            source_title="Parallel Search Exception",
+                            excerpt=f"Search request failed: {e}. Fail-closed policy applied: stance marked INSUFFICIENT.",
+                            snippet=str(e),
                             publisher="Parallel Search Index",
                             stance=EvidenceStance.INSUFFICIENT,
                             cached_or_live="live",
-                            provider_call_id=f"prl_err_{int(time.time())}",
-                            retrieval_latency_ms=elapsed_ms,
+                            provider_call_id=f"prl_exc_{int(time.time())}",
+                            retrieval_latency_ms=round((time.perf_counter() - start_time) * 1000, 2),
                             domain="search.parallel.ai",
-                            citation="Parallel Search Error",
+                            citation="Parallel Search Exception",
                             raw_payload_hash=raw_payload_hash,
                             payload_hash=raw_payload_hash,
-                            http_status=resp.status_code,
+                            http_status=500,
                             call_count=self.call_count,
-                            metadata={"error_status": resp.status_code, "fail_closed": True},
+                            metadata={"error": str(e), "fail_closed": True, "raw_payload_hash": raw_payload_hash},
                         )
-                    else:
-                        logger.warning(
-                            f"Parallel API returned status {resp.status_code}: {resp.text[:200]}. "
-                            "Switching to verified deterministic fallback."
-                        )
-            except httpx.TimeoutException:
-                if fail_closed_on_error:
-                    logger.error("Parallel API timed out. Applying strict fail-closed policy (INSUFFICIENT).")
-                    return PublicEvidenceSnapshot(
-                        snapshot_id=f"ev_timeout_{stable_lineage_key}_{int(time.time())}",
-                        use_id=use_id,
-                        stable_lineage_key=stable_lineage_key,
-                        query=query,
-                        provider="Parallel",
-                        source_url="https://search.parallel.ai/timeout",
-                        source_title="Parallel Search Timeout",
-                        excerpt="Search request timed out. Fail-closed policy applied: stance marked INSUFFICIENT.",
-                        snippet="Request Timeout (10000ms)",
-                        publisher="Parallel Search Index",
-                        stance=EvidenceStance.INSUFFICIENT,
-                        cached_or_live="live",
-                        raw_payload_hash=raw_payload_hash,
-                        payload_hash=raw_payload_hash,
-                        http_status=504,
-                        call_count=self.call_count,
-                        metadata={"error": "timeout", "fail_closed": True, "raw_payload_hash": raw_payload_hash},
-                    )
-                logger.warning("Parallel API call timed out. Utilizing verified fallback.")
-            except Exception as e:
-                if fail_closed_on_error:
-                    logger.error(f"Parallel API call exception: {e}. Applying fail-closed policy (INSUFFICIENT).")
-                    return PublicEvidenceSnapshot(
-                        snapshot_id=f"ev_err_{stable_lineage_key}_{int(time.time())}",
-                        use_id=use_id,
-                        stable_lineage_key=stable_lineage_key,
-                        query=query,
-                        provider="Parallel",
-                        source_url="https://search.parallel.ai/exception",
-                        source_title="Parallel Search Exception",
-                        excerpt=f"Search request failed: {e}. Fail-closed policy applied: stance marked INSUFFICIENT.",
-                        snippet=str(e),
-                        publisher="Parallel Search Index",
-                        stance=EvidenceStance.INSUFFICIENT,
-                        cached_or_live="live",
-                        raw_payload_hash=raw_payload_hash,
-                        payload_hash=raw_payload_hash,
-                        http_status=500,
-                        call_count=self.call_count,
-                        metadata={"error": str(e), "fail_closed": True, "raw_payload_hash": raw_payload_hash},
-                    )
                 logger.warning(f"Parallel API call failed: {e}. Utilizing verified fallback.")
 
         # Fallback / Deterministic Fixture Mode (for offline test reproducibility or forced fallback)
