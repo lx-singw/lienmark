@@ -8,7 +8,7 @@
  * Authored strictly under Google AntiGravity: Defensive, zero-any TypeScript implementation.
  */
 
-import React, { useState, useEffect, useTransition } from 'react';
+import React, { useState, useEffect, useTransition, useCallback } from 'react';
 import {
   CheckCircle2,
   Gavel,
@@ -35,6 +35,8 @@ import {
 import {
   evaluateClearanceDeltaAction,
   submitReviewAction,
+  resetDemoAction,
+  seedDemoAction,
 } from './actions';
 import {
   getGoldenAuditTrail,
@@ -79,6 +81,8 @@ export default function ReviewerDashboardPage() {
   const [isRunningEvaluation, setIsRunningEvaluation] = useState<boolean>(false);
   const [isSubmittingAction, setIsSubmittingAction] = useState<boolean>(false);
   const [targetVersionId, setTargetVersionId] = useState<'v8' | 'v7'>('v8');
+  const [isResettingDemo, setIsResettingDemo] = useState<boolean>(false);
+  const [currentDemoMode, setCurrentDemoMode] = useState<'baseline' | 'drifted' | 'resolved'>('drifted');
 
   // Evaluation multi-stage live telemetry state
   const [evalStageIdx, setEvalStageIdx] = useState<number>(0);
@@ -209,6 +213,153 @@ export default function ReviewerDashboardPage() {
       });
     }
   };
+
+  // Handler: Full demo reset to pristine V7 baseline
+  const handleResetDemo = useCallback(async () => {
+    if (isResettingDemo) return;
+    setIsResettingDemo(true);
+
+    try {
+      // 1. Call backend demo reset endpoint via Server Action
+      const result = await resetDemoAction();
+
+      // 2. Reset UI state to clean V7 baseline (12 claims carried forward, zero drift)
+      setTargetVersionId('v7');
+      setCurrentDemoMode('baseline');
+
+      const v7BaselineClaims: EvaluatedClaim[] = getGoldenDriftEvaluationResult().claims.map((c) => ({
+        ...c,
+        state: DecisionState.CARRIED_FORWARD,
+        reason_code: 'DEPENDENCIES_SATISFIED_UNCHANGED',
+        revalidation_action: 'carry',
+      }));
+      setClaims(v7BaselineClaims);
+      setReviewQueue([]); // Review queue empty under clean baseline
+      setAuditTrail(getGoldenAuditTrail());
+      setSelectedQueueKey('poster_noir_detective_magazine');
+      setSelectedClaimKey('poster_noir_detective_magazine');
+
+      setToast({
+        type: 'success',
+        message:
+          result.data?.message ||
+          'Demo state successfully reset to clean V7 baseline (12 approved claims).',
+      });
+    } catch (err: unknown) {
+      console.error('[handleResetDemo] Error resetting demo state:', err);
+      // Fallback local reset
+      setTargetVersionId('v7');
+      setCurrentDemoMode('baseline');
+      const v7BaselineClaims: EvaluatedClaim[] = getGoldenDriftEvaluationResult().claims.map((c) => ({
+        ...c,
+        state: DecisionState.CARRIED_FORWARD,
+        reason_code: 'DEPENDENCIES_SATISFIED_UNCHANGED',
+        revalidation_action: 'carry',
+      }));
+      setClaims(v7BaselineClaims);
+      setReviewQueue([]);
+      setToast({
+        type: 'success',
+        message: 'Demo state reset to clean V7 baseline (local fallback).',
+      });
+    } finally {
+      setIsResettingDemo(false);
+    }
+  }, [isResettingDemo]);
+
+  // Handler: Seed demo take mode (baseline, drifted, resolved)
+  const handleSeedDemoMode = useCallback(
+    async (mode: 'baseline' | 'drifted' | 'resolved') => {
+      setIsResettingDemo(true);
+      try {
+        await seedDemoAction(mode);
+        setCurrentDemoMode(mode);
+
+        if (mode === 'baseline') {
+          setTargetVersionId('v7');
+          const v7Claims: EvaluatedClaim[] = getGoldenDriftEvaluationResult().claims.map((c) => ({
+            ...c,
+            state: DecisionState.CARRIED_FORWARD,
+            reason_code: 'DEPENDENCIES_SATISFIED_UNCHANGED',
+            revalidation_action: 'carry',
+          }));
+          setClaims(v7Claims);
+          setReviewQueue([]);
+          setToast({
+            type: 'success',
+            message: 'Seeded Take: Script Cut V7 Baseline (12 approved claims, zero drift).',
+          });
+        } else if (mode === 'drifted') {
+          setTargetVersionId('v8');
+          const golden = getGoldenDriftEvaluationResult();
+          setClaims(golden.claims);
+          setReviewQueue(getGoldenReviewQueue());
+          setToast({
+            type: 'warning',
+            message: 'Seeded Take: V8 Drifted Cut (10 carried forward, 2 stale claims requiring review).',
+          });
+        } else if (mode === 'resolved') {
+          setTargetVersionId('v8');
+          const golden = getGoldenDriftEvaluationResult();
+          const resolvedClaims: EvaluatedClaim[] = golden.claims.map((c) => {
+            if (c.stable_lineage_key === 'poster_noir_detective_magazine') {
+              return {
+                ...c,
+                state: DecisionState.RE_ATTESTED,
+                reason_code: 'COUNSEL_RE_ATTESTED_PUBLIC_DOMAIN',
+                revalidation_action: 're_attest',
+              };
+            }
+            if (c.stable_lineage_key === 'music_cue_midnight_serenade') {
+              return {
+                ...c,
+                state: DecisionState.EXCEPTION,
+                reason_code: 'UNRESOLVED_UNDERWRITING_EXCEPTION',
+                revalidation_action: 'exception',
+              };
+            }
+            return c;
+          });
+          setClaims(resolvedClaims);
+          const resolvedQueue = getGoldenReviewQueue().map((q) => ({
+            ...q,
+            status: 'resolved' as const,
+            current_state:
+              q.stable_lineage_key === 'poster_noir_detective_magazine'
+                ? DecisionState.RE_ATTESTED
+                : DecisionState.EXCEPTION,
+          }));
+          setReviewQueue(resolvedQueue);
+          setToast({
+            type: 'success',
+            message:
+              'Seeded Take: Resolved Production Cut (10 carried forward, 1 re-attested, 1 exception schedule).',
+          });
+        }
+      } catch (err: unknown) {
+        console.error('[handleSeedDemoMode] Error seeding demo mode:', err);
+        setToast({
+          type: 'error',
+          message: `Failed to seed demo state to ${mode}: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        });
+      } finally {
+        setIsResettingDemo(false);
+      }
+    },
+    []
+  );
+
+  // Keyboard shortcut listener for Ctrl+Shift+R (Demo Reset)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'R' || e.key === 'r')) {
+        e.preventDefault();
+        handleResetDemo();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleResetDemo]);
 
   // Handler: Run clearance evaluation with multi-stage progress animation
   const handleRunEvaluation = async () => {
@@ -547,6 +698,10 @@ export default function ReviewerDashboardPage() {
         onRunEvaluation={handleRunEvaluation}
         onOpenAuditTrail={() => setIsAuditDrawerOpen(true)}
         exceptionsScheduleUrl="/report/proj_blockbuster_cinema"
+        onResetDemo={handleResetDemo}
+        isResettingDemo={isResettingDemo}
+        onSeedDemoMode={handleSeedDemoMode}
+        currentDemoMode={currentDemoMode}
       />
 
       {/* 2. Modular Clearance Summary Cards & Invariant Conservation Ribbon */}

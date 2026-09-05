@@ -24,6 +24,9 @@ import {
   ReviewQueueResponse,
   SupersessionEvent,
   WorkflowRunResult,
+  DemoResetResponse,
+  DemoSeedResponse,
+  DemoStateResponse,
 } from './types';
 
 import {
@@ -162,6 +165,8 @@ export class LienmarkApiClient {
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
+          Authorization: 'Bearer sarah_jenkins_token_2026',
+          'X-Counsel-Token': 'sarah_jenkins_token_2026',
           ...(options.headers || {}),
         },
       });
@@ -451,6 +456,118 @@ export class LienmarkApiClient {
         is_ledger_tamper_free: true,
         chain_head_hash: events[0]?.event_hash || '',
         events,
+      };
+    }
+  }
+
+  /**
+   * POST /api/demo/reset
+   * Resets workflow state, decisions, queues, and idempotency cache to clean V7 baseline.
+   */
+  async resetDemo(timeoutMs: number = 10000): Promise<DemoResetResponse> {
+    try {
+      const resp = await this.request<DemoResetResponse>(
+        '/api/demo/reset',
+        { method: 'POST' },
+        timeoutMs
+      );
+      this.fallbackReattestations = {};
+      return resp;
+    } catch (error: unknown) {
+      if (!this.enableFallback) throw error;
+      this.log('warn', 'FastAPI demo reset unreachable; executing offline fallback reset', error);
+      this.fallbackReattestations = {};
+      return {
+        status: 'RESET_SUCCESS',
+        message: 'Demo state reset to clean V7 baseline (offline fallback)',
+        total_claims: 12,
+        approved_claims: 12,
+        carried_forward_count: 12,
+        reopened_count: 0,
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  /**
+   * POST /api/demo/seed
+   * Populates exact state for instantaneous video take recovery (baseline, drifted, resolved).
+   */
+  async seedDemo(
+    mode: 'baseline' | 'drifted' | 'resolved' | string = 'baseline',
+    timeoutMs: number = 10000
+  ): Promise<DemoSeedResponse> {
+    try {
+      const resp = await this.request<DemoSeedResponse>(
+        `/api/demo/seed?mode=${encodeURIComponent(mode)}`,
+        { method: 'POST' },
+        timeoutMs
+      );
+      if (mode === 'baseline') {
+        this.fallbackReattestations = {};
+      }
+      return resp;
+    } catch (error: unknown) {
+      if (!this.enableFallback) throw error;
+      this.log('warn', `FastAPI demo seed unreachable; seeding fallback mode ${mode}`, error);
+      const isBaseline = mode === 'baseline';
+      const isResolved = mode === 'resolved';
+      const isDrifted = mode === 'drifted';
+
+      return {
+        status: 'SEED_SUCCESS',
+        mode,
+        message: `Demo state seeded to ${mode} mode (offline fallback)`,
+        total_claims: 12,
+        carried_forward_count: isBaseline ? 12 : 10,
+        reopened_count: isDrifted ? 2 : 0,
+        reattested_count: isResolved ? 1 : 0,
+        exception_count: isResolved ? 1 : 0,
+        completed_claims: isDrifted ? 10 : 12,
+        claims_breakdown: {
+          total: 12,
+          carried_forward: isBaseline ? 12 : 10,
+          reopened: isDrifted ? 2 : 0,
+          reattested: isResolved ? 1 : 0,
+          exception: isResolved ? 1 : 0,
+        },
+        reviewer_identity: 'Sarah Jenkins, Esq.',
+        policy_version: 'E&O-2026.1-DEVPOST',
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  /**
+   * GET /api/demo/state
+   * Retrieves current demonstration mode, claim breakdown, and reviewer identity.
+   */
+  async getDemoState(timeoutMs: number = 5000): Promise<DemoStateResponse> {
+    try {
+      return await this.request<DemoStateResponse>('/api/demo/state', { method: 'GET' }, timeoutMs);
+    } catch (error: unknown) {
+      if (!this.enableFallback) throw error;
+      return {
+        mode: 'baseline',
+        total_claims: 12,
+        carried_forward_count: 12,
+        reopened_count: 0,
+        reattested_count: 0,
+        exception_count: 0,
+        completed_claims: 12,
+        reviewer_identity: {
+          reviewer_id: 'counsel_sjenkins_001',
+          name: 'Sarah Jenkins, Esq.',
+          title: 'Lead Production Clearance Counsel',
+          organization: 'Lienmark Legal Partners LLP',
+          is_fictional_demo: true,
+          disclaimer: 'DEMO / FICTIONAL COUNSEL ONLY - NOT LEGAL ADVICE',
+        },
+        reviewer_name: 'Sarah Jenkins, Esq. (Lead Clearance Counsel)',
+        policy_version: 'E&O-2026.1-DEVPOST',
+        audit_events_count: 0,
+        ledger_integrity: true,
+        timestamp: new Date().toISOString(),
       };
     }
   }

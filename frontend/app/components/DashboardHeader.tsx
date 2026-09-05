@@ -17,6 +17,8 @@ import {
   ShieldAlert,
   GitCompare,
   Hash,
+  RotateCcw,
+  UserCheck,
 } from 'lucide-react';
 
 export interface DashboardHeaderProps {
@@ -37,6 +39,10 @@ export interface DashboardHeaderProps {
   onRunEvaluation: () => void;
   onOpenAuditTrail: () => void;
   exceptionsScheduleUrl?: string;
+  onResetDemo?: () => void;
+  isResettingDemo?: boolean;
+  onSeedDemoMode?: (mode: 'baseline' | 'drifted' | 'resolved') => void;
+  currentDemoMode?: string;
 }
 
 export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
@@ -57,6 +63,10 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   onRunEvaluation,
   onOpenAuditTrail,
   exceptionsScheduleUrl = '/report/proj_blockbuster_cinema',
+  onResetDemo,
+  isResettingDemo = false,
+  onSeedDemoMode,
+  currentDemoMode = 'drifted',
 }) => {
   const shortBaseHash = baseContentHash.slice(0, 8);
   const shortTargetHash = targetContentHash.slice(0, 8);
@@ -127,6 +137,65 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               {underwriterStatus}
             </span>
           </div>
+
+          {/* Pre-Authenticated Counsel Demo Account Badge */}
+          <div
+            className="inline-flex items-center gap-1.5 rounded-md border border-sky-500/30 bg-sky-950/40 px-2.5 py-1 text-xs font-mono text-sky-300"
+            title="Pre-Authenticated Demo Account: Sarah Jenkins, Esq. (counsel_sjenkins_001)"
+          >
+            <UserCheck className="h-3.5 w-3.5 text-sky-400" aria-hidden="true" />
+            <span>Sarah Jenkins, Esq.</span>
+            <span className="rounded bg-sky-900/60 px-1.5 py-0.2 text-[9px] font-bold text-sky-200 border border-sky-500/40">
+              counsel_sjenkins_001
+            </span>
+          </div>
+
+          {/* Take Quick Selector */}
+          {onSeedDemoMode && (
+            <div
+              className="inline-flex items-center rounded-lg border border-slate-700 bg-slate-900/90 p-1 text-xs font-mono shadow-sm"
+              role="group"
+              aria-label="Demo Recording Take Selection"
+            >
+              <span className="text-slate-400 px-2 py-0.5 text-[11px] font-sans">Take:</span>
+              <button
+                type="button"
+                onClick={() => onSeedDemoMode('baseline')}
+                className={`px-2 py-1 rounded text-xs transition-colors focus:outline-none focus:ring-1 focus:ring-emerald-400 ${
+                  currentDemoMode === 'baseline'
+                    ? 'bg-emerald-500/25 text-emerald-200 font-bold border border-emerald-500/40 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Seed Baseline Take: 12 Approved claims under V7"
+              >
+                V7 Base
+              </button>
+              <button
+                type="button"
+                onClick={() => onSeedDemoMode('drifted')}
+                className={`px-2 py-1 rounded text-xs transition-colors focus:outline-none focus:ring-1 focus:ring-amber-400 ${
+                  currentDemoMode === 'drifted'
+                    ? 'bg-amber-500/25 text-amber-200 font-bold border border-amber-500/40 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Seed Drifted Take: 10 Carried, 2 Stale claims"
+              >
+                V8 Drift
+              </button>
+              <button
+                type="button"
+                onClick={() => onSeedDemoMode('resolved')}
+                className={`px-2 py-1 rounded text-xs transition-colors focus:outline-none focus:ring-1 focus:ring-sky-400 ${
+                  currentDemoMode === 'resolved'
+                    ? 'bg-sky-500/25 text-sky-200 font-bold border border-sky-500/40 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Seed Resolved Take: 10 Carried, 1 Re-attested, 1 Exception"
+              >
+                Resolved
+              </button>
+            </div>
+          )}
         </div>
 
         <p className="text-sm text-slate-400 flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -145,6 +214,26 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 
       {/* Interactive Controls */}
       <div className="flex flex-wrap items-center gap-2.5 sm:gap-3" role="toolbar" aria-label="Dashboard Actions">
+        {onResetDemo && (
+          <button
+            type="button"
+            onClick={onResetDemo}
+            disabled={isResettingDemo}
+            className="flex items-center gap-1.5 rounded-lg border border-rose-500/40 bg-rose-950/40 hover:bg-rose-900/60 hover:border-rose-500/70 px-3 py-2 text-sm font-medium text-rose-200 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-rose-400 disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Reset Demo State to Baseline (Ctrl+Shift+R)"
+            title="Reset entire clearance demo state to clean V7 baseline (Shortcut: Ctrl+Shift+R)"
+          >
+            <RotateCcw
+              className={`h-4 w-4 text-rose-400 ${isResettingDemo ? 'animate-spin' : ''}`}
+              aria-hidden="true"
+            />
+            <span>{isResettingDemo ? 'Resetting...' : 'Reset Demo'}</span>
+            <kbd className="hidden lg:inline-block rounded bg-rose-900/80 px-1.5 py-0.5 text-[10px] font-mono text-rose-300 border border-rose-500/40">
+              Ctrl+⇧+R
+            </kbd>
+          </button>
+        )}
+
         <button
           type="button"
           onClick={onOpenAuditTrail}

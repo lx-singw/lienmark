@@ -716,4 +716,59 @@ export interface AuditTrailResponse {
   lineage_key?: string | null;
 }
 
+/**
+ * Demo State Management & Take Recovery Types (Sprint 6B Task 1)
+ */
+export interface DemoResetResponse {
+  status: string;
+  message: string;
+  total_claims: number;
+  approved_claims: number;
+  timestamp: string;
+  carried_forward_count?: number;
+  reopened_count?: number;
+}
+
+export interface DemoSeedBreakdown {
+  total: number;
+  carried_forward: number;
+  reopened: number;
+  reattested: number;
+  exception: number;
+}
+
+export interface DemoSeedResponse {
+  status: string;
+  mode: 'baseline' | 'drifted' | 'resolved' | string;
+  message: string;
+  total_claims: number;
+  carried_forward_count: number;
+  reopened_count: number;
+  reattested_count: number;
+  exception_count: number;
+  completed_claims: number;
+  claims_breakdown?: DemoSeedBreakdown;
+  reviewer_identity?: string | ReviewerIdentity;
+  policy_version?: string;
+  timestamp: string;
+}
+
+export interface DemoStateResponse {
+  mode: 'baseline' | 'drifted' | 'resolved' | string;
+  total_claims: number;
+  carried_forward_count: number;
+  reopened_count: number;
+  reattested_count: number;
+  exception_count: number;
+  completed_claims: number;
+  claims_breakdown?: DemoSeedBreakdown;
+  reviewer_identity: ReviewerIdentity;
+  reviewer_name?: string;
+  policy_version: string;
+  audit_events_count?: number;
+  ledger_integrity?: boolean;
+  timestamp: string;
+}
+
+
 

@@ -6,7 +6,9 @@ Authored strictly under Google AntiGravity for Agentic Cinema compliance.
 
 import logging
 import os
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
+from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException, Body, Response, Query, Request
 
 logger = logging.getLogger("lienmark.api")
@@ -80,6 +82,7 @@ app.add_middleware(PayloadSizeLimitMiddleware)
 # Global in-memory state for session review
 _latest_run_result: Optional[WorkflowRunResult] = None
 _counsel_reattestations: Dict[str, ReattestationRequest] = {}
+_demo_mode: str = "baseline"
 
 
 @app.get("/health")
@@ -138,6 +141,339 @@ def health_check():
         },
         "policy_version": InvalidationEngine.POLICY_VERSION,
     }
+
+
+# -----------------------------------------------------------------------------
+# Demo State & Recording Support Endpoints (Sprint 6B)
+# -----------------------------------------------------------------------------
+
+def _build_baseline_state() -> Dict[str, Any]:
+    v7_uses, _, v7_decisions, _ = get_golden_fixtures()
+    decisions_list = [
+        {
+            "decision_id": d.decision_id,
+            "stable_lineage_key": d.stable_lineage_key,
+            "use_id": d.use_id,
+            "status": (d.status.value if hasattr(d.status, "value") else str(d.status)).upper(),
+            "state": "CARRIED_FORWARD",
+            "reviewer": d.reviewer_display_name,
+            "reviewer_display_name": d.reviewer_display_name,
+            "rationale": d.rationale,
+            "applicable_version_id": d.applicable_version_id,
+        }
+        for d in v7_decisions
+    ]
+    return {
+        "status": "ready",
+        "mode": "baseline",
+        "total_claims": 12,
+        "approved_claims": 12,
+        "approved_count": 12,
+        "carried_count": 12,
+        "carried_forward_count": 12,
+        "stale_count": 0,
+        "reopened_count": 0,
+        "needs_review_count": 0,
+        "reattested_count": 0,
+        "re_attested_count": 0,
+        "exception_count": 0,
+        "exceptions_count": 0,
+        "unresolved_exception_count": 0,
+        "completed_claims": 12,
+        "audit_events_count": len(counsel_checkpoint_manager.get_audit_trail()),
+        "counsel_audit_trail_count": len(counsel_checkpoint_manager.get_audit_trail()),
+        "ledger_integrity": True,
+        "mutations_count": len(_counsel_reattestations) + len(counsel_checkpoint_manager.get_audit_trail()),
+        "active_reviewer": "Sarah Jenkins, Esq.",
+        "reviewer_identity": {
+            "reviewer_id": "counsel_sjenkins_001",
+            "name": "Sarah Jenkins, Esq.",
+            "title": "Lead Production Clearance Counsel",
+            "organization": "Lienmark Legal Partners LLP",
+            "is_fictional_demo": True,
+        },
+        "decisions": decisions_list,
+        "claims": [
+            {
+                "use_id": u.use_id,
+                "key": u.stable_lineage_key,
+                "scene": u.scene_or_timecode,
+                "asset_type": u.asset_type,
+                "description": u.description,
+                "prominence": u.duration_or_prominence,
+                "status": "APPROVED",
+            }
+            for u in v7_uses
+        ],
+        "policy_version": InvalidationEngine.POLICY_VERSION,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "message": "Demo state reset to clean V7 baseline: 12 V7 baseline claims approved.",
+    }
+
+
+def _build_drifted_state() -> Dict[str, Any]:
+    v7_uses, v8_uses, v7_decisions, v8_evidence = get_golden_fixtures()
+    stale_keys = {"poster_noir_detective_magazine", "music_cue_midnight_serenade"}
+
+    decisions_list = []
+    for d in v7_decisions:
+        key = d.stable_lineage_key
+        if key in stale_keys:
+            st = "NEEDS_REVIEW"
+            state = "STALE"
+            rat = (
+                "Creative context altered or external fact shifted; prior approval reopened for counsel review."
+            )
+        else:
+            st = "APPROVED"
+            state = "CARRIED_FORWARD"
+            rat = d.rationale
+        decisions_list.append({
+            "decision_id": f"dec_v8_{key}",
+            "stable_lineage_key": key,
+            "use_id": f"use_v8_{key}",
+            "status": st,
+            "state": state,
+            "reviewer": "Sarah Jenkins, Esq.",
+            "reviewer_display_name": "Sarah Jenkins, Esq. (Clearance Counsel)",
+            "rationale": rat,
+            "applicable_version_id": "v8",
+        })
+    return {
+        "status": "ready",
+        "mode": "drifted",
+        "total_claims": 12,
+        "approved_claims": 10,
+        "approved_count": 10,
+        "carried_count": 10,
+        "carried_forward_count": 10,
+        "stale_count": 2,
+        "reopened_count": 2,
+        "needs_review_count": 2,
+        "reattested_count": 0,
+        "re_attested_count": 0,
+        "exception_count": 0,
+        "exceptions_count": 0,
+        "unresolved_exception_count": 0,
+        "completed_claims": 10,
+        "audit_events_count": len(counsel_checkpoint_manager.get_audit_trail()),
+        "counsel_audit_trail_count": len(counsel_checkpoint_manager.get_audit_trail()),
+        "ledger_integrity": True,
+        "mutations_count": len(_counsel_reattestations) + len(counsel_checkpoint_manager.get_audit_trail()),
+        "active_reviewer": "Sarah Jenkins, Esq.",
+        "reviewer_identity": {
+            "reviewer_id": "counsel_sjenkins_001",
+            "name": "Sarah Jenkins, Esq.",
+            "title": "Lead Production Clearance Counsel",
+            "organization": "Lienmark Legal Partners LLP",
+            "is_fictional_demo": True,
+        },
+        "decisions": decisions_list,
+        "policy_version": InvalidationEngine.POLICY_VERSION,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "message": "Seeded drifted state: 10 carried forward, 2 stale/needs review (Item 11 poster, Item 12 music cue).",
+    }
+
+
+def _build_resolved_state() -> Dict[str, Any]:
+    v7_uses, v8_uses, v7_decisions, v8_evidence = get_golden_fixtures()
+    decisions_list = []
+    for d in v7_decisions:
+        key = d.stable_lineage_key
+        if key == "poster_noir_detective_magazine":
+            st = "APPROVED"
+            state = "RE_ATTESTED"
+            rat = (
+                "Artwork verified in public domain via LOC registration records retrieved by Parallel Search; non-infringing."
+            )
+        elif key == "music_cue_midnight_serenade":
+            st = "REJECTED"
+            state = "EXCEPTION"
+            rat = (
+                "Vanguard Media active ownership conflict identified via Parallel Search; designated as underwriter exception."
+            )
+        else:
+            st = "APPROVED"
+            state = "CARRIED_FORWARD"
+            rat = d.rationale
+        decisions_list.append({
+            "decision_id": f"dec_v8_{key}",
+            "stable_lineage_key": key,
+            "use_id": f"use_v8_{key}",
+            "status": st,
+            "state": state,
+            "reviewer": "Sarah Jenkins, Esq.",
+            "reviewer_display_name": "Sarah Jenkins, Esq. (Clearance Counsel)",
+            "rationale": rat,
+            "applicable_version_id": "v8",
+        })
+    return {
+        "status": "ready",
+        "mode": "resolved",
+        "total_claims": 12,
+        "approved_claims": 11,
+        "approved_count": 11,
+        "carried_count": 10,
+        "carried_forward_count": 10,
+        "re_attested_count": 1,
+        "reattested_count": 1,
+        "stale_count": 0,
+        "reopened_count": 0,
+        "needs_review_count": 0,
+        "exception_count": 1,
+        "exceptions_count": 1,
+        "unresolved_exception_count": 1,
+        "completed_claims": 12,
+        "audit_events_count": len(counsel_checkpoint_manager.get_audit_trail()),
+        "counsel_audit_trail_count": len(counsel_checkpoint_manager.get_audit_trail()),
+        "ledger_integrity": True,
+        "mutations_count": len(_counsel_reattestations) + len(counsel_checkpoint_manager.get_audit_trail()),
+        "active_reviewer": "Sarah Jenkins, Esq.",
+        "reviewer_identity": {
+            "reviewer_id": "counsel_sjenkins_001",
+            "name": "Sarah Jenkins, Esq.",
+            "title": "Lead Production Clearance Counsel",
+            "organization": "Lienmark Legal Partners LLP",
+            "is_fictional_demo": True,
+        },
+        "decisions": decisions_list,
+        "policy_version": InvalidationEngine.POLICY_VERSION,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "message": "Seeded resolved state: 10 carried forward, 1 re-attested, 1 exception.",
+    }
+
+
+@app.get("/api/demo/state")
+def get_demo_state():
+    """
+    Returns current demo state, mode, claim counts, decision statuses, and audit trail metrics.
+    """
+    global _demo_mode
+    if _demo_mode == "baseline":
+        return _build_baseline_state()
+    elif _demo_mode == "drifted":
+        # If counsel actions have been manually applied to both items, transition to resolved
+        if len(_counsel_reattestations) >= 2 or len(counsel_checkpoint_manager.get_audit_trail()) >= 2:
+            return _build_resolved_state()
+        return _build_drifted_state()
+    elif _demo_mode == "resolved":
+        return _build_resolved_state()
+    return _build_baseline_state()
+
+
+@app.post("/api/demo/reset")
+def reset_demo_state(http_req: Request = None):
+    """
+    Clears all prior review mutations and restores 12 V7 baseline approvals.
+    Idempotent and guarantees zero state leakage across test or rehearsal runs.
+    """
+    if http_req is not None:
+        verify_counsel_token(http_req)
+    global _latest_run_result, _counsel_reattestations, _demo_mode
+    _counsel_reattestations.clear()
+    counsel_checkpoint_manager.reset()
+    idempotency_key_manager.clear()
+    _latest_run_result = None
+    _demo_mode = "baseline"
+    resp = _build_baseline_state()
+    resp["status"] = "RESET_SUCCESS"
+    resp["message"] = "Demo state reset to clean V7 baseline"
+    return resp
+
+
+@app.post("/api/demo/seed")
+def seed_demo_state(
+    mode: str = Query("drifted"),
+    payload: Optional[Dict[str, Any]] = Body(None),
+    http_req: Request = None,
+):
+    """
+    Seeds demo state into 'drifted' (10 carried / 2 stale) or 'resolved' (10 carried / 1 re-attested / 1 exception)
+    or 'baseline' (12 approvals).
+    """
+    if http_req is not None:
+        verify_counsel_token(http_req)
+    global _latest_run_result, _counsel_reattestations, _demo_mode
+
+    effective_mode = mode
+    if payload and isinstance(payload, dict) and "mode" in payload:
+        effective_mode = payload["mode"]
+    effective_mode = (effective_mode or "drifted").lower().strip()
+
+    if effective_mode == "baseline":
+        resp = reset_demo_state(http_req=None)
+        resp["status"] = "SEED_SUCCESS"
+        return resp
+
+    elif effective_mode == "drifted":
+        _counsel_reattestations.clear()
+        counsel_checkpoint_manager.reset()
+        idempotency_key_manager.clear()
+        _latest_run_result = None
+        counsel_checkpoint_manager.get_review_queue(target_version_id="v8")
+        _demo_mode = "drifted"
+        resp = _build_drifted_state()
+        resp["status"] = "SEED_SUCCESS"
+        resp["message"] = "Seeded drifted state: 10 carried forward, 2 stale/needs review."
+        return resp
+
+    elif effective_mode == "resolved":
+        _counsel_reattestations.clear()
+        counsel_checkpoint_manager.reset()
+        idempotency_key_manager.clear()
+        _latest_run_result = None
+        counsel_checkpoint_manager.get_review_queue(target_version_id="v8")
+
+        poster_key = "poster_noir_detective_magazine"
+        music_key = "music_cue_midnight_serenade"
+
+        # Apply counsel action for Item 11: RE_ATTEST
+        dec_11, ev_11 = counsel_checkpoint_manager.apply_review_action(
+            action=ReviewAction.RE_ATTEST,
+            lineage_key=poster_key,
+            rationale="Artwork verified in public domain via LOC registration records retrieved by Parallel Search; non-infringing.",
+            reviewer=counsel_checkpoint_manager.get_default_reviewer(),
+            target_version_id="v8",
+            decision_id=f"dec_v7_{poster_key}",
+        )
+        _counsel_reattestations[poster_key] = ReattestationRequest(
+            decision_id=dec_11.decision_id,
+            stable_lineage_key=poster_key,
+            version_id="v8",
+            new_status=DecisionStatus.APPROVED,
+            counsel_rationale="Artwork verified in public domain via LOC registration records retrieved by Parallel Search; non-infringing.",
+            reviewer_name="Sarah Jenkins, Esq. (Lead Clearance Counsel)",
+        )
+
+        # Apply counsel action for Item 12: EXCEPTION
+        dec_12, ev_12 = counsel_checkpoint_manager.apply_review_action(
+            action=ReviewAction.EXCEPTION,
+            lineage_key=music_key,
+            rationale="Vanguard Media active ownership conflict identified via Parallel Search; designated as underwriter exception.",
+            reviewer=counsel_checkpoint_manager.get_default_reviewer(),
+            target_version_id="v8",
+            decision_id=f"dec_v7_{music_key}",
+        )
+        _counsel_reattestations[music_key] = ReattestationRequest(
+            decision_id=dec_12.decision_id,
+            stable_lineage_key=music_key,
+            version_id="v8",
+            new_status=DecisionStatus.REJECTED,
+            counsel_rationale="Vanguard Media active ownership conflict identified via Parallel Search; designated as underwriter exception.",
+            reviewer_name="Sarah Jenkins, Esq. (Lead Clearance Counsel)",
+        )
+
+        _demo_mode = "resolved"
+        resp = _build_resolved_state()
+        resp["status"] = "SEED_SUCCESS"
+        resp["message"] = "Seeded resolved state: 10 carried forward, 1 re-attested, 1 exception."
+        return resp
+
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid demo seed mode '{effective_mode}'. Expected 'baseline', 'drifted', or 'resolved'.",
+        )
 
 
 def get_comprehension_aids() -> Dict[str, Any]:

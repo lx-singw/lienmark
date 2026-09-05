@@ -623,6 +623,8 @@ class SecurityAndReliabilityMiddleware(BaseHTTPMiddleware):
         "/api/diff/evaluate",
         "/api/attorney/override",
         "/api/attorney-override",
+        "/api/demo/reset",
+        "/api/demo/seed",
     }
 
     async def dispatch(self, request: Request, call_next):
