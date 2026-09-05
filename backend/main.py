@@ -87,7 +87,8 @@ def get_fixtures():
 
 
 @app.post("/api/drift/compare")
-async def run_drift_analysis():
+@app.post("/api/diff/evaluate")
+async def run_drift_analysis(payload: Optional[Dict[str, Any]] = Body(None)):
     global _latest_run_result, _counsel_reattestations
     workflow = LienmarkWorkflow()
     result = await workflow.execute_drift_detection()
@@ -97,6 +98,8 @@ async def run_drift_analysis():
 
 
 @app.post("/api/review/attest")
+@app.post("/api/attorney/override")
+@app.post("/api/attorney-override")
 def record_counsel_reattestation(request: ReattestationRequest):
     global _counsel_reattestations
     _counsel_reattestations[request.stable_lineage_key] = request
@@ -109,6 +112,7 @@ def record_counsel_reattestation(request: ReattestationRequest):
 
 
 @app.get("/api/reports/exceptions")
+@app.get("/api/reports/form-eo-2026")
 def get_exceptions_schedule():
     global _latest_run_result, _counsel_reattestations
     v7_uses, v8_uses, v7_decisions, v8_evidence = get_golden_fixtures()
@@ -130,6 +134,35 @@ def get_exceptions_schedule():
         reattestations=_counsel_reattestations,
     )
     return schedule.model_dump()
+
+
+@app.get("/report/{production_id}", response_class=HTMLResponse)
+def serve_form_eo_2026_report(production_id: str):
+    """
+    SSR Route for Form E&O-2026 Underwriter Exceptions Schedule.
+    Renders high-fidelity, printable HTML directly on the server tier.
+    """
+    global _counsel_reattestations
+    v7_uses, v8_uses, v7_decisions, v8_evidence = get_golden_fixtures()
+
+    validity_results = InvalidationEngine.evaluate_invalidation(
+        base_uses=v7_uses,
+        target_uses=v8_uses,
+        prior_decisions=v7_decisions,
+        evidence_snapshots=v8_evidence,
+        target_version_id="v8",
+    )
+
+    schedule = InvalidationEngine.generate_exceptions_schedule(
+        project_id="proj_blockbuster_cinema",
+        base_version_id="v7",
+        target_version_id="v8",
+        target_uses=v8_uses,
+        validity_results=validity_results,
+        reattestations=_counsel_reattestations,
+    )
+    html_content = InvalidationEngine.render_form_eo_2026_html(schedule)
+    return HTMLResponse(content=html_content)
 
 
 @app.get("/", response_class=HTMLResponse)

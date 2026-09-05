@@ -187,6 +187,15 @@ export interface ExceptionsScheduleItem {
 }
 
 /**
+export interface CarrierHeader {
+  carrier_name: string;
+  policy_number: string;
+  broker_name: string;
+  warranty_clause: string;
+  underwriter_status: string;
+}
+
+/**
  * Version-bound Form E&O Exceptions Schedule generated for underwriter review.
  */
 export interface ExceptionsSchedule {
@@ -197,12 +206,17 @@ export interface ExceptionsSchedule {
   base_version_id: string;
   generated_at: string;
   policy_version: string;
+  policy_number?: string;
+  carrier_header?: CarrierHeader;
+  production_metadata?: Record<string, unknown>;
   total_claims: number;
   carried_forward_count: number;
   reopened_count: number;
   re_attested_count: number;
   unresolved_exception_count: number;
   items: ExceptionsScheduleItem[];
+  unresolved_exceptions_schedule?: ExceptionsScheduleItem[];
+  unresolved_exceptions?: ExceptionsScheduleItem[];
 }
 
 // ============================================================================

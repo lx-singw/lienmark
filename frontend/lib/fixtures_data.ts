@@ -585,6 +585,8 @@ export function getGoldenExceptionsSchedule(
     };
   });
 
+  const unresolvedList = items.filter((it) => it.v8_evaluation_state === DecisionState.EXCEPTION);
+
   return {
     schedule_id: 'sched_proj_blockbuster_cinema_v8_fallback',
     project_id: 'proj_blockbuster_cinema',
@@ -593,11 +595,28 @@ export function getGoldenExceptionsSchedule(
     base_version_id: 'v7',
     generated_at: new Date().toISOString(),
     policy_version: 'E&O-2026.1-DEVPOST',
+    policy_number: 'E&O-2026.1-DEVPOST',
+    carrier_header: {
+      carrier_name: 'Standard Entertainment & Media Underwriters Syndicate',
+      policy_number: 'E&O-2026.1-DEVPOST',
+      broker_name: 'Gallagher / Front Row Insurance Brokers',
+      warranty_clause: 'Warranted clearance schedule of exceptions; uncleared and unlisted rights are excluded from coverage.',
+      underwriter_status: 'PENDING_REVIEW',
+    },
+    production_metadata: {
+      production_title: 'Shadows Over Broadway',
+      project_id: 'proj_blockbuster_cinema',
+      base_version_id: 'v7',
+      target_version_id: 'v8',
+      target_cut_hash: 'f9e8d7c6b5a43210fedcba9876543210',
+    },
     total_claims: 12,
     carried_forward_count: carried,
     reopened_count: reopened,
     re_attested_count: reattested,
     unresolved_exception_count: exceptions,
     items,
+    unresolved_exceptions_schedule: unresolvedList,
+    unresolved_exceptions: unresolvedList,
   };
 }

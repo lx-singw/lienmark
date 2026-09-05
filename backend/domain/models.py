@@ -139,12 +139,28 @@ class DecisionValidity(BaseModel):
 
 
 class ReattestationRequest(BaseModel):
-    decision_id: str
+    decision_id: Optional[str] = None
     stable_lineage_key: str
-    version_id: str
+    version_id: str = "v8"
     new_status: DecisionStatus  # APPROVED or REJECTED
     counsel_rationale: str
     reviewer_name: str = "Clearance Attorney"
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "stable_lineage_key" not in data and "claim_id" in data:
+                data["stable_lineage_key"] = data["claim_id"]
+            if "counsel_rationale" not in data and "rationale" in data:
+                data["counsel_rationale"] = data["rationale"]
+            if "decision_id" not in data or not data["decision_id"]:
+                data["decision_id"] = f"dec_{data.get('stable_lineage_key', 'unknown')}"
+            if "version_id" not in data or not data["version_id"]:
+                data["version_id"] = "v8"
+            if "new_status" in data and isinstance(data["new_status"], str):
+                data["new_status"] = data["new_status"].lower()
+        return data
 
 
 class ExceptionsScheduleItem(BaseModel):
@@ -159,6 +175,29 @@ class ExceptionsScheduleItem(BaseModel):
     evidence_citations: List[Dict[str, str]] = Field(default_factory=list)
 
 
+class CarrierHeader(BaseModel):
+    carrier_name: str = Field(
+        default="Standard Entertainment & Media Underwriters Syndicate",
+        description="Underwriting insurance carrier or syndicate entity",
+    )
+    policy_number: str = Field(
+        default="E&O-2026.1-DEVPOST",
+        description="Policy binder reference number",
+    )
+    broker_name: str = Field(
+        default="Gallagher / Front Row Insurance Brokers",
+        description="Packaging entertainment broker",
+    )
+    warranty_clause: str = Field(
+        default="Warranted clearance schedule of exceptions; uncleared and unlisted rights are excluded from coverage.",
+        description="Statutory policy warranty clause",
+    )
+    underwriter_status: str = Field(
+        default="PENDING_REVIEW",
+        description="Current status of policy underwriting review",
+    )
+
+
 class ExceptionsSchedule(BaseModel):
     schedule_id: str
     project_id: str
@@ -167,9 +206,42 @@ class ExceptionsSchedule(BaseModel):
     base_version_id: str
     generated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     policy_version: str = "E&O-2026.1-DEVPOST"
+    policy_number: str = "E&O-2026.1-DEVPOST"
+    carrier_header: CarrierHeader = Field(default_factory=CarrierHeader)
+    production_metadata: Dict[str, Any] = Field(default_factory=dict)
     total_claims: int
     carried_forward_count: int
     reopened_count: int
     re_attested_count: int
     unresolved_exception_count: int
     items: List[ExceptionsScheduleItem] = Field(default_factory=list)
+    unresolved_exceptions_schedule: List[ExceptionsScheduleItem] = Field(default_factory=list)
+    unresolved_exceptions: List[ExceptionsScheduleItem] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def sync_schedule_fields(self) -> "ExceptionsSchedule":
+        if not self.policy_number and self.policy_version:
+            self.policy_number = self.policy_version
+        elif not self.policy_version and self.policy_number:
+            self.policy_version = self.policy_number
+        if not self.production_metadata:
+            self.production_metadata = {
+                "project_id": self.project_id,
+                "project_name": self.project_name,
+                "base_version_id": self.base_version_id,
+                "target_version_id": self.target_version_id,
+                "target_cut_hash": "f9e8d7c6b5a43210fedcba9876543210",
+                "generated_at": self.generated_at,
+            }
+        exceptions_list = [
+            item for item in self.items if item.v8_evaluation_state in ("exception", DecisionState.EXCEPTION.value)
+        ]
+        if not self.unresolved_exceptions_schedule and exceptions_list:
+            self.unresolved_exceptions_schedule = exceptions_list
+        if not self.unresolved_exceptions and exceptions_list:
+            self.unresolved_exceptions = exceptions_list
+        elif self.unresolved_exceptions_schedule and not self.unresolved_exceptions:
+            self.unresolved_exceptions = self.unresolved_exceptions_schedule
+        elif self.unresolved_exceptions and not self.unresolved_exceptions_schedule:
+            self.unresolved_exceptions_schedule = self.unresolved_exceptions
+        return self
