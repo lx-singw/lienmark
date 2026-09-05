@@ -2,21 +2,56 @@
 
 /**
  * Client Print and Navigation Button for Form E&O-2026
- * Handles window.print() trigger in a client component boundary.
+ * Handles window.print() trigger and direct JSON Schedule export in a client component boundary.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { Printer, ArrowLeft, Download, ShieldCheck } from 'lucide-react';
+import { Printer, ArrowLeft, Download, ShieldCheck, Check } from 'lucide-react';
 
 interface PrintButtonProps {
   scheduleId: string;
+  scheduleData?: object;
 }
 
-export function PrintButton({ scheduleId }: PrintButtonProps) {
+export function PrintButton({ scheduleId, scheduleData }: PrintButtonProps) {
+  const [downloaded, setDownloaded] = useState(false);
+
   const handlePrint = () => {
     if (typeof window !== 'undefined') {
       window.print();
+    }
+  };
+
+  const handleDownloadJson = () => {
+    try {
+      let jsonContent = '';
+      if (scheduleData) {
+        jsonContent = JSON.stringify(scheduleData, null, 2);
+      } else {
+        jsonContent = JSON.stringify(
+          {
+            schedule_id: scheduleId,
+            status: 'reconciled',
+            timestamp: new Date().toISOString(),
+          },
+          null,
+          2
+        );
+      }
+      const blob = new Blob([jsonContent], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `form_eo_2026_exceptions_schedule_${scheduleId}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setDownloaded(true);
+      setTimeout(() => setDownloaded(false), 2500);
+    } catch (err) {
+      console.error('Failed to download JSON schedule:', err);
     }
   };
 
@@ -42,14 +77,23 @@ export function PrintButton({ scheduleId }: PrintButtonProps) {
       </div>
 
       <div className="flex items-center gap-3">
-        <a
-          href="/api/reports/export?format=json"
-          download={`form_eo_2026_${scheduleId}.json`}
-          className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 hover:bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-300 hover:text-white transition-colors"
+        <button
+          onClick={handleDownloadJson}
+          className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 hover:bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-200 hover:text-white transition-all shadow-md active:scale-95"
+          title="Download version-bound Form E&amp;O-2026 schedule as JSON"
         >
-          <Download className="h-4 w-4 text-emerald-400" />
-          Download JSON Schedule
-        </a>
+          {downloaded ? (
+            <>
+              <Check className="h-4 w-4 text-emerald-400" />
+              <span className="text-emerald-400 font-bold">JSON Downloaded</span>
+            </>
+          ) : (
+            <>
+              <Download className="h-4 w-4 text-sky-400" />
+              <span>Download JSON Schedule</span>
+            </>
+          )}
+        </button>
         <button
           onClick={handlePrint}
           className="flex items-center gap-2 rounded-lg bg-sky-500 hover:bg-sky-400 px-4 py-2 text-xs font-bold text-slate-950 transition-all shadow-md shadow-sky-500/20 active:scale-95"

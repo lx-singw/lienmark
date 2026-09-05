@@ -561,7 +561,7 @@ class InvalidationEngine:
 
         for ev in events:
             key = getattr(ev, "stable_lineage_key", None)
-            if not key:
+            if not key or key in reattestations:
                 continue
             action_val = getattr(ev, "action", None)
             new_st = getattr(ev, "new_state", None)
@@ -577,7 +577,6 @@ class InvalidationEngine:
             reviewer_name = getattr(rev, "name", str(rev)) if rev else "Sarah Jenkins, Esq."
             rationale = getattr(ev, "rationale", "") or getattr(ev, "counsel_rationale", "")
 
-            # Prioritize latest checkpoint events
             reattestations[key] = ReattestationRequest(
                 decision_id=getattr(ev, "new_decision_id", "") or getattr(ev, "prior_decision_id", f"dec_{target_version_id}_{key}"),
                 stable_lineage_key=key,

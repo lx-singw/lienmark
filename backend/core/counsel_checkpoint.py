@@ -93,6 +93,15 @@ class CounselCheckpointManager:
         self._decision_states: Dict[str, DecisionState] = {}
         self._decision_statuses: Dict[str, DecisionStatus] = {}
 
+    def reset(self) -> None:
+        """Resets all in-memory events, queues, and decisions for clean test isolation."""
+        with self._lock:
+            self._supersession_events.clear()
+            self._prior_decisions.clear()
+            self._current_queue = None
+            self._decision_states.clear()
+            self._decision_statuses.clear()
+
     def get_default_reviewer(self) -> ReviewerIdentity:
         """Returns the canonical fictional demo reviewer identity."""
         return ReviewerIdentity(

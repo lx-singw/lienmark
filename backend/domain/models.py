@@ -556,6 +556,14 @@ class ReviewQueue(BaseModel):
                 return it
         raise KeyError(f"Item '{idx}' not found in review queue")
 
+    def __contains__(self, key: Any) -> bool:
+        if isinstance(key, str):
+            for it in self.items:
+                if it.stable_lineage_key == key or it.prior_decision_id == key:
+                    return True
+            return False
+        return key in self.items
+
 
 class SupersessionEvent(BaseModel):
     event_id: str = Field(default_factory=lambda: f"evt_{uuid.uuid4().hex[:12]}")

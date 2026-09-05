@@ -305,10 +305,12 @@ def _get_reconciled_schedule(
 
     effective_reattestations = dict(_counsel_reattestations)
 
-    # Reconcile with latest decisions from counsel_checkpoint_manager
+    # Reconcile with latest decisions from counsel_checkpoint_manager if not already in effective_reattestations
     events = counsel_checkpoint_manager.get_audit_trail()
     for ev in events:
         key = ev.stable_lineage_key
+        if key in effective_reattestations:
+            continue
         is_approved = (
             ev.new_state == DecisionState.RE_ATTESTED
             or ev.action == ReviewAction.RE_ATTEST

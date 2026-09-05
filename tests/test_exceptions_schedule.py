@@ -60,7 +60,7 @@ from backend.fixtures.golden_dataset import (
     get_v8_version,
     get_golden_fixtures,
 )
-from backend.main import app, _counsel_reattestations
+from backend.main import app, _counsel_reattestations, counsel_checkpoint_manager
 
 client = TestClient(app)
 
@@ -71,10 +71,12 @@ client = TestClient(app)
 
 @pytest.fixture(autouse=True)
 def reset_global_state():
-    """Ensure clean global counsel re-attestation state before each test."""
+    """Ensure clean global counsel re-attestation and checkpoint state before each test."""
     _counsel_reattestations.clear()
+    counsel_checkpoint_manager.reset()
     yield
     _counsel_reattestations.clear()
+    counsel_checkpoint_manager.reset()
 
 
 def generate_standard_v8_reconciled_schedule():
@@ -488,6 +490,137 @@ class TestExactStateParity:
         # Assert target content hash
         assert "f9e8d7c6b5a43210fedcba9876543210" in html
 
+    def test_export_matches_stored_state_bit_for_bit(self):
+        """
+        Sprint 3B Task 3 Requirement 1:
+        - Asserts that JSON export from GET /api/reports/exceptions and InvalidationEngine.generate_exceptions_schedule
+          matches backend domain models bit-for-bit.
+        - Verifies schedule ID, project ID ('proj_blockbuster_cinema'), base/target version IDs ('v7' -> 'v8'),
+          content hashes, policy binder ('E&O-2026.1-DEVPOST'), and generation time.
+        """
+        poster_key = "poster_noir_detective_magazine"
+        music_key = "music_cue_midnight_serenade"
+
+        reattestations = {
+            poster_key: ReattestationRequest(
+                decision_id="dec_v7_poster_noir",
+                stable_lineage_key=poster_key,
+                version_id="v8",
+                new_status=DecisionStatus.APPROVED,
+                counsel_rationale="Artwork verified in public domain via LOC registration records retrieved by Parallel Search; non-infringing.",
+                reviewer_name="Sarah Jenkins, Esq. (Clearance Counsel)",
+            ),
+            music_key: ReattestationRequest(
+                decision_id="dec_v7_music_midnight",
+                stable_lineage_key=music_key,
+                version_id="v8",
+                new_status=DecisionStatus.REJECTED,
+                counsel_rationale="Vanguard Media active ownership conflict identified via Parallel Search; replace cue with alternate track.",
+                reviewer_name="Sarah Jenkins, Esq. (Clearance Counsel)",
+            ),
+        }
+        _counsel_reattestations.clear()
+        _counsel_reattestations.update(reattestations)
+
+        # 1. Fetch JSON export from API endpoint
+        response = client.get("/api/reports/exceptions")
+        assert response.status_code == 200
+        api_data = response.json()
+
+        # 2. Deserialization into domain model matches exactly
+        parsed_schedule = ExceptionsSchedule.model_validate(api_data)
+        assert isinstance(parsed_schedule, ExceptionsSchedule)
+
+        # 3. Verify schedule ID, project ID, version IDs, hashes, policy binder, generation time
+        assert api_data["schedule_id"].startswith("sched_proj_blockbuster_cinema_v8_")
+        assert parsed_schedule.schedule_id.startswith("sched_proj_blockbuster_cinema_v8_")
+        assert api_data["project_id"] == "proj_blockbuster_cinema"
+        assert parsed_schedule.project_id == "proj_blockbuster_cinema"
+        assert api_data["base_version_id"] == "v7"
+        assert parsed_schedule.base_version_id == "v7"
+        assert api_data["target_version_id"] == "v8"
+        assert parsed_schedule.target_version_id == "v8"
+        assert api_data["policy_version"] == "E&O-2026.1-DEVPOST"
+        assert parsed_schedule.policy_version == "E&O-2026.1-DEVPOST"
+        assert api_data["policy_number"] == "E&O-2026.1-DEVPOST"
+        assert api_data["carrier_header"]["policy_number"] == "E&O-2026.1-DEVPOST"
+        assert api_data["production_metadata"]["target_cut_hash"] == "f9e8d7c6b5a43210fedcba9876543210"
+        assert api_data["production_metadata"]["base_cut_hash"] == "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+        assert api_data["generated_at"] is not None
+        assert parsed_schedule.generated_at is not None
+
+        # 4. InvalidationEngine direct generation matches all fields
+        v7_uses, v8_uses, v7_decisions, v8_evidence = get_golden_fixtures()
+        validities = InvalidationEngine.evaluate_invalidation(
+            base_uses=v7_uses,
+            target_uses=v8_uses,
+            prior_decisions=v7_decisions,
+            evidence_snapshots=v8_evidence,
+            target_version_id="v8",
+        )
+        direct_schedule = InvalidationEngine.generate_exceptions_schedule(
+            project_id="proj_blockbuster_cinema",
+            base_version_id="v7",
+            target_version_id="v8",
+            target_uses=v8_uses,
+            validity_results=validities,
+            reattestations=reattestations,
+            base_uses=v7_uses,
+        )
+        assert parsed_schedule.total_claims == direct_schedule.total_claims == 12
+        assert parsed_schedule.carried_forward_count == direct_schedule.carried_forward_count == 10
+        assert parsed_schedule.re_attested_count == direct_schedule.re_attested_count == 1
+        assert parsed_schedule.unresolved_exception_count == direct_schedule.unresolved_exception_count == 1
+        assert parsed_schedule.production_metadata == direct_schedule.production_metadata
+
+        # Assert all 12 items match bit-for-bit in attributes
+        for api_item, direct_item in zip(parsed_schedule.items, direct_schedule.items):
+            assert api_item.stable_lineage_key == direct_item.stable_lineage_key
+            assert api_item.asset_type == direct_item.asset_type
+            assert api_item.description == direct_item.description
+            assert api_item.scene_or_timecode == direct_item.scene_or_timecode
+            assert api_item.v8_evaluation_state == direct_item.v8_evaluation_state
+            assert api_item.invalidation_reason == direct_item.invalidation_reason
+            assert api_item.counsel_action == direct_item.counsel_action
+            assert api_item.evidence_citations == direct_item.evidence_citations
+
+    def test_all_four_api_and_ssr_endpoints_return_200(self):
+        """
+        Sprint 3B Task 3 Requirement 6:
+        - GET /api/reports/exceptions returns 200 and valid JSON.
+        - GET /api/reports/form-eo-2026 returns 200 and valid JSON.
+        - GET /report/proj_blockbuster_cinema returns 200 and valid HTML.
+        - GET /api/reports/form-eo-2026/html returns 200 and valid HTML.
+        """
+        # 1. GET /api/reports/exceptions
+        r1 = client.get("/api/reports/exceptions")
+        assert r1.status_code == 200, f"GET /api/reports/exceptions returned {r1.status_code}"
+        assert "application/json" in r1.headers["content-type"]
+        d1 = r1.json()
+        assert d1["total_claims"] == 12
+        assert isinstance(d1["items"], list)
+
+        # 2. GET /api/reports/form-eo-2026
+        r2 = client.get("/api/reports/form-eo-2026")
+        assert r2.status_code == 200, f"GET /api/reports/form-eo-2026 returned {r2.status_code}"
+        assert "application/json" in r2.headers["content-type"]
+        d2 = r2.json()
+        assert d2["total_claims"] == 12
+
+        # 3. GET /report/proj_blockbuster_cinema
+        r3 = client.get("/report/proj_blockbuster_cinema")
+        assert r3.status_code == 200, f"GET /report/proj_blockbuster_cinema returned {r3.status_code}"
+        assert "text/html" in r3.headers["content-type"]
+        assert "<!DOCTYPE html>" in r3.text or "<html" in r3.text
+        assert "FORM E&O-2026" in r3.text or "FORM E&amp;O-2026" in r3.text
+
+        # 4. GET /api/reports/form-eo-2026/html
+        r4 = client.get("/api/reports/form-eo-2026/html")
+        assert r4.status_code == 200, f"GET /api/reports/form-eo-2026/html returned {r4.status_code}"
+        assert "text/html" in r4.headers["content-type"]
+        assert "<!DOCTYPE html>" in r4.text or "<html" in r4.text
+        assert "FORM E&O-2026" in r4.text or "FORM E&amp;O-2026" in r4.text
+
 
 # =============================================================================
 # 6. TEST STATUTORY UNDERWRITER WARRANTY & LEGAL DISCLAIMER ARCHITECTURE
@@ -505,12 +638,34 @@ class TestStatutoryUnderwriterDisclaimers:
         assert "Underwriting Status: PENDING_REVIEW" in html
 
     def test_prohibition_against_claiming_insurer_approval_or_legal_certainty(self):
-        """Form E&O-2026 must NEVER assert insurance approval, coverage binding, or absolute legal clearance."""
+        """
+        Sprint 3B Task 3 Requirement 5:
+        - Verifies that NO artifact claims insurer approval, coverage, policy binding, or legal certainty.
+        - Asserts disclaimers are present in both JSON metadata and rendered HTML.
+        - Verifies that prohibited phrases ('coverage guaranteed', 'policy bound automatically',
+          'certifies legal certainty', 'carrier bound') are strictly absent.
+        """
         schedule = generate_standard_v8_reconciled_schedule()
         html = InvalidationEngine.render_form_eo_2026_html(schedule).lower()
+        json_meta_str = str(schedule.production_metadata).lower()
+        json_dump_str = schedule.model_dump_json().lower()
 
-        # Prohibited claims
+        # 1. Assert disclaimers are present in both JSON metadata and rendered HTML
+        assert "disclaimer" in schedule.production_metadata, "Disclaimer missing from JSON production_metadata"
+        assert "disclaimer" in schedule.carrier_header.model_dump(), "Disclaimer missing from CarrierHeader"
+        assert "legal & underwriting disclaimer" in schedule.production_metadata["disclaimer"].lower()
+        assert "non-binding risk assessment" in schedule.carrier_header.disclaimer.lower()
+        assert (
+            "legal &amp; underwriting disclaimer" in html
+            or "legal & underwriting disclaimer" in html
+        ), "Disclaimer missing from rendered HTML"
+
+        # 2. Strict absence of prohibited phrases
         prohibited_phrases = [
+            "coverage guaranteed",
+            "policy bound automatically",
+            "certifies legal certainty",
+            "carrier bound",
             "policy approved by insurer",
             "coverage is guaranteed",
             "insurer has bound coverage",
@@ -519,7 +674,9 @@ class TestStatutoryUnderwriterDisclaimers:
             "claims are legally cleared by ai",
         ]
         for phrase in prohibited_phrases:
-            assert phrase not in html, f"Prohibited phrase found in export: '{phrase}'"
+            assert phrase not in html, f"Prohibited phrase found in rendered HTML: '{phrase}'"
+            assert phrase not in json_dump_str, f"Prohibited phrase found in JSON export: '{phrase}'"
+            assert phrase not in json_meta_str, f"Prohibited phrase found in JSON metadata: '{phrase}'"
 
     def test_warranty_clause_presence(self):
         """Schedule includes statutory warranty clause excluding undisclosed risks."""
