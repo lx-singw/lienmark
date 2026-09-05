@@ -8,7 +8,7 @@ Contains 12 canonical rights-bearing uses:
 Authored strictly under Google AntiGravity for Agentic Cinema compliance.
 """
 
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 from backend.domain.models import (
     CreativeUse,
     CounselDecision,
@@ -18,6 +18,7 @@ from backend.domain.models import (
     PublicEvidenceSnapshot,
 )
 from backend.core.invalidation_engine import InvalidationEngine
+from backend.core.semantic_delta import DeltaAnalysisResult
 
 
 def get_v7_version() -> ProductionVersion:
@@ -340,3 +341,159 @@ def get_golden_fixtures() -> Tuple[
     )
 
     return v7_uses, v8_uses, v7_decisions, v8_evidence
+
+
+class ExpectedDeltaDict(dict):
+    """
+    Dictionary mapping stable_lineage_key -> DeltaAnalysisResult for golden expected deltas.
+    Supports integer index access (e.g. deltas[10] for Item 11) as well as key-based access.
+    """
+    def __getitem__(self, key: Any) -> Any:
+        if isinstance(key, int):
+            return list(self.values())[key]
+        return super().__getitem__(key)
+
+
+def get_golden_expected_deltas() -> ExpectedDeltaDict:
+    """
+    Returns explicit golden expected semantic delta analysis results for all 12 items.
+    Asserts that:
+    - Item 11 (Scene 42 poster: poster_noir_detective_magazine) has material delta (is_material=True).
+    - Item 12 (Scene 18 jazz cue: music_cue_midnight_serenade) and Items 1-10 have is_material=False for creative context.
+    """
+    deltas = ExpectedDeltaDict({
+
+        # 10 Unchanged Creative Uses (is_material=False, low risk, action=carry)
+        "prop_vintage_telephone": DeltaAnalysisResult(
+            is_material=False,
+            prominence_shift="Identical incidental background set dressing, 4s.",
+            narrative_impact="No creative delta detected in detective office establishing shot.",
+            clearance_risk_level="low",
+            statutory_fair_use_impact="Prior de minimis attestation carries forward.",
+            recommended_action="carry",
+            model_version="gemini-2.5-flash",
+        ),
+        "poster_paris_expo_1937": DeltaAnalysisResult(
+            is_material=False,
+            prominence_shift="Identical background hallway blur, 3s.",
+            narrative_impact="Incidental tracking shot background remains unchanged.",
+            clearance_risk_level="low",
+            statutory_fair_use_impact="De minimis fair use defense under 17 U.S.C. § 107 intact.",
+            recommended_action="carry",
+            model_version="gemini-2.5-flash",
+        ),
+        "car_ford_sedan_1949": DeltaAnalysisResult(
+            is_material=False,
+            prominence_shift="Identical exterior street background, 6s.",
+            narrative_impact="Parked curbside under streetlamp; visual framing unchanged.",
+            clearance_risk_level="low",
+            statutory_fair_use_impact="Prior attestation remains valid.",
+            recommended_action="carry",
+            model_version="gemini-2.5-flash",
+        ),
+        "trademark_acme_coffee": DeltaAnalysisResult(
+            is_material=False,
+            prominence_shift="Identical diner booth set dressing, 5s.",
+            narrative_impact="Painted enamel sign remains out of focal focus.",
+            clearance_risk_level="low",
+            statutory_fair_use_impact="Prior attestation remains valid.",
+            recommended_action="carry",
+            model_version="gemini-2.5-flash",
+        ),
+        "artwork_abstract_expressionist": DeltaAnalysisResult(
+            is_material=False,
+            prominence_shift="Identical medium shot background, 8s.",
+            narrative_impact="Oil canvas hanging behind executive desk unchanged.",
+            clearance_risk_level="low",
+            statutory_fair_use_impact="Prior attestation remains valid.",
+            recommended_action="carry",
+            model_version="gemini-2.5-flash",
+        ),
+        "likeness_mayor_cameo": DeltaAnalysisResult(
+            is_material=False,
+            prominence_shift="Identical crowd scene background, 2s.",
+            narrative_impact="Courtroom gallery background murmur unchanged.",
+            clearance_risk_level="low",
+            statutory_fair_use_impact="Prior attestation remains valid.",
+            recommended_action="carry",
+            model_version="gemini-2.5-flash",
+        ),
+        "architecture_tribunal_facade": DeltaAnalysisResult(
+            is_material=False,
+            prominence_shift="Identical establishing wide exterior, 3s.",
+            narrative_impact="Historic courthouse stone steps establishing shot unchanged.",
+            clearance_risk_level="low",
+            statutory_fair_use_impact="Prior attestation remains valid.",
+            recommended_action="carry",
+            model_version="gemini-2.5-flash",
+        ),
+        "text_headline_gazette": DeltaAnalysisResult(
+            is_material=False,
+            prominence_shift="Identical inserts prop, 2s.",
+            narrative_impact="Glance at newsstand prop headline unchanged.",
+            clearance_risk_level="low",
+            statutory_fair_use_impact="Prior attestation remains valid.",
+            recommended_action="carry",
+            model_version="gemini-2.5-flash",
+        ),
+        "wardrobe_fedora_brand": DeltaAnalysisResult(
+            is_material=False,
+            prominence_shift="Identical character wardrobe, 10s.",
+            narrative_impact="Vintage fedora worn on subway platform unchanged.",
+            clearance_risk_level="low",
+            statutory_fair_use_impact="Prior attestation remains valid.",
+            recommended_action="carry",
+            model_version="gemini-2.5-flash",
+        ),
+        "music_incidental_radio_static": DeltaAnalysisResult(
+            is_material=False,
+            prominence_shift="Identical incidental background audio, 12s.",
+            narrative_impact="Foley radio hum in safehouse unchanged.",
+            clearance_risk_level="low",
+            statutory_fair_use_impact="Prior attestation remains valid.",
+            recommended_action="carry",
+            model_version="gemini-2.5-flash",
+        ),
+        # Item 11: Creative Drift (Scene 42 Poster) -> MATERIAL DELTA
+        "poster_noir_detective_magazine": DeltaAnalysisResult(
+            is_material=True,
+            prominence_shift="Escalated from 2s out-of-focus background blur to 14s close-up focal dialogue.",
+            narrative_impact="The character actively interacts with the artwork and quotes text aloud, eliminating incidental background defense.",
+            clearance_risk_level="high",
+            statutory_fair_use_impact="De minimis doctrine under 17 U.S.C. § 107 no longer applies; requires public domain verification or license.",
+            recommended_action="revalidate",
+            model_version="gemini-2.5-flash",
+        ),
+        # Item 12: External Evidence Drift (Scene 18 Jazz Cue) -> NON-MATERIAL CREATIVE CONTEXT
+        # (Audio and placement identical in script; drift comes strictly from external registry evidence)
+        "music_cue_midnight_serenade": DeltaAnalysisResult(
+            is_material=False,
+            prominence_shift="Identical background jazz trio performance, 20s.",
+            narrative_impact="Creative script context and placement identical across V7 and V8.",
+            clearance_risk_level="low",
+            statutory_fair_use_impact="Creative script context unchanged; external copyright assignment evaluated separately by InvalidationEngine.",
+            recommended_action="carry",
+            model_version="gemini-2.5-flash",
+        ),
+    })
+
+    # Assert Item 11 (Scene 42 poster) has material delta (is_material=True)
+    poster_delta = deltas.get("poster_noir_detective_magazine")
+    assert poster_delta is not None, "Missing Item 11 in expected deltas"
+    assert poster_delta.is_material is True, "Item 11 must have is_material=True"
+    assert poster_delta.clearance_risk_level == "high", "Item 11 must have clearance_risk_level='high'"
+
+    # Assert Item 12 and Items 1-10 have is_material=False for creative context
+    music_delta = deltas.get("music_cue_midnight_serenade")
+    assert music_delta is not None, "Missing Item 12 in expected deltas"
+    assert music_delta.is_material is False, "Item 12 must have is_material=False for creative context"
+    assert music_delta.clearance_risk_level == "low", "Item 12 must have clearance_risk_level='low'"
+
+    for key, delta in deltas.items():
+        if key != "poster_noir_detective_magazine":
+            assert delta.is_material is False, f"Expected non-material delta for {key}"
+            assert delta.clearance_risk_level == "low", f"Expected low risk for {key}"
+
+    assert len(deltas) == 12, "get_golden_expected_deltas must contain exactly 12 items"
+
+    return deltas

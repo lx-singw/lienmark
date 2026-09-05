@@ -72,6 +72,14 @@ class CreativeDelta(BaseModel):
     match_confidence: float = Field(default=1.0)
     changed_fields: List[str] = Field(default_factory=list)
     reason_codes: List[str] = Field(default_factory=list)
+    is_material: bool = Field(default=False, description="Flag indicating whether this delta constitutes material creative drift")
+
+    @model_validator(mode="after")
+    def sync_material_flag(self) -> "CreativeDelta":
+        if self.materiality in ("high", "medium") or self.change_kind == ChangeKind.MATERIALLY_MODIFIED:
+            self.is_material = True
+        return self
+
 
 
 class PublicEvidenceSnapshot(BaseModel):

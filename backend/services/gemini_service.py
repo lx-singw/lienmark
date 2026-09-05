@@ -16,31 +16,9 @@ from pydantic import BaseModel, Field, model_validator
 import httpx
 
 from backend.domain.models import PublicEvidenceSnapshot
+from backend.core.semantic_delta import repair_json_output, DeltaAnalysisResult
 
 logger = logging.getLogger("lienmark.gemini")
-
-
-class DeltaAnalysisResult(BaseModel):
-    is_material: bool
-    prominence_shift: str
-    narrative_impact: str
-    clearance_risk_level: str = Field(default="low", description="low, medium, high")
-    statutory_fair_use_impact: str
-    recommended_action: str
-    raw_payload_hash: Optional[str] = None
-    payload_hash: Optional[str] = None
-    latency_ms: Optional[float] = None
-    model_version: Optional[str] = None
-    token_estimate: Optional[int] = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-
-    @model_validator(mode="after")
-    def sync_hashes(self) -> "DeltaAnalysisResult":
-        if not self.raw_payload_hash and self.payload_hash:
-            self.raw_payload_hash = self.payload_hash
-        elif not self.payload_hash and self.raw_payload_hash:
-            self.payload_hash = self.raw_payload_hash
-        return self
 
 
 class ClearanceBriefing(BaseModel):
@@ -74,10 +52,14 @@ class GeminiService:
         api_key: Optional[str] = None,
         use_fallback: bool = False,
         mock_latency_ms: float = 120.0,
+        max_retries: int = 3,
+        retry_backoff_base: float = 0.15,
     ):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY", "")
         self.use_fallback = use_fallback
         self.mock_latency_ms = mock_latency_ms
+        self.max_retries = max_retries
+        self.retry_backoff_base = retry_backoff_base
         self.call_count: int = 0
         self.last_metrics: Dict[str, Any] = {}
 
@@ -94,18 +76,12 @@ class GeminiService:
         """Returns call metrics captured from the most recent Gemini operation."""
         return dict(self.last_metrics)
 
+    repair_json_output = staticmethod(repair_json_output)
+
     @staticmethod
-    def _parse_llm_json(raw_text: str) -> Dict[str, Any]:
-        """Defensively strips markdown and parses JSON string."""
-        text = raw_text.strip()
-        if text.startswith("```"):
-            lines = text.splitlines()
-            if lines and lines[0].startswith("```"):
-                lines = lines[1:]
-            if lines and lines[-1].strip() == "```":
-                lines = lines[:-1]
-            text = "\n".join(lines).strip()
-        return json.loads(text)
+    def _parse_llm_json(raw_text: str, target_model: Optional[Any] = None) -> Dict[str, Any]:
+        """Defensively repairs malformed LLM JSON output through multi-stage normalization."""
+        return repair_json_output(raw_text, target_model=target_model)
 
     async def analyze_scene_delta(
         self,
@@ -151,47 +127,62 @@ Return a valid JSON object matching this schema:
         token_estimate = max(1, len(prompt) // 4)
 
         if not effective_fallback and self.api_key and not self.api_key.startswith("mock_"):
-            try:
-                self.call_count += 1
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.MODEL_NAME}:generateContent?key={self.api_key}"
-                payload = {
-                    "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {
-                        "temperature": 0.1,
-                        "response_mime_type": "application/json",
-                    },
-                }
-                async with httpx.AsyncClient(timeout=12.0) as client:
-                    resp = await client.post(url, json=payload)
-                    elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        text = data["candidates"][0]["content"]["parts"][0]["text"]
-                        usage = data.get("usageMetadata", {})
-                        actual_tokens = usage.get("totalTokenCount", token_estimate)
+            max_retries = self.max_retries
+            for attempt in range(1, max_retries + 1):
+                try:
+                    self.call_count += 1
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.MODEL_NAME}:generateContent?key={self.api_key}"
+                    payload = {
+                        "contents": [{"parts": [{"text": prompt}]}],
+                        "generationConfig": {
+                            "temperature": 0.1,
+                            "response_mime_type": "application/json",
+                        },
+                    }
+                    async with httpx.AsyncClient(timeout=12.0) as client:
+                        resp = await client.post(url, json=payload)
+                        elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            text = data["candidates"][0]["content"]["parts"][0]["text"]
+                            usage = data.get("usageMetadata", {})
+                            actual_tokens = usage.get("totalTokenCount", token_estimate)
 
-                        parsed = self._parse_llm_json(text)
-                        result = DeltaAnalysisResult.model_validate(parsed)
-                        result.raw_payload_hash = raw_payload_hash
-                        result.latency_ms = elapsed_ms
-                        result.model_version = self.MODEL_NAME
-                        result.token_estimate = actual_tokens
-                        result.metadata = {
-                            "call_count": self.call_count,
-                            "http_status_code": 200,
-                            "raw_payload_hash": raw_payload_hash,
-                        }
+                            parsed = self._parse_llm_json(text, target_model=DeltaAnalysisResult)
+                            result = DeltaAnalysisResult.model_validate(parsed)
+                            result.raw_payload_hash = raw_payload_hash
+                            result.latency_ms = elapsed_ms
+                            result.model_version = self.MODEL_NAME
+                            result.token_estimate = actual_tokens
+                            result.metadata = {
+                                "call_count": self.call_count,
+                                "http_status_code": 200,
+                                "raw_payload_hash": raw_payload_hash,
+                                "attempt": attempt,
+                            }
 
-                        self.last_metrics = {
-                            "request_latency_ms": elapsed_ms,
-                            "token_estimate": actual_tokens,
-                            "model_version": self.MODEL_NAME,
-                            "raw_payload_hash": raw_payload_hash,
-                            "call_count": self.call_count,
-                        }
-                        return result
-            except Exception as e:
-                logger.warning(f"Gemini API call failed: {e}. Using deterministic analysis.")
+                            self.last_metrics = {
+                                "request_latency_ms": elapsed_ms,
+                                "token_estimate": actual_tokens,
+                                "model_version": self.MODEL_NAME,
+                                "raw_payload_hash": raw_payload_hash,
+                                "call_count": self.call_count,
+                            }
+                            return result
+                        else:
+                            logger.warning(
+                                f"Gemini API returned status {resp.status_code} on attempt {attempt}/{max_retries}."
+                            )
+                            if attempt < max_retries:
+                                await asyncio.sleep(self.retry_backoff_base * (2 ** (attempt - 1)))
+                except Exception as e:
+                    logger.warning(
+                        f"Gemini API attempt {attempt}/{max_retries} failed: {e}."
+                    )
+                    if attempt < max_retries:
+                        await asyncio.sleep(self.retry_backoff_base * (2 ** (attempt - 1)))
+                    else:
+                        logger.warning("All Gemini API retries exhausted. Using deterministic analysis fallback.")
 
         # Deterministic analysis
         self.call_count += 1
@@ -332,51 +323,66 @@ Return a valid JSON object matching this schema:
         token_estimate = max(1, len(prompt) // 4)
 
         if not effective_fallback and self.api_key and not self.api_key.startswith("mock_"):
-            try:
-                self.call_count += 1
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.MODEL_NAME}:generateContent?key={self.api_key}"
-                payload = {
-                    "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {
-                        "temperature": 0.1,
-                        "response_mime_type": "application/json",
-                    },
-                }
-                async with httpx.AsyncClient(timeout=12.0) as client:
-                    resp = await client.post(url, json=payload)
-                    elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        text = data["candidates"][0]["content"]["parts"][0]["text"]
-                        usage = data.get("usageMetadata", {})
-                        actual_tokens = usage.get("totalTokenCount", token_estimate)
+            max_retries = self.max_retries
+            for attempt in range(1, max_retries + 1):
+                try:
+                    self.call_count += 1
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.MODEL_NAME}:generateContent?key={self.api_key}"
+                    payload = {
+                        "contents": [{"parts": [{"text": prompt}]}],
+                        "generationConfig": {
+                            "temperature": 0.1,
+                            "response_mime_type": "application/json",
+                        },
+                    }
+                    async with httpx.AsyncClient(timeout=12.0) as client:
+                        resp = await client.post(url, json=payload)
+                        elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            text = data["candidates"][0]["content"]["parts"][0]["text"]
+                            usage = data.get("usageMetadata", {})
+                            actual_tokens = usage.get("totalTokenCount", token_estimate)
 
-                        parsed = self._parse_llm_json(text)
-                        briefing = ClearanceBriefing.model_validate(parsed)
-                        briefing.stable_lineage_key = stable_lineage_key
-                        briefing.citation = citation
-                        briefing.raw_payload_hash = raw_payload_hash
-                        briefing.latency_ms = elapsed_ms
-                        briefing.model_version = self.MODEL_NAME
-                        briefing.token_estimate = actual_tokens
-                        briefing.metadata = {
-                            "citation": citation,
-                            "domain": domain,
-                            "source_url": source_url,
-                            "call_count": self.call_count,
-                            "http_status_code": 200,
-                        }
+                            parsed = self._parse_llm_json(text, target_model=ClearanceBriefing)
+                            briefing = ClearanceBriefing.model_validate(parsed)
+                            briefing.stable_lineage_key = stable_lineage_key
+                            briefing.citation = citation
+                            briefing.raw_payload_hash = raw_payload_hash
+                            briefing.latency_ms = elapsed_ms
+                            briefing.model_version = self.MODEL_NAME
+                            briefing.token_estimate = actual_tokens
+                            briefing.metadata = {
+                                "citation": citation,
+                                "domain": domain,
+                                "source_url": source_url,
+                                "call_count": self.call_count,
+                                "http_status_code": 200,
+                                "attempt": attempt,
+                            }
 
-                        self.last_metrics = {
-                            "request_latency_ms": elapsed_ms,
-                            "token_estimate": actual_tokens,
-                            "model_version": self.MODEL_NAME,
-                            "raw_payload_hash": raw_payload_hash,
-                            "call_count": self.call_count,
-                        }
-                        return briefing
-            except Exception as e:
-                logger.warning(f"Gemini API briefing synthesis failed: {e}. Using deterministic briefing.")
+                            self.last_metrics = {
+                                "request_latency_ms": elapsed_ms,
+                                "token_estimate": actual_tokens,
+                                "model_version": self.MODEL_NAME,
+                                "raw_payload_hash": raw_payload_hash,
+                                "call_count": self.call_count,
+                            }
+                            return briefing
+                        else:
+                            logger.warning(
+                                f"Gemini API briefing synthesis returned status {resp.status_code} on attempt {attempt}/{max_retries}."
+                            )
+                            if attempt < max_retries:
+                                await asyncio.sleep(self.retry_backoff_base * (2 ** (attempt - 1)))
+                except Exception as e:
+                    logger.warning(
+                        f"Gemini API briefing synthesis attempt {attempt}/{max_retries} failed: {e}."
+                    )
+                    if attempt < max_retries:
+                        await asyncio.sleep(self.retry_backoff_base * (2 ** (attempt - 1)))
+                    else:
+                        logger.warning("All Gemini API briefing retries exhausted. Using deterministic briefing fallback.")
 
         # Deterministic fallback briefing
         self.call_count += 1

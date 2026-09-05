@@ -32,6 +32,7 @@ from backend.fixtures.golden_dataset import (
     get_v7_version,
     get_v8_version,
     get_golden_fixtures,
+    get_golden_expected_deltas,
 )
 
 
@@ -909,3 +910,26 @@ def test_fail_closed_pydantic_validation_error_on_corrupted_json_or_dict():
             unresolved_exception_count=1,
         )
     assert "total_claims" in str(exc_info.value)
+
+
+def test_golden_expected_deltas_contract():
+    """Verify get_golden_expected_deltas conforms strictly to contracts across all 12 items."""
+    deltas = get_golden_expected_deltas()
+    assert len(deltas) == 12, "Must contain exactly 12 expected deltas"
+
+    # Assert Item 11 (poster) is material
+    poster = deltas["poster_noir_detective_magazine"]
+    assert poster.is_material is True
+    assert poster.clearance_risk_level == "high"
+    assert poster.recommended_action == "revalidate"
+
+    # Assert Item 12 and Items 1-10 are non-material for creative context
+    music = deltas["music_cue_midnight_serenade"]
+    assert music.is_material is False
+    assert music.clearance_risk_level == "low"
+    assert music.recommended_action == "carry"
+
+    for key, d in deltas.items():
+        if key != "poster_noir_detective_magazine":
+            assert d.is_material is False
+            assert d.clearance_risk_level == "low"

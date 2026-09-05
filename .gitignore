@@ -15,3 +15,4 @@ docs/winning/
 *.tsbuildinfo
 dist_test/
 next-env.d.ts
+.vscode/

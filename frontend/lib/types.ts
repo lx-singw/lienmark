@@ -187,6 +187,8 @@ export interface ExceptionsScheduleItem {
 }
 
 /**
+ * Statutory carrier header for Form E&O-2026.
+ */
 export interface CarrierHeader {
   carrier_name: string;
   policy_number: string;
