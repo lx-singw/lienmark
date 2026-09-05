@@ -345,6 +345,55 @@ export interface EvidenceReconciliationResult {
 export type WorkflowRunResult = DriftEvaluationResult;
 
 // ============================================================================
+// Usability & Comprehension Aids Types (Sprint 4C)
+// ============================================================================
+
+export interface DeterministicLineageParity {
+  carried_claims_count: number;
+  total_claims_count: number;
+  review_cost_dollars: number;
+  savings_percentage: string;
+  bit_for_bit_unchanged: boolean;
+  external_queries_issued: number;
+  explanation: string;
+  carried_claim_keys: string[];
+}
+
+export interface ActiveClearanceBlocker {
+  key: string;
+  item_number: number;
+  asset_name: string;
+  asset_type: string;
+  scene: string;
+  timecode: string;
+  reason_code: string;
+  shift_type: string;
+  shift_summary: string;
+  blocker_details: string;
+  resolution_path: string;
+  suggested_action: string;
+}
+
+export interface LifecycleStage {
+  stage: number;
+  name: string;
+  description: string;
+}
+
+export interface ClearanceDecisionLifecycle {
+  stages: LifecycleStage[];
+  underwriter_warranty_export_path: string;
+  json_export_path: string;
+  export_format: string;
+}
+
+export interface ComprehensionAids {
+  deterministic_lineage_parity: DeterministicLineageParity;
+  active_clearance_blockers: ActiveClearanceBlocker[];
+  clearance_decision_lifecycle: ClearanceDecisionLifecycle;
+}
+
+// ============================================================================
 // API Response & Fixture Contracts
 // ============================================================================
 
@@ -352,20 +401,38 @@ export interface V7ClaimFixture {
   use_id: string;
   key: string;
   scene: string;
+  timecode?: string;
   asset_type: string;
   description: string;
   prominence: string;
   status: string;
+  reason_code?: string;
+}
+
+export interface V8ClaimFixture {
+  use_id: string;
+  key: string;
+  scene: string;
+  timecode?: string;
+  asset_type: string;
+  description: string;
+  prominence: string;
+  reason_code: string;
 }
 
 export interface FixturesResponse {
   v7_version: ProductionVersion;
   v8_version: ProductionVersion;
   v7_claims: V7ClaimFixture[];
+  v8_claims?: V8ClaimFixture[];
   v7_uses?: CreativeUse[];
   v8_uses?: CreativeUse[];
   v7_decisions?: CounselDecision[];
   v8_evidence?: Record<string, PublicEvidenceSnapshot>;
+  comprehension_aids?: ComprehensionAids;
+  active_clearance_blockers?: ActiveClearanceBlocker[];
+  deterministic_lineage_parity?: DeterministicLineageParity;
+  clearance_decision_lifecycle?: ClearanceDecisionLifecycle;
 }
 
 export interface ReattestationResponse {
@@ -631,6 +698,10 @@ export interface ReviewQueueResponse {
   base_version?: string;
   target_version?: string;
   target_version_id?: string;
+  comprehension_aids?: ComprehensionAids;
+  active_clearance_blockers?: ActiveClearanceBlocker[];
+  deterministic_lineage_parity?: DeterministicLineageParity;
+  clearance_decision_lifecycle?: ClearanceDecisionLifecycle;
 }
 
 /**

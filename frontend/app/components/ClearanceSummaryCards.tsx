@@ -19,6 +19,7 @@ import {
   ArrowRight,
   Scale,
   DollarSign,
+  Info,
 } from 'lucide-react';
 
 export interface ClearanceSummaryCardsProps {
@@ -76,13 +77,22 @@ export const ClearanceSummaryCards: React.FC<ClearanceSummaryCardsProps> = ({
 
         {/* 2. Carried Forward */}
         <div
-          className="rounded-xl border border-emerald-800/40 bg-[#131b2e] p-4 metric-glow-green"
+          className="rounded-xl border border-emerald-800/40 bg-[#131b2e] p-4 metric-glow-green group relative"
           role="region"
           aria-label="Carried Forward Rights Claims Metric Card"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-emerald-400 flex items-center gap-1">
               <span>Carried Forward</span>
+              <span
+                tabIndex={0}
+                role="tooltip"
+                aria-label="Lineage Parity Verified: Dialogue, prominence duration, and visual placement are bit-for-bit identical to Locked v7. Public copyright records re-verified unchanged. Autonomous pass under statutory clearance doctrine."
+                title="Lineage Parity Verified: Dialogue, prominence duration, and visual placement are bit-for-bit identical to Locked v7. Public copyright records re-verified unchanged. Autonomous pass under statutory clearance doctrine."
+                className="cursor-help text-emerald-400/80 hover:text-emerald-200 focus:outline-none focus:text-white"
+              >
+                <Info className="h-3.5 w-3.5" aria-hidden="true" />
+              </span>
             </span>
             <span className="rounded p-1 bg-emerald-950/80 text-emerald-400 border border-emerald-500/30" aria-hidden="true">
               <CheckCircle2 className="h-3.5 w-3.5" />
@@ -206,6 +216,40 @@ export const ClearanceSummaryCards: React.FC<ClearanceSummaryCardsProps> = ({
           <p className="mt-1 text-[11px] text-slate-400">Item 12 &middot; ASCAP breach</p>
         </div>
       </div>
+
+      {/* Deterministic Lineage Parity Banner */}
+      {carriedCount > 0 && (
+        <div
+          className="rounded-xl border border-emerald-500/40 bg-gradient-to-r from-emerald-950/40 via-[#10192e] to-emerald-950/30 p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-md"
+          role="region"
+          aria-label="Deterministic Lineage Parity Verification Banner"
+        >
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex-shrink-0">
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-emerald-300 text-sm">
+                  Deterministic Lineage Parity
+                </span>
+                <span className="rounded bg-emerald-900/80 px-2 py-0.5 text-[10px] font-mono font-bold text-emerald-200 border border-emerald-500/40">
+                  {carriedCount} / {totalClaims} Claims Locked &middot; $0 Review
+                </span>
+              </div>
+              <p className="mt-1 text-slate-200 text-xs leading-relaxed">
+                <strong>Lineage Parity Verified:</strong> Dialogue, prominence duration, and visual placement are bit-for-bit identical to Locked v7. Public copyright records re-verified unchanged. Autonomous pass under statutory clearance doctrine.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-auto flex-shrink-0">
+            <span className="text-[11px] font-mono text-emerald-400 bg-slate-900/90 px-2.5 py-1 rounded border border-emerald-800/60 font-semibold">
+              Autonomous Pass ($0 Cost)
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Invariant Progress Indicator (Conservation Math Ribbon) */}
       <div

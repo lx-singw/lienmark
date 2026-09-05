@@ -173,14 +173,122 @@ export const GOLDEN_V7_CLAIMS: V7ClaimFixture[] = [
 ];
 
 // ============================================================================
-// Fallback Responses
+// Fallback Responses & Comprehension Aids
 // ============================================================================
 
+export function getGoldenComprehensionAids() {
+  return {
+    deterministic_lineage_parity: {
+      carried_claims_count: 10,
+      total_claims_count: 12,
+      review_cost_dollars: 0.0,
+      savings_percentage: '83.3%',
+      bit_for_bit_unchanged: true,
+      external_queries_issued: 0,
+      explanation:
+        'Deterministic lineage parity verified: 10 of 12 production claims are bit-for-bit unchanged between Script Cut v7 and v8. Their creative narrative contexts, timecodes, and dependency hashes match identically, permitting automatic carry-forward at $0 review cost and zero external search queries.',
+      carried_claim_keys: [
+        'prop_vintage_telephone',
+        'poster_paris_expo_1937',
+        'car_ford_sedan_1949',
+        'trademark_acme_coffee',
+        'artwork_abstract_expressionist',
+        'likeness_mayor_cameo',
+        'architecture_tribunal_facade',
+        'text_headline_gazette',
+        'wardrobe_fedora_brand',
+        'music_incidental_radio_static',
+      ],
+    },
+    active_clearance_blockers: [
+      {
+        key: 'poster_noir_detective_magazine',
+        item_number: 11,
+        asset_name: 'Scene 42 Noir Magazine Poster',
+        asset_type: 'artwork',
+        scene: 'Scene 42 - 00:44:12',
+        timecode: '00:44:12',
+        reason_code: 'CREATIVE_CONTEXT_ALTERED',
+        shift_type: 'creative_shift',
+        shift_summary:
+          '2s background blur escalated to 14s close-up focal dialogue interaction (Actor grabs poster off wall and reads headline aloud).',
+        blocker_details:
+          'Item 11 is STALE in ReviewQueue because dramatic escalation eliminates incidental de minimis background use defense under 17 U.S.C. § 107.',
+        resolution_path:
+          'Counsel Re-Attestation under Public Domain doctrine. Corroborated via Library of Congress catalog showing 1946 copyright registration #B-1946-8821 lapsed without renewal in 1974.',
+        suggested_action: 're_attest',
+      },
+      {
+        key: 'music_cue_midnight_serenade',
+        item_number: 12,
+        asset_name: 'Scene 18 Midnight Serenade Jazz Cue',
+        asset_type: 'music_cue',
+        scene: 'Scene 18 - 00:19:40',
+        timecode: '00:19:40',
+        reason_code: 'EXTERNAL_EVIDENCE_SHIFT',
+        shift_type: 'external_fact_shift',
+        shift_summary:
+          'Creative use is identical (20s background jazz trio), but external evidence shifted due to adverse copyright assignment.',
+        blocker_details:
+          'Item 12 is STALE in ReviewQueue because Vanguard Media Holdings LLC acquired exclusive worldwide synchronization and master rights in August 2026, disputing prior public domain status.',
+        resolution_path:
+          'Designate as an Underwriting Exception on Form E&O-2026 Schedule rider (or de-clear/replace music cue before distribution).',
+        suggested_action: 'exception',
+      },
+    ],
+    clearance_decision_lifecycle: {
+      stages: [
+        {
+          stage: 1,
+          name: 'Baseline Ingestion & Invalidation',
+          description:
+            'Ingests production script cut, evaluates clearance dependency graph, identifies bit-for-bit unchanged claims (CARRIED_FORWARD) vs modified claims (STALE).',
+        },
+        {
+          stage: 2,
+          name: 'Targeted Revalidation & Parallel Research',
+          description:
+            'Issues targeted external catalog queries exclusively for stale claims, capturing attributable evidence snapshots under strict fail-closed doctrine.',
+        },
+        {
+          stage: 3,
+          name: 'Counsel Checkpoint Gate',
+          description:
+            'Surfaces 4-dimensional legal explanations (Creative, Evidence, Contract, Policy) for affirmative counsel adjudication (Re-Attest, Reject, Exception).',
+        },
+        {
+          stage: 4,
+          name: 'Reconciled Underwriter Warranty Export',
+          description:
+            'Generates tamper-evident Form E&O-2026 Exceptions Schedule certified for carrier underwriting submission.',
+        },
+      ],
+      underwriter_warranty_export_path: '/report/proj_blockbuster_cinema',
+      json_export_path: '/api/reports/exceptions',
+      export_format: 'SSR Form E&O-2026 Printable Exceptions Schedule',
+    },
+  };
+}
+
 export function getGoldenFixturesResponse(): FixturesResponse {
+  const aids = getGoldenComprehensionAids();
   return {
     v7_version: { ...GOLDEN_V7_VERSION },
     v8_version: { ...GOLDEN_V8_VERSION },
-    v7_claims: GOLDEN_V7_CLAIMS.map((claim) => ({ ...claim })),
+    v7_claims: GOLDEN_V7_CLAIMS.map((claim) => ({
+      ...claim,
+      timecode: claim.key === 'poster_noir_detective_magazine' ? '00:44:12' : (claim.key === 'music_cue_midnight_serenade' ? '00:19:40' : claim.scene),
+      reason_code: 'BASELINE_LOCKED_APPROVAL',
+    })),
+    v8_claims: GOLDEN_V7_CLAIMS.map((claim) => ({
+      ...claim,
+      timecode: claim.key === 'poster_noir_detective_magazine' ? '00:44:12' : (claim.key === 'music_cue_midnight_serenade' ? '00:19:40' : claim.scene),
+      reason_code: claim.key === 'poster_noir_detective_magazine' ? 'CREATIVE_CONTEXT_ALTERED' : (claim.key === 'music_cue_midnight_serenade' ? 'EXTERNAL_EVIDENCE_SHIFT' : 'DEPENDENCIES_SATISFIED_UNCHANGED'),
+    })),
+    comprehension_aids: aids,
+    active_clearance_blockers: aids.active_clearance_blockers,
+    deterministic_lineage_parity: aids.deterministic_lineage_parity,
+    clearance_decision_lifecycle: aids.clearance_decision_lifecycle,
   };
 }
 

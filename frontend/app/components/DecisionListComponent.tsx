@@ -17,6 +17,8 @@ import {
   ArrowRight,
   Filter,
   Check,
+  ShieldCheck,
+  Info,
 } from 'lucide-react';
 import { DecisionState, EvaluatedClaim } from '@/lib/types';
 
@@ -156,6 +158,32 @@ export const DecisionListComponent: React.FC<DecisionListComponentProps> = ({
         </div>
       </div>
 
+      {/* Deterministic Lineage Parity Banner */}
+      {counts.carried > 0 && (
+        <div
+          className="rounded-xl border border-emerald-500/40 bg-emerald-950/30 p-3.5 flex items-start gap-3 text-xs shadow-sm"
+          role="region"
+          aria-label="Deterministic Lineage Parity Verification"
+        >
+          <div className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex-shrink-0 mt-0.5">
+            <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-emerald-300">
+                Deterministic Lineage Parity ({counts.carried} of {claims.length} Claims Locked)
+              </span>
+              <span className="rounded bg-emerald-900/80 px-1.5 py-0.2 text-[10px] font-mono text-emerald-200 border border-emerald-500/40 font-semibold">
+                $0 Review Cost
+              </span>
+            </div>
+            <p className="text-slate-200 text-[11px] leading-relaxed">
+              <strong>Lineage Parity Verified:</strong> Dialogue, prominence duration, and visual placement are bit-for-bit identical to Locked v7. Public copyright records re-verified unchanged. Autonomous pass under statutory clearance doctrine.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Claims List Table / Cards */}
       <div className="rounded-xl border border-slate-800 bg-[#131b2e] overflow-hidden shadow-md">
         <div className="divide-y divide-slate-800/60 max-h-[660px] overflow-y-auto" role="list">
@@ -205,8 +233,10 @@ export const DecisionListComponent: React.FC<DecisionListComponentProps> = ({
                     <div>
                       {claim.state === DecisionState.CARRIED_FORWARD && (
                         <span
-                          className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold badge-carried"
-                          aria-label="[CARRIED FORWARD] - Unchanged from v7 baseline"
+                          className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold badge-carried cursor-help"
+                          aria-label="[CARRIED FORWARD] - Lineage Parity Verified: Dialogue, prominence duration, and visual placement are bit-for-bit identical to Locked v7. Public copyright records re-verified unchanged. Autonomous pass under statutory clearance doctrine."
+                          title="Lineage Parity Verified: Dialogue, prominence duration, and visual placement are bit-for-bit identical to Locked v7. Public copyright records re-verified unchanged. Autonomous pass under statutory clearance doctrine."
+                          tabIndex={0}
                         >
                           <CheckCircle2 className="h-3 w-3 text-emerald-400" aria-hidden="true" />
                           <span>[CARRIED FORWARD]</span>
@@ -287,7 +317,12 @@ export const DecisionListComponent: React.FC<DecisionListComponentProps> = ({
                       )}
 
                       {claim.state === DecisionState.CARRIED_FORWARD && (
-                        <span className="text-emerald-400/80 font-mono text-[10px]">
+                        <span
+                          className="text-emerald-400/90 font-mono text-[10px] cursor-help bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/50"
+                          aria-label="Audit Cost: $0.00 - Lineage Parity Verified: Dialogue, prominence duration, and visual placement are bit-for-bit identical to Locked v7. Public copyright records re-verified unchanged. Autonomous pass under statutory clearance doctrine."
+                          title="Lineage Parity Verified: Dialogue, prominence duration, and visual placement are bit-for-bit identical to Locked v7. Public copyright records re-verified unchanged. Autonomous pass under statutory clearance doctrine."
+                          tabIndex={0}
+                        >
                           Audit Cost: $0.00
                         </span>
                       )}

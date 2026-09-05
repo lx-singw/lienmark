@@ -71,6 +71,8 @@ import ExplanationDrawerComponent from './components/ExplanationDrawerComponent'
 import ReviewActionComponent, { ReviewActionTypeChoice } from './components/ReviewActionComponent';
 import ExportActionComponent from './components/ExportActionComponent';
 import AuditTrailDrawer from './components/AuditTrailDrawer';
+import ActiveClearanceBlockers from './components/ActiveClearanceBlockers';
+import ClearanceLifecycleGuide from './components/ClearanceLifecycleGuide';
 
 export default function ReviewerDashboardPage() {
   const [isPending, startTransition] = useTransition();
@@ -556,6 +558,28 @@ export default function ReviewerDashboardPage() {
         exceptionCount={exceptionCount}
         isReconciled={isReconciled}
         exceptionsScheduleUrl="/report/proj_blockbuster_cinema"
+      />
+
+      {/* Sprint 4C Fix 2: Active Clearance Blockers Summary (when stale decisions exist) */}
+      {staleCount > 0 && (
+        <ActiveClearanceBlockers
+          staleCount={staleCount}
+          claims={claims}
+          onOpenInGate={handleOpenInGate}
+        />
+      )}
+
+      {/* Sprint 4C Fix 3: Clearance Decision Lifecycle Guide */}
+      <ClearanceLifecycleGuide
+        currentStep={
+          isReconciled
+            ? 4
+            : staleCount > 0
+            ? 3
+            : targetVersionId === 'v7'
+            ? 1
+            : 2
+        }
       />
 
       {/* Navigation View Tabs */}

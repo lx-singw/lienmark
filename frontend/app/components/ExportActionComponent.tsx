@@ -17,7 +17,8 @@ import {
   FileCheck,
   CheckCircle2,
 } from 'lucide-react';
-import { EvaluatedClaim, ExceptionsSchedule } from '@/lib/types';
+import { EvaluatedClaim } from '@/lib/types';
+import ClearanceLifecycleGuide from './ClearanceLifecycleGuide';
 
 export interface ExportActionComponentProps {
   projectId?: string;
@@ -152,6 +153,9 @@ export const ExportActionComponent: React.FC<ExportActionComponentProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Sprint 4C Usability Fix 3: Clearance Decision Lifecycle Guide */}
+      <ClearanceLifecycleGuide currentStep={4} />
 
       {/* Statutory Underwriting Disclaimer */}
       <div
