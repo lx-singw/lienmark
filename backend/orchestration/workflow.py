@@ -84,6 +84,12 @@ class LienmarkWorkflow:
     async def execute_drift_detection(
         self,
         contracts: Optional[List[ContractAgreement]] = None,
+        base_uses: Optional[List[CreativeUse]] = None,
+        target_uses: Optional[List[CreativeUse]] = None,
+        prior_decisions: Optional[List[CounselDecision]] = None,
+        evidence_snapshots: Optional[Dict[str, PublicEvidenceSnapshot]] = None,
+        base_version_id: str = "v7",
+        target_version_id: str = "v8",
     ) -> WorkflowRunResult:
         run_id = f"run_{uuid.uuid4().hex[:8]}"
         overall_start = time.perf_counter()
@@ -91,50 +97,91 @@ class LienmarkWorkflow:
 
         # Step 1: Ingest versions & golden fixtures
         t0 = time.perf_counter()
-        v7_uses, v8_uses, v7_decisions, initial_evidence = get_golden_fixtures()
+        v7_uses_fix, v8_uses_fix, v7_decisions_fix, initial_evidence_fix = get_golden_fixtures()
+        eff_base_uses = base_uses if base_uses is not None else v7_uses_fix
+        eff_target_uses = target_uses if target_uses is not None else v8_uses_fix
+        eff_prior_decisions = prior_decisions if prior_decisions is not None else v7_decisions_fix
+        eff_evidence = evidence_snapshots if evidence_snapshots is not None else initial_evidence_fix
+
         traces.append(
             WorkflowStepTrace(
                 step_name="version_ingestion",
                 component="LienmarkEngine",
                 status="SUCCESS",
                 duration_ms=round((time.perf_counter() - t0) * 1000, 2),
-                details={"v7_uses": len(v7_uses), "v8_uses": len(v8_uses)},
+                details={
+                    "v7_uses": len(eff_base_uses),
+                    "v8_uses": len(eff_target_uses),
+                    "base_uses": len(eff_base_uses),
+                    "target_uses": len(eff_target_uses),
+                },
             )
         )
 
         # Step 2: Gemini Semantic Delta Analysis
         t1 = time.perf_counter()
-        v7_poster = next(u for u in v7_uses if u.stable_lineage_key == "poster_noir_detective_magazine")
-        v8_poster = next(u for u in v8_uses if u.stable_lineage_key == "poster_noir_detective_magazine")
-        gemini_delta = await self.gemini.analyze_scene_delta(
-            asset_name=v8_poster.description,
-            v7_context=v7_poster.context,
-            v7_prominence=v7_poster.duration_or_prominence,
-            v8_context=v8_poster.context,
-            v8_prominence=v8_poster.duration_or_prominence,
-        )
-        traces.append(
-            WorkflowStepTrace(
-                step_name="semantic_delta_analysis",
-                component="Gemini 2.5 Flash",
-                status="SUCCESS",
-                duration_ms=round((time.perf_counter() - t1) * 1000, 2),
-                details={
-                    "is_material": gemini_delta.is_material,
-                    "prominence_shift": gemini_delta.prominence_shift,
-                    "recommended_action": gemini_delta.recommended_action,
-                },
+        base_map = {u.stable_lineage_key: u for u in eff_base_uses}
+        modified_pairs = []
+        for u_target in eff_target_uses:
+            u_base = base_map.get(u_target.stable_lineage_key)
+            if u_base and (
+                getattr(u_base, "context_hash", None) != getattr(u_target, "context_hash", None)
+                or getattr(u_base, "duration_or_prominence", None) != getattr(u_target, "duration_or_prominence", None)
+                or getattr(u_base, "context", None) != getattr(u_target, "context", None)
+            ):
+                modified_pairs.append((u_base, u_target))
+
+        chosen_pair = None
+        if modified_pairs:
+            poster_pair = next((p for p in modified_pairs if p[1].stable_lineage_key == "poster_noir_detective_magazine"), None)
+            chosen_pair = poster_pair or modified_pairs[0]
+        elif "poster_noir_detective_magazine" in base_map and any(u.stable_lineage_key == "poster_noir_detective_magazine" for u in eff_target_uses):
+            chosen_pair = (base_map["poster_noir_detective_magazine"], next(u for u in eff_target_uses if u.stable_lineage_key == "poster_noir_detective_magazine"))
+        elif eff_target_uses and eff_base_uses:
+            chosen_pair = (eff_base_uses[0], eff_target_uses[0])
+
+        if chosen_pair:
+            u_b, u_t = chosen_pair
+            gemini_delta = await self.gemini.analyze_scene_delta(
+                asset_name=u_t.description,
+                v7_context=u_b.context,
+                v7_prominence=u_b.duration_or_prominence,
+                v8_context=u_t.context,
+                v8_prominence=u_t.duration_or_prominence,
             )
-        )
+            traces.append(
+                WorkflowStepTrace(
+                    step_name="semantic_delta_analysis",
+                    component="Gemini 2.5 Flash",
+                    status="SUCCESS",
+                    duration_ms=round((time.perf_counter() - t1) * 1000, 2),
+                    details={
+                        "is_material": gemini_delta.is_material,
+                        "prominence_shift": gemini_delta.prominence_shift,
+                        "recommended_action": gemini_delta.recommended_action,
+                        "evaluated_asset": u_t.stable_lineage_key,
+                    },
+                )
+            )
+        else:
+            traces.append(
+                WorkflowStepTrace(
+                    step_name="semantic_delta_analysis",
+                    component="Gemini 2.5 Flash",
+                    status="SKIPPED",
+                    duration_ms=round((time.perf_counter() - t1) * 1000, 2),
+                    details={"reason": "No candidate creative uses for semantic delta comparison"},
+                )
+            )
 
         # Step 3: Invalidation Engine Dependency Evaluation
         t2 = time.perf_counter()
         validity_results = InvalidationEngine.evaluate_invalidation(
-            base_uses=v7_uses,
-            target_uses=v8_uses,
-            prior_decisions=v7_decisions,
-            evidence_snapshots=initial_evidence,
-            target_version_id="v8",
+            base_uses=eff_base_uses,
+            target_uses=eff_target_uses,
+            prior_decisions=eff_prior_decisions,
+            evidence_snapshots=eff_evidence,
+            target_version_id=target_version_id,
         )
         carried = [v for v in validity_results if v.state == DecisionState.CARRIED_FORWARD]
         stale = [v for v in validity_results if v.state == DecisionState.STALE]
@@ -158,8 +205,8 @@ class LienmarkWorkflow:
         t_plan = time.perf_counter()
         revalidation_plan = self.revalidation_planner.plan_revalidation(
             validity_results=validity_results,
-            target_uses=v8_uses,
-            target_version_id="v8",
+            target_uses=eff_target_uses,
+            target_version_id=target_version_id,
         )
         traces.append(
             WorkflowStepTrace(
@@ -252,7 +299,7 @@ class LienmarkWorkflow:
 
         # Construct Claims payload
         claims_payload = []
-        use_map = {u.stable_lineage_key: u for u in v8_uses}
+        use_map = {u.stable_lineage_key: u for u in eff_target_uses}
         for v in validity_results:
             key = v.stable_lineage_key
             use = use_map.get(key)
@@ -286,8 +333,8 @@ class LienmarkWorkflow:
 
         return WorkflowRunResult(
             run_id=run_id,
-            base_version="v7",
-            target_version="v8",
+            base_version=base_version_id,
+            target_version=target_version_id,
             total_claims=len(validity_results),
             carried_forward_count=len(carried),
             reopened_count=len(stale),

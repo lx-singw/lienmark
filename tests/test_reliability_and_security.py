@@ -342,6 +342,47 @@ class TestIdempotencyKey:
         trail_after_second = counsel_checkpoint_manager.get_audit_trail("poster_noir_detective_magazine")
         assert len(trail_after_second) == initial_count + 1, "Duplicate ledger entry created despite idempotency key!"
 
+    def test_scoped_idempotency_partitions_by_principal_and_payload(self):
+        """Asserts idempotency cache is strictly scoped to principal and payload hash (Finding 9)."""
+        idem_key = "idem_partition_test_003"
+        payload_1 = {"query": "search_term_1"}
+        payload_2 = {"query": "search_term_2"}
+
+        # Caller 1
+        res1 = client.post(
+            "/api/drift/compare",
+            json=payload_1,
+            headers={"X-Idempotency-Key": idem_key, "Authorization": "Bearer sarah_jenkins_token_2026"},
+        )
+        assert res1.status_code == 200
+
+        # Caller 2 with same key and payload - different principal must NOT be served caller 1's cache
+        res2 = client.post(
+            "/api/drift/compare",
+            json=payload_1,
+            headers={"X-Idempotency-Key": idem_key, "Authorization": "Bearer lead_counsel_prod_2026_key"},
+        )
+        assert res2.status_code == 200
+        assert res2.headers.get("X-Cache") != "HIT-IDEMPOTENT"
+
+        # Caller 1 with same key but different payload - must NOT hit cache
+        res3 = client.post(
+            "/api/drift/compare",
+            json=payload_2,
+            headers={"X-Idempotency-Key": idem_key, "Authorization": "Bearer sarah_jenkins_token_2026"},
+        )
+        assert res3.status_code == 200
+        assert res3.headers.get("X-Cache") != "HIT-IDEMPOTENT"
+
+        # Exact replay for Caller 1 with payload 1 - must HIT cache
+        res4 = client.post(
+            "/api/drift/compare",
+            json=payload_1,
+            headers={"X-Idempotency-Key": idem_key, "Authorization": "Bearer sarah_jenkins_token_2026"},
+        )
+        assert res4.status_code == 200
+        assert "HIT" in res4.headers.get("X-Cache", "")
+
 
 # =============================================================================
 # 5. TEST COUNSEL AUTHENTICATION
@@ -418,6 +459,8 @@ class TestCounselAuthentication:
             "Bearer demo-counsel-token",
             "Bearer lienmark-counsel-demo-key",
             "Bearer sarah_jenkins_token_2026",
+            "Bearer lead_counsel_prod_2026_key",
+            "Bearer associate_counsel_prod_2026_key",
         ]
 
         for token in valid_tokens:
@@ -428,6 +471,22 @@ class TestCounselAuthentication:
             )
             assert res.status_code == 200, f"Token {token} failed with {res.status_code}: {res.text}"
             assert res.json()["status"] == "success"
+
+    def test_strict_mode_rejects_arbitrary_prefix_tokens(self):
+        """Asserts arbitrary prefix tokens (counsel_demo_*, valid_counsel_*, demo-counsel-*, demo-token-*) are rejected with 403."""
+        payload = {
+            "stable_lineage_key": "poster_noir_detective_magazine",
+            "action": "re_attest",
+            "counsel_rationale": "Artwork verified in public domain via LOC registration records.",
+            "reviewer_name": "Sarah Jenkins, Esq.",
+        }
+        for bad_token in ["counsel_demo_arbitrary_fake", "valid_counsel_unauthorized", "demo-counsel-forged", "demo-token-unlisted"]:
+            res = client.post(
+                "/api/review/action",
+                json=payload,
+                headers={"Authorization": f"Bearer {bad_token}", "X-Require-Counsel-Auth": "true"},
+            )
+            assert res.status_code == 403, f"Expected 403 for {bad_token}, got {res.status_code}"
 
 
 # =============================================================================

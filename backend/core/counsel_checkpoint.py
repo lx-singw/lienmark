@@ -403,9 +403,10 @@ class CounselCheckpointManager:
         contract_map = {c.stable_lineage_key: c for c in (contracts or [])}
         evidence_map = evidence_snapshots or {}
 
-        # Cache prior decisions in context for inspectability
+        # Cache prior decisions in context for inspectability without overwriting existing decisions
         for d in (prior_decisions or []):
-            ctx.prior_decisions[d.decision_id] = d
+            if d.decision_id not in ctx.prior_decisions:
+                ctx.prior_decisions[d.decision_id] = d
             if d.stable_lineage_key not in ctx.prior_decisions:
                 ctx.prior_decisions[d.stable_lineage_key] = d
 
@@ -425,7 +426,7 @@ class CounselCheckpointManager:
         # Filter strictly for STALE, NEW, or EXCEPTION decisions
         for val in validity_results:
             key = val.stable_lineage_key
-            prior_dec = decision_map.get(key)
+            prior_dec = ctx.prior_decisions.get(key) or decision_map.get(key)
             if not prior_dec:
                 continue
 
@@ -438,8 +439,7 @@ class CounselCheckpointManager:
                 curr_state = val.state
                 curr_status = prior_dec.status
 
-            ctx.decision_states[key] = curr_state
-            ctx.decision_statuses[key] = curr_status
+            # Strictly read-only inspection: do NOT mutate ctx.decision_states or ctx.decision_statuses on read!
 
             # Strictly only STALE (or NEW/EXCEPTION) decisions enter the review queue
             if val.state not in (DecisionState.STALE, DecisionState.NEW, DecisionState.EXCEPTION):
@@ -1033,43 +1033,37 @@ class CounselCheckpointManager:
 
             expected_parent = self.GENESIS_PARENT_HASH
             for idx, event in enumerate(ctx.supersession_events):
-                # 1. Verify parent hash pointer
-                if event.parent_event_hash and event.parent_event_hash != expected_parent:
+                # 1. Enforce unbroken parent chaining
+                if event.parent_event_hash != expected_parent:
                     return {
                         "is_valid": False,
                         "tampered_index": idx,
                         "event_id": event.event_id,
-                        "error": (
-                            f"Broken chain link at index {idx}: parent_event_hash '{event.parent_event_hash}' "
-                            f"does not match expected '{expected_parent}'."
-                        ),
+                        "error": f"Broken chain link at index {idx}: parent_event_hash '{event.parent_event_hash}' does not match expected '{expected_parent}'.",
                     }
 
-                # 2. Recompute canonical digest
+                # 2. Recompute canonical digest matching the full payload from models.py
                 action_val = event.action.value if hasattr(event.action, "value") else str(event.action)
                 state_val = event.new_state.value if hasattr(event.new_state, "value") else str(event.new_state)
                 status_val = event.new_status.value if hasattr(event.new_status, "value") else str(event.new_status)
-                reviewer_name = (
-                    event.reviewer.name
-                    if isinstance(event.reviewer, ReviewerIdentity)
-                    else getattr(event.reviewer, "name", str(event.reviewer))
-                )
 
-                payload = {
-                    "action": action_val,
-                    "counsel_rationale": event.rationale,
-                    "event_id": event.event_id,
-                    "new_state": state_val,
-                    "new_status": status_val,
-                    "prior_decision_id": event.prior_decision_id,
-                    "reviewer_name": reviewer_name,
-                    "stable_lineage_key": event.stable_lineage_key,
-                    "system_recommendation": event.system_recommendation,
-                    "target_version_id": event.target_version_id,
-                    "timestamp": event.timestamp,
-                }
-                serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-                recomputed_hash = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+                recomputed_hash = SupersessionEvent.compute_canonical_hash(
+                    event_id=event.event_id,
+                    prior_decision_id=event.prior_decision_id,
+                    new_decision_id=event.new_decision_id,
+                    target_version_id=event.target_version_id,
+                    stable_lineage_key=event.stable_lineage_key,
+                    action=action_val,
+                    new_state=state_val,
+                    new_status=status_val,
+                    system_recommendation=event.system_recommendation,
+                    counsel_rationale=event.rationale,
+                    timestamp=event.timestamp,
+                    parent_event_hash=event.parent_event_hash,
+                    reviewer=event.reviewer,
+                    evidence_citations=event.evidence_citations,
+                    changed_dependencies=event.changed_dependencies,
+                )
 
                 if recomputed_hash != event.event_hash:
                     return {

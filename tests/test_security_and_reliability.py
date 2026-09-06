@@ -51,6 +51,7 @@ from backend.core.security import (
     CounselAuthContext,
     verify_counsel_token,
     is_strict_auth_enabled,
+    VALID_COUNSEL_REGISTRY,
     REDACTED_API_KEY,
     MAX_PAYLOAD_SIZE_BYTES,
 )
@@ -59,6 +60,7 @@ from backend.domain.models import (
     PublicEvidenceSnapshot,
     ReviewActionRequest,
     ReviewAction,
+    ReviewerIdentity,
 )
 from backend.services.parallel_service import ParallelSearchService
 from backend.services.gemini_service import GeminiService
@@ -320,6 +322,71 @@ class TestIdempotencyManager:
         # Simulate storing a 500 error: the middleware avoids storing 5xx responses
         assert manager.get("error_key") is None
 
+    def test_scoped_idempotency_different_principals_do_not_collide(self):
+        """Asserts replay by a different principal with identical idempotency key is NOT served from cache."""
+        idem_key = f"idem_scoped_auth_{uuid.uuid4().hex}"
+        payload = {"data": "scoped_payload_check"}
+
+        # First caller (Sarah Jenkins)
+        res1 = client.post(
+            "/api/drift/compare",
+            json=payload,
+            headers={
+                "Idempotency-Key": idem_key,
+                "Authorization": "Bearer sarah_jenkins_token_2026",
+            },
+        )
+        assert res1.status_code == 200
+        assert res1.headers.get("X-Cache") in ("MISS-STORED", None)
+
+        # Second caller with DIFFERENT token (Elena Vance) and SAME idempotency key
+        res2 = client.post(
+            "/api/drift/compare",
+            json=payload,
+            headers={
+                "Idempotency-Key": idem_key,
+                "Authorization": "Bearer lead_counsel_prod_2026_key",
+            },
+        )
+        assert res2.status_code == 200
+        # Must NOT be a cache hit for a different principal!
+        assert res2.headers.get("X-Cache") != "HIT-IDEMPOTENT"
+
+    def test_scoped_idempotency_different_payloads_do_not_collide(self):
+        """Asserts same idempotency key with different request bodies produces cache miss."""
+        idem_key = f"idem_body_hash_{uuid.uuid4().hex}"
+        headers = {
+            "Idempotency-Key": idem_key,
+            "Authorization": "Bearer sarah_jenkins_token_2026",
+        }
+
+        # Payload A
+        res1 = client.post("/api/drift/compare", json={"query": "payload_A"}, headers=headers)
+        assert res1.status_code == 200
+
+        # Payload B with identical key
+        res2 = client.post("/api/drift/compare", json={"query": "payload_B_modified"}, headers=headers)
+        assert res2.status_code == 200
+        assert res2.headers.get("X-Cache") != "HIT-IDEMPOTENT"
+
+    def test_scoped_idempotency_identical_request_replays_from_cache(self):
+        """Asserts exact replay (same principal, method, path, body, key) yields HIT-IDEMPOTENT."""
+        idem_key = f"idem_true_replay_{uuid.uuid4().hex}"
+        headers = {
+            "Idempotency-Key": idem_key,
+            "Authorization": "Bearer sarah_jenkins_token_2026",
+        }
+        payload = {"query": "exact_same_query"}
+
+        res1 = client.post("/api/drift/compare", json=payload, headers=headers)
+        assert res1.status_code == 200
+
+        res2 = client.post("/api/drift/compare", json=payload, headers=headers)
+        assert res2.status_code == 200
+        assert res2.headers.get("X-Cache") == "HIT-IDEMPOTENT"
+        assert res2.headers.get("X-Idempotent-Replay") == "true"
+        assert res1.json()["run_id"] == res2.json()["run_id"]
+
 
 # =============================================================================
 # 5. COUNSEL AUTHENTICATION GUARD TESTS
@@ -388,6 +455,90 @@ class TestCounselAuthenticationGuard:
         ctx = verify_counsel_token(req, enforce_auth=True)
         assert ctx.is_authenticated is True
         assert ctx.token == "sarah_jenkins_token_2026"
+
+    def test_valid_counsel_registry_principals(self):
+        """Verifies authorized counsel principals registered in VALID_COUNSEL_REGISTRY."""
+        sarah = VALID_COUNSEL_REGISTRY["sarah_jenkins_token_2026"]
+        assert sarah.reviewer_id == "counsel_sjenkins_001"
+        assert sarah.name == "Sarah Jenkins, Esq."
+        assert sarah.title == "Lead Production Clearance Counsel"
+        assert sarah.organization == "Lienmark Legal Partners LLP"
+        assert sarah.is_fictional_demo is True
+
+        elena = VALID_COUNSEL_REGISTRY["lead_counsel_prod_2026_key"]
+        assert elena.reviewer_id == "counsel_lead_002"
+        assert elena.name == "Elena Vance, Esq."
+        assert elena.title == "Lead Production Clearance Counsel"
+        assert elena.organization == "Studio Clearance Legal LLP"
+        assert elena.is_fictional_demo is False
+
+        marcus = VALID_COUNSEL_REGISTRY["associate_counsel_prod_2026_key"]
+        assert marcus.reviewer_id == "counsel_assoc_003"
+        assert marcus.name == "Marcus Reed, Esq."
+        assert marcus.title == "Associate Clearance Counsel"
+        assert marcus.organization == "Studio Clearance Legal LLP"
+        assert marcus.is_fictional_demo is False
+
+    def test_strict_mode_strictly_rejects_arbitrary_prefix_tokens(self):
+        """Asserts arbitrary prefix tokens (counsel_demo_*, valid_counsel_*, demo-counsel-*, demo-token-*) fail with 403."""
+        arbitrary_tokens = [
+            "counsel_demo_invented_attacker_1",
+            "valid_counsel_arbitrary_prefix_2",
+            "demo-counsel-forged-key-3",
+            "demo-token-unregistered-4",
+            "unknown_rogue_token_5",
+        ]
+        for token in arbitrary_tokens:
+            req = MagicMock()
+            req.headers = {"Authorization": f"Bearer {token}"}
+            with pytest.raises(HTTPException) as exc_info:
+                verify_counsel_token(req, enforce_auth=True)
+            assert exc_info.value.status_code == 403, f"Expected 403 for {token}"
+            assert "Invalid or unrecognized" in exc_info.value.detail
+
+    def test_non_strict_mode_accepts_counsel_demo_prefix_with_warning(self):
+        """Asserts non-strict demo mode accepts counsel_demo_ prefix tokens with warning."""
+        req = MagicMock()
+        req.headers = {"Authorization": "Bearer counsel_demo_unmapped_ephemeral_token"}
+        ctx = verify_counsel_token(req, enforce_auth=False)
+        assert ctx.is_authenticated is True
+        assert ctx.reviewer_name == "Sarah Jenkins, Esq."
+        assert ctx.is_demo is True
+        assert ctx.strict_mode_active is False
+
+    def test_strict_mode_binds_registered_identity_preventing_spoofing(self):
+        """Asserts strict mode binds auth_ctx.reviewer_identity strictly from VALID_COUNSEL_REGISTRY."""
+        req = MagicMock()
+        req.headers = {"Authorization": "Bearer lead_counsel_prod_2026_key"}
+        ctx = verify_counsel_token(req, enforce_auth=True)
+        assert ctx.is_authenticated is True
+        assert ctx.strict_mode_active is True
+        assert ctx.reviewer_name == "Elena Vance, Esq."
+        assert ctx.reviewer_identity is not None
+        assert ctx.reviewer_identity.name == "Elena Vance, Esq."
+        assert ctx.reviewer_identity.organization == "Studio Clearance Legal LLP"
+        assert ctx.reviewer_identity.is_fictional_demo is False
+
+    def test_api_review_action_binds_authenticated_identity_over_caller_payload(self):
+        """Asserts /api/review/action binds identity strictly from authenticated token, overriding payload."""
+        payload = {
+            "stable_lineage_key": "poster_noir_detective_magazine",
+            "action": "re_attest",
+            "counsel_rationale": "Verified public domain clearance under lead counsel review.",
+            "reviewer_name": "Spoofed Impersonator, Esq.",
+        }
+        headers = {
+            "Authorization": "Bearer lead_counsel_prod_2026_key",
+            "X-Require-Counsel-Auth": "true",
+        }
+        res = client.post("/api/review/action", json=payload, headers=headers)
+        assert res.status_code == 200
+        data = res.json()
+        assert data["status"] == "success"
+        event = data.get("event", {})
+        assert event.get("reviewer", {}).get("name") == "Elena Vance, Esq."
+        assert event.get("reviewer", {}).get("organization") == "Studio Clearance Legal LLP"
+        assert event.get("reviewer", {}).get("is_fictional_demo") is False
 
 
 # =============================================================================

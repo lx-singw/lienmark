@@ -831,3 +831,210 @@ class TestEndToEndRevalidationLifecycle:
         assert schedule.re_attested_count == 1
         assert schedule.unresolved_exception_count == 1
         assert len(schedule.items) == 12
+
+
+# =============================================================================
+# 7. CLUSTER 3 REMEDIATION: FINDINGS 4, 5, 6 VERIFICATION
+# =============================================================================
+
+class TestCluster3RemediationFindings:
+    """
+    Direct verification for Cluster 3 of the approved remediation plan:
+    - Finding 4: Cross-Version Approval Bleed
+    - Finding 5: Empty Search Marked as Supporting Evidence
+    - Finding 6: Stored XSS in HTML Reports & URL Scheme Sanitization
+    """
+
+    def test_finding_4_cross_version_approval_bleed_prevention(self):
+        """
+        Finding 4: When a reattestation was recorded for v7 or another version,
+        it must NEVER bleed into target_version_id (e.g. v8). It must remain STALE/EXCEPTION.
+        """
+        v7_uses, v8_uses, v7_decisions, v8_evidence = get_golden_fixtures()
+
+        validity_results = InvalidationEngine.evaluate_invalidation(
+            base_uses=v7_uses,
+            target_uses=v8_uses,
+            prior_decisions=v7_decisions,
+            evidence_snapshots=v8_evidence,
+            target_version_id="v8",
+        )
+
+        # Poster was STALE. Provide a reattestation explicitly bound to "v7"
+        v7_bleed_reattestations = {
+            "poster_noir_detective_magazine": ReattestationRequest(
+                decision_id="dec_v7_poster_noir",
+                stable_lineage_key="poster_noir_detective_magazine",
+                version_id="v7",  # WRONG VERSION: must not bleed into v8
+                new_status=DecisionStatus.APPROVED,
+                counsel_rationale="Attempted cross-version approval bleed from v7",
+            )
+        }
+
+        schedule = InvalidationEngine.generate_exceptions_schedule(
+            project_id="proj_bleed_test",
+            base_version_id="v7",
+            target_version_id="v8",
+            target_uses=v8_uses,
+            validity_results=validity_results,
+            reattestations=v7_bleed_reattestations,
+            base_uses=v7_uses,
+        )
+
+        poster_item = next(i for i in schedule.items if i.stable_lineage_key == "poster_noir_detective_magazine")
+        # Must strictly remain EXCEPTION, NOT re_attested!
+        assert poster_item.v8_evaluation_state == "exception", (
+            f"Expected 'exception' due to version mismatch ('v7' vs 'v8'), got {poster_item.v8_evaluation_state}"
+        )
+        assert schedule.re_attested_count == 0
+        assert schedule.unresolved_exception_count == 2  # poster and music cue both exceptions
+
+    def test_finding_4_version_matching_and_legacy_calls(self):
+        """
+        Finding 4: Reattestation matches when version_id == target_version_id,
+        or when version_id is None in legacy calls targeting v8.
+        """
+        v7_uses, v8_uses, v7_decisions, v8_evidence = get_golden_fixtures()
+
+        validity_results = InvalidationEngine.evaluate_invalidation(
+            base_uses=v7_uses,
+            target_uses=v8_uses,
+            prior_decisions=v7_decisions,
+            evidence_snapshots=v8_evidence,
+            target_version_id="v8",
+        )
+
+        # 1. Matching target_version_id "v8"
+        matching_reattestations = {
+            "poster_noir_detective_magazine": ReattestationRequest(
+                decision_id="dec_v8_poster_noir",
+                stable_lineage_key="poster_noir_detective_magazine",
+                version_id="v8",
+                new_status=DecisionStatus.APPROVED,
+                counsel_rationale="Valid v8 approval",
+            )
+        }
+
+        sched_v8 = InvalidationEngine.generate_exceptions_schedule(
+            project_id="proj_matching_test",
+            base_version_id="v7",
+            target_version_id="v8",
+            target_uses=v8_uses,
+            validity_results=validity_results,
+            reattestations=matching_reattestations,
+            base_uses=v7_uses,
+        )
+        poster_v8 = next(i for i in sched_v8.items if i.stable_lineage_key == "poster_noir_detective_magazine")
+        assert poster_v8.v8_evaluation_state == "re_attested"
+
+    def test_finding_5_empty_search_marked_insufficient(self):
+        """
+        Finding 5: In _parse_v1_search_response, when results is empty:
+        - stance = EvidenceStance.INSUFFICIENT
+        - source_title = "No Attributable Evidence Found"
+        - source_url = ""
+        - excerpt = "Query returned zero matching catalog records."
+        - publisher = "Parallel Search Index"
+        - citation = "No matching records"
+        - expected_stance must NEVER override missing evidence!
+        """
+        service = ParallelSearchService(api_key="mock_key")
+
+        empty_data = {
+            "results": [],
+            "search_id": "search_empty_test_001",
+        }
+
+        # Test with expected_stance=SUPPORTING to verify it does NOT override
+        snapshot = service._parse_v1_search_response(
+            data=empty_data,
+            query="Empty query test",
+            use_id="use_empty_01",
+            stable_lineage_key="claim_empty_test",
+            raw_payload_hash="hash123",
+            elapsed_ms=45.0,
+            http_status=200,
+            expected_stance=EvidenceStance.SUPPORTING,
+        )
+
+        assert snapshot.stance == EvidenceStance.INSUFFICIENT
+        assert snapshot.source_title == "No Attributable Evidence Found"
+        assert snapshot.source_url == ""
+        assert snapshot.excerpt == "Query returned zero matching catalog records."
+        assert snapshot.publisher == "Parallel Search Index"
+        assert snapshot.citation == "No matching records"
+
+    def test_finding_6_stored_xss_prevention_in_html_reports(self):
+        """
+        Finding 6: In render_html_schedule:
+        - Apply html.escape() to dynamic strings in the template.
+        - Validate citation URLs: only allow http/https, sanitize javascript:/data:/invalid to about:blank or #.
+        """
+        v7_uses, v8_uses, v7_decisions, v8_evidence = get_golden_fixtures()
+
+        xss_payload = "<script>alert('XSS-INJECTION')</script>"
+        xss_img = '<img src=x onerror="alert(\'img-xss\')">'
+
+        schedule = InvalidationEngine.generate_exceptions_schedule(
+            project_id="proj_xss_test",
+            base_version_id="v7",
+            target_version_id="v8",
+            target_uses=v8_uses,
+            validity_results=InvalidationEngine.evaluate_invalidation(
+                base_uses=v7_uses,
+                target_uses=v8_uses,
+                prior_decisions=v7_decisions,
+                evidence_snapshots=v8_evidence,
+                target_version_id="v8",
+            ),
+        )
+
+        # Inject XSS vectors into metadata
+        schedule.production_metadata["production_title"] = f"Production {xss_payload}"
+        schedule.production_metadata["project_id"] = f"proj_{xss_img}"
+        schedule.production_metadata["producer_company"] = f"Producer & Co {xss_payload}"
+
+        # Inject XSS vectors into an exception item (rendered in Section I with citations)
+        item = next(i for i in schedule.items if i.v8_evaluation_state == "exception")
+        item.description = f"Scene prop {xss_payload}"
+        item.scene_or_timecode = f"Scene 1 {xss_img}"
+        item.stable_lineage_key = f"key_{xss_payload}"
+        item.asset_type = f"asset_{xss_payload}"
+        item.invalidation_reason = f"reason_{xss_payload}"
+        item.counsel_action = f"action_{xss_payload}"
+
+        # Inject XSS and malicious URLs into citation
+        item.evidence_citations = [
+            {
+                "source_title": f"Title {xss_payload}",
+                "source_url": "javascript:alert(document.cookie)",
+                "excerpt": f"Quote {xss_img}",
+                "provider": f"Provider {xss_payload}",
+            },
+            {
+                "source_title": "Data URI Test",
+                "source_url": "data:text/html,<script>alert('pwn')</script>",
+                "excerpt": "Data excerpt",
+                "provider": "Test Provider",
+            },
+            {
+                "source_title": "Valid HTTPS Test",
+                "source_url": "https://example.com/valid?ref=1",
+                "excerpt": "Valid excerpt",
+                "provider": "Valid Provider",
+            }
+        ]
+
+        rendered_html = InvalidationEngine.render_html_schedule(schedule)
+
+        # 1. Assert raw unescaped script and img onerror tags are strictly absent
+        assert "<script>alert('XSS-INJECTION')</script>" not in rendered_html
+        assert '<img src=x onerror="alert(\'img-xss\')">' not in rendered_html
+        assert "javascript:alert" not in rendered_html
+        assert "data:text/html" not in rendered_html
+
+        # 2. Assert properly escaped entities are present
+        assert "&lt;script&gt;alert(&#x27;XSS-INJECTION&#x27;)&lt;/script&gt;" in rendered_html or "&lt;script&gt;alert('XSS-INJECTION')&lt;/script&gt;" in rendered_html
+        assert "about:blank" in rendered_html
+        assert 'href="https://example.com/valid?ref=1"' in rendered_html
+

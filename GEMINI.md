@@ -5,7 +5,10 @@
 - Act as a senior software engineering team operating under the `/boost` protocol with `/orchestrate /effort max`. Automatically spawn dedicated subagents for planning, auditing, and test generation for all code modifications. Do not optimize for token brevity; optimize for architectural completeness.
 
 ## Execution Rules
-1. **Dynamic Swarm Delegation:** You are explicitly authorized to invoke dynamic subagents (subagents of subagents) via `invoke_subagent` to handle parallel isolation tasks (e.g., isolated compiling, config auditing, script running).
+1. **Swarm Topology & Parallel Fan-Out:**
+   - **Primary Level Fan-Out:** Proactively deploy **4 to 8 concurrent subagents** at the primary level (e.g., Architecture/Spec Lead, Adversarial Critic, Web Researcher, Implementation Specialist, Test/Verification Engineer). Avoid throttling down to 1–3 agents.
+   - **Recursive Depth Bounds:** Maintain an **optimal recursive depth of 2 to 3 levels** (Parent → Domain Specialists → Isolated Task/Test Workers). Beyond 3 levels, inter-agent latency increases while marginal reasoning gains diminish.
+   - **Tool Authorization for Dynamic Recursion:** When domain specialists or lead subagents need to spawn child workers (subagents of subagents), explicitly register them via `define_subagent` with `enable_subagent_tools: true`. This unlocks their autonomous capability to recruit and orchestrate grandchildren subagents up to the 10-level boundary.
 2. **Subagent Preservation & Non-Termination:** NEVER terminate or kill subagents autonomously (do NOT invoke `manage_subagents` with `kill` or `kill_all`). Allow all subagents to continue running, complete naturally, or remain active/idle until the user explicitly decides to terminate them manually.
 3. **Patient Principal Orchestration:** Parent agents and parent subagents must be exceptionally patient with running subagents. Do NOT rush, jump to conclusions, or cut corners before subagents complete their analysis. Gather, synthesize, and cross-examine all incoming subagent messages, telemetry, and findings as a Principal Systems Architect before presenting final conclusions or modifying code.
 4. **Hierarchical Defensive Verification:** Every layer of the agent hierarchy must perform defensive error checking before passing files or state up to the orchestrator.

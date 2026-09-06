@@ -589,7 +589,7 @@ class SupersessionEvent(BaseModel):
     event_hash: str = Field(default="", description="SHA-256 tamper-evident hash of event contents")
     # Compatibility fields
     target_version_id: str = Field(default="v8")
-    parent_event_hash: Optional[str] = Field(default=None)
+    parent_event_hash: Optional[str] = Field(default="0" * 64, description="SHA-256 hash of direct parent SupersessionEvent or genesis hash")
     prior_decision: Optional[CounselDecision] = Field(default=None)
     new_decision: Optional[CounselDecision] = Field(default=None)
     metadata: Dict[str, Any] = Field(default_factory=dict)
@@ -612,6 +612,8 @@ class SupersessionEvent(BaseModel):
                 data["new_decision_id"] = f"dec_{ver}_{key}_{uuid.uuid4().hex[:6]}"
             if not data.get("event_id"):
                 data["event_id"] = f"evt_{uuid.uuid4().hex[:12]}"
+            if "parent_event_hash" not in data or data.get("parent_event_hash") is None:
+                data["parent_event_hash"] = "0" * 64
         return data
 
     @model_validator(mode="after")
@@ -620,51 +622,118 @@ class SupersessionEvent(BaseModel):
             action_val = self.action.value if hasattr(self.action, "value") else str(self.action)
             state_val = self.new_state.value if hasattr(self.new_state, "value") else str(self.new_state)
             status_val = self.new_status.value if hasattr(self.new_status, "value") else str(self.new_status)
-            reviewer_name = self.reviewer.name if isinstance(self.reviewer, ReviewerIdentity) else getattr(self.reviewer, "name", str(self.reviewer))
+            parent_hash = self.parent_event_hash or ("0" * 64)
 
-            payload = {
-                "action": action_val,
-                "counsel_rationale": self.rationale,
-                "event_id": self.event_id,
-                "new_state": state_val,
-                "new_status": status_val,
-                "prior_decision_id": self.prior_decision_id,
-                "reviewer_name": reviewer_name,
-                "stable_lineage_key": self.stable_lineage_key,
-                "system_recommendation": self.system_recommendation,
-                "target_version_id": self.target_version_id,
-                "timestamp": self.timestamp,
-            }
-            serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-            self.event_hash = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+            self.event_hash = self.compute_canonical_hash(
+                event_id=self.event_id,
+                prior_decision_id=self.prior_decision_id,
+                new_decision_id=self.new_decision_id,
+                target_version_id=self.target_version_id,
+                stable_lineage_key=self.stable_lineage_key,
+                action=action_val,
+                new_state=state_val,
+                new_status=status_val,
+                system_recommendation=str(self.system_recommendation),
+                counsel_rationale=str(self.rationale),
+                timestamp=str(self.timestamp),
+                parent_event_hash=parent_hash,
+                reviewer=self.reviewer,
+                evidence_citations=self.evidence_citations,
+                changed_dependencies=self.changed_dependencies,
+            )
         return self
 
     @staticmethod
     def compute_canonical_hash(
         event_id: str,
         prior_decision_id: str,
-        target_version_id: str,
-        stable_lineage_key: str,
-        action: str,
-        reviewer_name: str,
-        counsel_rationale: str,
-        new_state: str,
-        new_status: str,
-        system_recommendation: str,
-        timestamp: str,
+        new_decision_id: str = "",
+        target_version_id: str = "v8",
+        stable_lineage_key: str = "",
+        action: str = "",
+        new_state: str = "",
+        new_status: str = "",
+        system_recommendation: str = "REVALIDATE",
+        counsel_rationale: str = "",
+        timestamp: str = "",
+        parent_event_hash: str = "0" * 64,
+        reviewer: Optional[Union[ReviewerIdentity, Dict[str, Any], str]] = None,
+        reviewer_name: Optional[str] = None,
+        evidence_citations: Optional[List[Dict[str, Any]]] = None,
+        changed_dependencies: Optional[List[str]] = None,
     ) -> str:
+        # Canonical reviewer dict with reviewer_id, name, title, organization
+        if isinstance(reviewer, ReviewerIdentity):
+            canonical_reviewer = {
+                "name": str(reviewer.name or ""),
+                "organization": str(reviewer.organization or ""),
+                "reviewer_id": str(reviewer.reviewer_id or ""),
+                "title": str(reviewer.title or ""),
+            }
+        elif isinstance(reviewer, dict):
+            canonical_reviewer = {
+                "name": str(reviewer.get("name") or ""),
+                "organization": str(reviewer.get("organization") or ""),
+                "reviewer_id": str(reviewer.get("reviewer_id") or ""),
+                "title": str(reviewer.get("title") or ""),
+            }
+        elif reviewer is not None:
+            canonical_reviewer = {
+                "name": str(getattr(reviewer, "name", reviewer) or ""),
+                "organization": str(getattr(reviewer, "organization", "") or ""),
+                "reviewer_id": str(getattr(reviewer, "reviewer_id", "") or ""),
+                "title": str(getattr(reviewer, "title", "") or ""),
+            }
+        elif reviewer_name:
+            canonical_reviewer = {
+                "name": str(reviewer_name),
+                "organization": "",
+                "reviewer_id": "",
+                "title": "",
+            }
+        else:
+            canonical_reviewer = {
+                "name": "",
+                "organization": "",
+                "reviewer_id": "",
+                "title": "",
+            }
+
+        # Canonically sorted list of dicts with source_url, payload_hash, provider_call_id
+        canonical_citations = sorted(
+            [
+                {
+                    "payload_hash": str(c.get("payload_hash") or c.get("raw_payload_hash") or ""),
+                    "provider_call_id": str(c.get("provider_call_id") or ""),
+                    "source_url": str(c.get("source_url") or ""),
+                }
+                for c in (evidence_citations or [])
+                if isinstance(c, dict)
+            ],
+            key=lambda x: (x["source_url"], x["payload_hash"], x["provider_call_id"]),
+        )
+
+        # Canonically sorted list of dependency strings
+        canonical_dependencies = sorted([str(d) for d in (changed_dependencies or [])])
+
+        eff_parent_event_hash = str(parent_event_hash or ("0" * 64))
+
         payload = {
-            "action": action,
-            "counsel_rationale": counsel_rationale,
-            "event_id": event_id,
-            "new_state": new_state,
-            "new_status": new_status,
-            "prior_decision_id": prior_decision_id,
-            "reviewer_name": reviewer_name,
-            "stable_lineage_key": stable_lineage_key,
-            "system_recommendation": system_recommendation,
-            "target_version_id": target_version_id,
-            "timestamp": timestamp,
+            "action": str(action),
+            "changed_dependencies": canonical_dependencies,
+            "counsel_rationale": str(counsel_rationale),
+            "event_id": str(event_id),
+            "evidence_citations": canonical_citations,
+            "new_decision_id": str(new_decision_id),
+            "new_state": str(new_state),
+            "new_status": str(new_status),
+            "parent_event_hash": eff_parent_event_hash,
+            "prior_decision_id": str(prior_decision_id),
+            "reviewer": canonical_reviewer,
+            "stable_lineage_key": str(stable_lineage_key),
+            "system_recommendation": str(system_recommendation),
+            "target_version_id": str(target_version_id),
+            "timestamp": str(timestamp),
         }
         serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(serialized.encode("utf-8")).hexdigest()

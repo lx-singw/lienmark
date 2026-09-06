@@ -11,7 +11,30 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
 import hashlib
+import html
 import logging
+from urllib.parse import urlsplit
+
+
+def sanitize_citation_url(url: Optional[str]) -> str:
+    """
+    Validates citation URLs to prevent XSS.
+    Only allows URLs with scheme 'http' or 'https'.
+    If the URL has scheme 'javascript:', 'data:', or is invalid, sanitizes to 'about:blank' or '#'.
+    """
+    if not url:
+        return "#"
+    raw = str(url).strip()
+    if raw in ("", "#"):
+        return "#"
+    try:
+        parts = urlsplit(raw)
+        scheme = parts.scheme.lower()
+        if scheme in ("http", "https"):
+            return html.escape(raw, quote=True)
+        return "about:blank"
+    except Exception:
+        return "about:blank"
 
 from backend.domain.models import (
     ChangeKind,
@@ -563,6 +586,14 @@ class InvalidationEngine:
             key = getattr(ev, "stable_lineage_key", None)
             if not key or key in reattestations:
                 continue
+            ev_version_id = getattr(ev, "target_version_id", None) or getattr(ev, "version_id", None)
+            # Finding 4 (Cross-Version Approval Bleed):
+            # Only match an audit event if ev_version_id == target_version_id (or if version_id is None, only for legacy calls where target_version_id is v8).
+            if ev_version_id is not None and ev_version_id != target_version_id:
+                continue
+            if ev_version_id is None and target_version_id != "v8":
+                continue
+
             action_val = getattr(ev, "action", None)
             new_st = getattr(ev, "new_state", None)
             new_stat = getattr(ev, "new_status", None)
@@ -580,7 +611,7 @@ class InvalidationEngine:
             reattestations[key] = ReattestationRequest(
                 decision_id=getattr(ev, "new_decision_id", "") or getattr(ev, "prior_decision_id", f"dec_{target_version_id}_{key}"),
                 stable_lineage_key=key,
-                version_id=getattr(ev, "target_version_id", target_version_id),
+                version_id=ev_version_id or target_version_id,
                 new_status=st,
                 counsel_rationale=rationale,
                 reviewer_name=reviewer_name or "Sarah Jenkins, Esq. (Lead Clearance Counsel)",
@@ -604,7 +635,17 @@ class InvalidationEngine:
             if not use:
                 continue
 
-            reattest = reattestations.get(key)
+            # Finding 4 (Cross-Version Approval Bleed):
+            # Only match a reattestation if getattr(reattest, "version_id", None) == target_version_id
+            # (or if version_id is None, only for legacy calls where target_version_id is v8).
+            # If a reattestation was recorded for v7 or a different version, DO NOT apply it to target_version_id!
+            reattest_candidate = reattestations.get(key)
+            reattest = None
+            if reattest_candidate:
+                r_ver = getattr(reattest_candidate, "version_id", None)
+                if r_ver == target_version_id or (r_ver is None and target_version_id == "v8"):
+                    reattest = reattest_candidate
+
             final_eval_state = val.state.value if hasattr(val.state, "value") else str(val.state)
 
             citations: List[Dict[str, str]] = []
@@ -786,26 +827,38 @@ class InvalidationEngine:
         for item in exception_items:
             citations_html = ""
             for c in item.evidence_citations:
-                call_id_disp = f'<span style="font-family: monospace; font-size: 10px; color: #475569;">[Call ID: {c.get("provider_call_id", "N/A")}]</span>' if c.get("provider_call_id") else ""
-                hash_disp = f'<span style="font-family: monospace; font-size: 10px; color: #64748b; word-break: break-all;">[SHA-256: {c.get("payload_hash", "N/A")[:16]}...]</span>' if c.get("payload_hash") else ""
+                safe_url = sanitize_citation_url(c.get("source_url", "#"))
+                c_source_title = html.escape(c.get("source_title", "") or "Evidence Source")
+                c_provider = html.escape(c.get("provider", "") or "Parallel")
+                c_excerpt = html.escape(c.get("excerpt", ""))
+                call_id_raw = str(c.get("provider_call_id", ""))
+                call_id_disp = (
+                    f'<span style="font-family: monospace; font-size: 10px; color: #475569;">[Call ID: {html.escape(call_id_raw)}]</span>'
+                    if call_id_raw else ""
+                )
+                hash_raw = str(c.get("payload_hash", ""))
+                hash_disp = (
+                    f'<span style="font-family: monospace; font-size: 10px; color: #64748b; word-break: break-all;">[SHA-256: {html.escape(hash_raw[:16])}...]</span>'
+                    if hash_raw else ""
+                )
                 citations_html += f"""
                 <div style="margin-top: 6px; padding: 6px; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 4px;">
-                    <div><a href="{c.get('source_url', '#')}" target="_blank" style="color: #0284c7; font-weight: 700;">{c.get('source_title', 'Evidence Source')}</a> &middot; {c.get('provider', 'Parallel')} {call_id_disp}</div>
-                    <div style="font-style: italic; font-size: 11px; color: #334155; margin-top: 2px;">&ldquo;{c.get('excerpt', '')}&rdquo;</div>
+                    <div><a href="{safe_url}" target="_blank" style="color: #0284c7; font-weight: 700;">{c_source_title}</a> &middot; {c_provider} {call_id_disp}</div>
+                    <div style="font-style: italic; font-size: 11px; color: #334155; margin-top: 2px;">&ldquo;{c_excerpt}&rdquo;</div>
                     <div style="margin-top: 2px;">{hash_disp}</div>
                 </div>
                 """
             section_i_rows += f"""
             <tr style="break-inside: avoid;">
                 <td style="padding: 10px; border: 1px solid #cbd5e1; font-weight: 600;">
-                    {item.description}<br>
-                    <span style="font-size: 11px; color: #64748b; font-weight: normal;">{item.scene_or_timecode} (<code>{item.stable_lineage_key}</code>)</span>
+                    {html.escape(item.description, quote=False)}<br>
+                    <span style="font-size: 11px; color: #64748b; font-weight: normal;">{html.escape(item.scene_or_timecode, quote=False)} (<code>{html.escape(item.stable_lineage_key, quote=False)}</code>)</span>
                 </td>
-                <td style="padding: 10px; border: 1px solid #cbd5e1; text-transform: uppercase; font-size: 12px;">{item.asset_type}</td>
+                <td style="padding: 10px; border: 1px solid #cbd5e1; text-transform: uppercase; font-size: 12px;">{html.escape(item.asset_type, quote=False)}</td>
                 <td style="padding: 10px; border: 1px solid #cbd5e1; color: #b91c1c; font-weight: 700; font-size: 12px;">EXCEPTION<br><span style="font-size: 10px; font-weight: normal; color: #991b1b;">(Excluded from Coverage)</span></td>
                 <td style="padding: 10px; border: 1px solid #cbd5e1; font-size: 12px;">
-                    <div><strong>Invalidation Reason:</strong> {item.invalidation_reason or 'External rights shift'}</div>
-                    <div style="margin-top: 4px;"><strong>Counsel Mandatory Action:</strong> {item.counsel_action}</div>
+                    <div><strong>Invalidation Reason:</strong> {html.escape(item.invalidation_reason or "External rights shift", quote=False)}</div>
+                    <div style="margin-top: 4px;"><strong>Counsel Mandatory Action:</strong> {html.escape(item.counsel_action, quote=False)}</div>
                     {citations_html}
                 </td>
             </tr>
@@ -821,25 +874,37 @@ class InvalidationEngine:
         for item in reattested_items:
             citations_html = ""
             for c in item.evidence_citations:
-                call_id_disp = f'<span style="font-family: monospace; font-size: 10px; color: #475569;">[Call ID: {c.get("provider_call_id", "N/A")}]</span>' if c.get("provider_call_id") else ""
-                hash_disp = f'<span style="font-family: monospace; font-size: 10px; color: #64748b; word-break: break-all;">[SHA-256: {c.get("payload_hash", "N/A")[:16]}...]</span>' if c.get("payload_hash") else ""
+                safe_url = sanitize_citation_url(c.get("source_url", "#"))
+                c_source_title = html.escape(c.get("source_title", "") or "LOC Renewal Archive", quote=False)
+                c_provider = html.escape(c.get("provider", "") or "Parallel", quote=False)
+                c_excerpt = html.escape(c.get("excerpt", ""), quote=False)
+                call_id_raw = str(c.get("provider_call_id", ""))
+                call_id_disp = (
+                    f'<span style="font-family: monospace; font-size: 10px; color: #475569;">[Call ID: {html.escape(call_id_raw, quote=False)}]</span>'
+                    if call_id_raw else ""
+                )
+                hash_raw = str(c.get("payload_hash", ""))
+                hash_disp = (
+                    f'<span style="font-family: monospace; font-size: 10px; color: #64748b; word-break: break-all;">[SHA-256: {html.escape(hash_raw[:16], quote=False)}...]</span>'
+                    if hash_raw else ""
+                )
                 citations_html += f"""
                 <div style="margin-top: 6px; padding: 6px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 4px;">
-                    <div><a href="{c.get('source_url', '#')}" target="_blank" style="color: #0284c7; font-weight: 700;">{c.get('source_title', 'LOC Renewal Archive')}</a> &middot; {c.get('provider', 'Parallel')} {call_id_disp}</div>
-                    <div style="font-style: italic; font-size: 11px; color: #334155; margin-top: 2px;">&ldquo;{c.get('excerpt', '')}&rdquo;</div>
+                    <div><a href="{safe_url}" target="_blank" style="color: #0284c7; font-weight: 700;">{c_source_title}</a> &middot; {c_provider} {call_id_disp}</div>
+                    <div style="font-style: italic; font-size: 11px; color: #334155; margin-top: 2px;">&ldquo;{c_excerpt}&rdquo;</div>
                     <div style="margin-top: 2px;">{hash_disp}</div>
                 </div>
                 """
             section_ii_rows += f"""
             <tr style="break-inside: avoid;">
                 <td style="padding: 10px; border: 1px solid #cbd5e1; font-weight: 600;">
-                    {item.description}<br>
-                    <span style="font-size: 11px; color: #64748b; font-weight: normal;">{item.scene_or_timecode} (<code>{item.stable_lineage_key}</code>)</span>
+                    {html.escape(item.description, quote=False)}<br>
+                    <span style="font-size: 11px; color: #64748b; font-weight: normal;">{html.escape(item.scene_or_timecode, quote=False)} (<code>{html.escape(item.stable_lineage_key, quote=False)}</code>)</span>
                 </td>
-                <td style="padding: 10px; border: 1px solid #cbd5e1; text-transform: uppercase; font-size: 12px;">{item.asset_type}</td>
+                <td style="padding: 10px; border: 1px solid #cbd5e1; text-transform: uppercase; font-size: 12px;">{html.escape(item.asset_type, quote=False)}</td>
                 <td style="padding: 10px; border: 1px solid #cbd5e1; color: #0284c7; font-weight: 700; font-size: 12px;">RE-ATTESTED<br><span style="font-size: 10px; font-weight: normal; color: #0369a1;">(Public Domain Corroborated)</span></td>
                 <td style="padding: 10px; border: 1px solid #cbd5e1; font-size: 12px;">
-                    <div><strong>Clearance Counsel Determination:</strong> {item.counsel_action}</div>
+                    <div><strong>Clearance Counsel Determination:</strong> {html.escape(item.counsel_action, quote=False)}</div>
                     {citations_html}
                 </td>
             </tr>
@@ -857,12 +922,12 @@ class InvalidationEngine:
             <tr style="break-inside: avoid;">
                 <td style="padding: 8px; border: 1px solid #e2e8f0; font-family: monospace; font-size: 11px; color: #64748b;">{idx:02d}</td>
                 <td style="padding: 8px; border: 1px solid #e2e8f0;">
-                    <strong>{item.description}</strong><br>
-                    <span style="font-size: 10px; color: #64748b;">{item.scene_or_timecode} (<code>{item.stable_lineage_key}</code>)</span>
+                    <strong>{html.escape(item.description, quote=False)}</strong><br>
+                    <span style="font-size: 10px; color: #64748b;">{html.escape(item.scene_or_timecode, quote=False)} (<code>{html.escape(item.stable_lineage_key, quote=False)}</code>)</span>
                 </td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0; font-size: 11px; text-transform: uppercase;">{item.asset_type}</td>
+                <td style="padding: 8px; border: 1px solid #e2e8f0; font-size: 11px; text-transform: uppercase;">{html.escape(item.asset_type, quote=False)}</td>
                 <td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: 600; font-size: 11px; color: #15803d;">CARRIED FORWARD</td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0; font-size: 11px;">{item.counsel_action}</td>
+                <td style="padding: 8px; border: 1px solid #e2e8f0; font-size: 11px;">{html.escape(item.counsel_action, quote=False)}</td>
                 <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; font-family: monospace; font-weight: 600; color: #15803d;">$0.00</td>
             </tr>
             """
@@ -870,12 +935,16 @@ class InvalidationEngine:
         if not section_iii_rows.strip():
             section_iii_rows = '<tr><td colspan="6" style="text-align: center; padding: 12px; color: #64748b;">No claims carried forward.</td></tr>'
 
+        prod_title = html.escape(str(meta.get("production_title", "Production")))
+        proj_id = html.escape(str(meta.get("project_id", schedule.project_id or "")))
+        producer_co = html.escape(str(meta.get("producer_company", "")))
+
         return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Form E&O-2026 Underwriter Exceptions Schedule — {meta.get('production_title', 'Production')}</title>
+    <title>Form E&O-2026 Underwriter Exceptions Schedule — {prod_title}</title>
     <style>
         body {{ font-family: 'Helvetica Neue', Arial, sans-serif; color: #0f172a; margin: 0; padding: 32px; background: #fff; line-height: 1.5; }}
         .disclaimer-banner {{ background: #fef2f2; border: 1px solid #f87171; color: #991b1b; padding: 12px 16px; border-radius: 6px; font-size: 11px; font-weight: 600; line-height: 1.4; margin-bottom: 20px; letter-spacing: 0.2px; }}
@@ -906,21 +975,22 @@ class InvalidationEngine:
     <div class="header-box">
         <div style="display: flex; justify-content: space-between; align-items: flex-start;">
             <div>
-                <div class="carrier-title">{carrier.carrier_name}</div>
+                <div class="carrier-title">{html.escape(str(carrier.carrier_name))}</div>
                 <div class="form-title">FORM E&O-2026: SCHEDULE OF UNRESOLVED CLEARANCE EXCEPTIONS</div>
-                <div style="font-size: 13px; color: #475569; margin-top: 4px;">Broker: {carrier.broker_name} | Policy Binder: <strong>{carrier.policy_number}</strong></div>
+                <div style="font-size: 13px; color: #475569; margin-top: 4px;">Broker: {html.escape(str(carrier.broker_name))} | Policy Binder: <strong>{html.escape(str(carrier.policy_number))}</strong></div>
             </div>
             <div style="text-align: right;">
-                <span class="badge badge-pending">Underwriting Status: {carrier.underwriter_status}</span>
-                <div style="font-size: 11px; color: #64748b; margin-top: 6px;">Generated: {schedule.generated_at}</div>
+                <span class="badge badge-pending">Underwriting Status: {html.escape(str(carrier.underwriter_status))}</span>
+                <div style="font-size: 11px; color: #64748b; margin-top: 6px;">Generated: {html.escape(str(schedule.generated_at))}</div>
             </div>
         </div>
         <div class="grid-meta" style="border-top: 1px solid #e2e8f0; padding-top: 12px; margin-top: 16px;">
-            <div><strong>Production Title:</strong> {meta.get('production_title', 'Shadows Over Broadway')}</div>
-            <div><strong>Project ID:</strong> {schedule.project_id}</div>
-            <div><strong>Lineage:</strong> Base {schedule.base_version_id} &rarr; Target {schedule.target_version_id}</div>
-            <div><strong>Target Cut Content Hash:</strong> <code>{meta.get('target_cut_hash', 'f9e8d7c6b5a43210fedcba9876543210')}</code></div>
-            <div><strong>Clearance Warranty Clause:</strong> {carrier.warranty_clause}</div>
+            <div><strong>Production Title:</strong> {prod_title}</div>
+            <div><strong>Project ID:</strong> {proj_id or html.escape(str(schedule.project_id))}</div>
+            <div><strong>Producer Company:</strong> {producer_co or 'Lienmark Productions Inc.'}</div>
+            <div><strong>Lineage:</strong> Base {html.escape(str(schedule.base_version_id))} &rarr; Target {html.escape(str(schedule.target_version_id))}</div>
+            <div><strong>Target Cut Content Hash:</strong> <code>{html.escape(str(meta.get('target_cut_hash', 'f9e8d7c6b5a43210fedcba9876543210')))}</code></div>
+            <div><strong>Clearance Warranty Clause:</strong> {html.escape(str(carrier.warranty_clause))}</div>
             <div><strong>Reconciliation Invariant:</strong> Total {schedule.total_claims} = {schedule.carried_forward_count} Carried + {schedule.re_attested_count} Re-Attested + {schedule.unresolved_exception_count} Exception</div>
         </div>
     </div>
@@ -999,8 +1069,8 @@ class InvalidationEngine:
     <div style="margin-top: 40px; border-top: 2px solid #0f172a; padding-top: 16px; display: flex; justify-content: space-between; break-inside: avoid;">
         <div>
             <div><strong>Clearance Counsel Sign-off:</strong> Sarah Jenkins, Esq. (Lead Production Clearance Counsel, Lienmark Legal Partners LLP) [FICTIONAL / DEMO COUNSEL]</div>
-            <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Digital Attestation Timestamp: {schedule.generated_at}</div>
-            <div style="font-size: 11px; color: #64748b;">Policy Reference: {carrier.policy_number}</div>
+            <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Digital Attestation Timestamp: {html.escape(str(schedule.generated_at))}</div>
+            <div style="font-size: 11px; color: #64748b;">Policy Reference: {html.escape(str(carrier.policy_number))}</div>
         </div>
         <div style="text-align: right;">
             <div><strong>Underwriter Acknowledgment:</strong> ___________________________</div>
@@ -1018,6 +1088,14 @@ class InvalidationEngine:
     </div>
 </body>
 </html>"""
+
+    @classmethod
+    def render_html_schedule(cls, schedule: ExceptionsSchedule) -> str:
+        """
+        Renders Form E&O-2026 as printable SSR HTML with defensive XSS sanitization.
+        Alias for render_form_eo_2026_html.
+        """
+        return cls.render_form_eo_2026_html(schedule)
 
 
 def evaluate_version_delta(
@@ -1043,5 +1121,16 @@ def evaluate_version_delta(
         contracts=contracts,
         dependency_graph=dependency_graph,
     )
+
+
+def render_form_eo_2026_html(schedule: ExceptionsSchedule) -> str:
+    """Renders Form E&O-2026 HTML for underwriter review and counsel export."""
+    return InvalidationEngine.render_form_eo_2026_html(schedule)
+
+
+def render_html_schedule(schedule: ExceptionsSchedule) -> str:
+    """Renders Form E&O-2026 HTML for underwriter review and counsel export."""
+    return InvalidationEngine.render_html_schedule(schedule)
+
 
 

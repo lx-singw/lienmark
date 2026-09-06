@@ -1,6 +1,6 @@
 {
   "status": "SUBMISSION_FROZEN_READY",
-  "timestamp": "2026-09-06T09:20:00.509921+00:00",
+  "timestamp": "2026-09-06T09:59:28.509750+00:00",
   "release_candidate": "RC-1",
   "pinned_commit": "e022a4c8042c9552a307357cc138acfdd8552522",
   "pinned_tree": "dd4d3070fed1cb33f988aebf39dcc1ae5a6d0e35",
@@ -20,13 +20,13 @@
   "gates_evaluated": 8,
   "summary": {
     "all_gates_passed": true,
-    "total_execution_seconds": 0.76,
+    "total_execution_seconds": 0.98,
     "open_p0_defects": 0,
     "checklist_status": "27/27_SATISFIED",
     "total_tests_passing": 508,
     "base_rc_commit": "e022a4c8042c9552a307357cc138acfdd8552522",
-    "head_commit": "6f4943d2011f5e0432c1e18978ca66335d086f9e",
-    "head_tree": "0ce5538f1416506baf10fe4498679afe59b31e41"
+    "head_commit": "843d40a6406e02e16c072c4fef2453b04d8c5343",
+    "head_tree": "a08267e54e88a2277626e29bd2f04891bc3ef3b8"
   },
   "gates": [
     {
@@ -53,7 +53,7 @@
       ],
       "total_sections": 13,
       "passed_sections": 13,
-      "duration_seconds": 0.027
+      "duration_seconds": 0.049
     },
     {
       "gate_id": "GATE_2_PARALLEL_TRACK_SELECTION",
@@ -66,7 +66,7 @@
         "ParallelSearchService verified with live endpoint https://api.parallel.ai/v1/search",
         "Parallel research agent client module verified"
       ],
-      "duration_seconds": 0.055
+      "duration_seconds": 0.083
     },
     {
       "gate_id": "GATE_3_TEAM_ROSTER_ELIGIBILITY",
@@ -83,7 +83,7 @@
       "team_lead": "Linda Singwane (lx-singw), Lead Systems Architect",
       "contact_email": "singwane.linda.m@gmail.com",
       "jurisdiction": "South Africa (Eligible)",
-      "duration_seconds": 0.071
+      "duration_seconds": 0.095
     },
     {
       "gate_id": "GATE_4_ENGLISH_AND_SUBTITLES",
@@ -99,7 +99,7 @@
         "Verified 100% professional English written entry in devpost_submission.md"
       ],
       "target_duration_seconds": 165.0,
-      "duration_seconds": 0.09
+      "duration_seconds": 0.126
     },
     {
       "gate_id": "GATE_5_RC_PIN_AND_TREE_INTEGRITY",
@@ -117,10 +117,10 @@
       "policy_version": "E&O-2026.1-DEVPOST",
       "base_rc_commit": "e022a4c8042c9552a307357cc138acfdd8552522",
       "base_rc_tree": "dd4d3070fed1cb33f988aebf39dcc1ae5a6d0e35",
-      "head_commit": "6f4943d2011f5e0432c1e18978ca66335d086f9e",
-      "head_tree": "0ce5538f1416506baf10fe4498679afe59b31e41",
+      "head_commit": "843d40a6406e02e16c072c4fef2453b04d8c5343",
+      "head_tree": "a08267e54e88a2277626e29bd2f04891bc3ef3b8",
       "open_p0_defects": 0,
-      "duration_seconds": 0.423
+      "duration_seconds": 0.517
     },
     {
       "gate_id": "GATE_6_COLD_JUDGE_AUDIT",
@@ -143,7 +143,7 @@
         "Quality Gate verified: PASSED (5/5 gates passed)",
         "Deterministic test suite verified: 508/508 passing (0 failures, 0 skipped)",
         "Rehearsal verified: status=SUCCESS, 12=10+1+1 satisfied, 83.3% reduction",
-        "Live smoke verified: status=PASS, timestamp=2026-09-06T09:09:01.277862Z"
+        "Live smoke verified: status=PASS, timestamp=2026-09-06T09:21:21.886861Z"
       ],
       "reports": {
         "quality_gate": {
@@ -160,7 +160,7 @@
         },
         "live_smoke": {
           "status": "PASS",
-          "timestamp": "2026-09-06T09:09:01.277862Z"
+          "timestamp": "2026-09-06T09:21:21.886861Z"
         },
         "submission_consistency": {
           "status": "CONSISTENT"
@@ -169,7 +169,7 @@
           "status": "COLD_JUDGE_PASSED"
         }
       },
-      "duration_seconds": 0.059
+      "duration_seconds": 0.061
     },
     {
       "gate_id": "GATE_8_DEVPOST_CHECKLIST_COMPLIANCE",
@@ -396,7 +396,7 @@
           "evidence": "Statutory Notice verified verbatim; AI model containment strictly enforced"
         }
       ],
-      "duration_seconds": 0.023
+      "duration_seconds": 0.038
     }
   ],
   "checklist": [

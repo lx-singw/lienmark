@@ -149,26 +149,36 @@ class ParallelSearchService:
         search_id = data.get("search_id")
         session_id = data.get("session_id")
         provider_call_id = search_id or session_id or data.get("request_id") or f"prl_{int(time.time())}"
-        top_hit = results[0] if results else {}
-
-        source_url = top_hit.get("url") or "https://search.parallel.ai/evidence"
-        source_title = top_hit.get("title") or "Parallel Attributable Evidence"
-        publish_date = top_hit.get("publish_date")
-
-        # Excerpt parsing in accordance with Parallel v1 specification:
-        # excerpts: List[str] -> " ".join(top_hit.get("excerpts", [])) or top_hit.get("excerpt", "")
-        raw_excerpts = top_hit.get("excerpts")
-        if isinstance(raw_excerpts, list) and raw_excerpts:
-            excerpt = " ".join(raw_excerpts).strip()
+        if not results:
+            stance = EvidenceStance.INSUFFICIENT
+            source_title = "No Attributable Evidence Found"
+            source_url = ""
+            excerpt = "Query returned zero matching catalog records."
+            publisher = "Parallel Search Index"
+            citation = "No matching records"
+            publish_date = None
+            raw_excerpts = []
+            domain = ""
         else:
-            excerpt = ""
-        if not excerpt:
-            excerpt = top_hit.get("excerpt") or top_hit.get("snippet") or "Attributable excerpt"
+            top_hit = results[0]
+            source_url = top_hit.get("url") or "https://search.parallel.ai/evidence"
+            source_title = top_hit.get("title") or "Parallel Attributable Evidence"
+            publish_date = top_hit.get("publish_date")
 
-        publisher = publisher_override or top_hit.get("source") or top_hit.get("publisher") or "Parallel Search Index"
-        domain = urlsplit(source_url).netloc or "search.parallel.ai"
-        citation = f"{source_title} ({publisher})" if publisher and publisher not in source_title else source_title
-        stance = stance_override or expected_stance or EvidenceStance.SUPPORTING
+            # Excerpt parsing in accordance with Parallel v1 specification:
+            # excerpts: List[str] -> " ".join(top_hit.get("excerpts", [])) or top_hit.get("excerpt", "")
+            raw_excerpts = top_hit.get("excerpts")
+            if isinstance(raw_excerpts, list) and raw_excerpts:
+                excerpt = " ".join(raw_excerpts).strip()
+            else:
+                excerpt = ""
+            if not excerpt:
+                excerpt = top_hit.get("excerpt") or top_hit.get("snippet") or "Attributable excerpt"
+
+            publisher = publisher_override or top_hit.get("source") or top_hit.get("publisher") or "Parallel Search Index"
+            domain = urlsplit(source_url).netloc or "search.parallel.ai"
+            citation = f"{source_title} ({publisher})" if publisher and publisher not in source_title else source_title
+            stance = stance_override or expected_stance or EvidenceStance.SUPPORTING
 
         metadata = {
             "raw_payload_hash": raw_payload_hash,

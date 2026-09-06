@@ -69,6 +69,13 @@ class ExceptionsScheduleEngine:
         """
         return InvalidationEngine.render_form_eo_2026_html(schedule)
 
+    @classmethod
+    def render_html_schedule(cls, schedule: ExceptionsSchedule) -> str:
+        """
+        Renders Form E&O-2026 as printable SSR HTML with defensive XSS sanitization.
+        """
+        return InvalidationEngine.render_html_schedule(schedule)
+
 
 # Top-level functional aliases for direct module invocation
 def generate_exceptions_schedule(
@@ -97,6 +104,11 @@ def render_form_eo_2026_html(schedule: ExceptionsSchedule) -> str:
     return ExceptionsScheduleEngine.render_html(schedule)
 
 
+def render_html_schedule(schedule: ExceptionsSchedule) -> str:
+    """Renders Form E&O-2026 HTML for underwriter review and counsel export."""
+    return ExceptionsScheduleEngine.render_html_schedule(schedule)
+
+
 __all__ = [
     "CarrierHeader",
     "ExceptionsSchedule",
@@ -104,4 +116,5 @@ __all__ = [
     "ExceptionsScheduleEngine",
     "generate_exceptions_schedule",
     "render_form_eo_2026_html",
+    "render_html_schedule",
 ]

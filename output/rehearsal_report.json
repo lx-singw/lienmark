@@ -1,7 +1,7 @@
 {
-  "rehearsal_id": "rehearsal_1788686286",
+  "rehearsal_id": "rehearsal_1788688661",
   "status": "SUCCESS",
-  "timestamp": "2026-09-06T09:18:06.090606+00:00",
+  "timestamp": "2026-09-06T09:57:41.885759+00:00",
   "policy_version": "E&O-2026.1-DEVPOST",
   "project_id": "proj_blockbuster_cinema",
   "base_version": "v7",
@@ -23,15 +23,15 @@
   "counsel_audit_trail": {
     "event_count": 2,
     "is_ledger_valid": true,
-    "head_event_hash": "4adb0b9cef829b5c37a5e166832b8bc710ead16258490ee11648610f8aa15bc9"
+    "head_event_hash": "c54aa8392792e123cb0b66d31de7241c6cc8ea416fda2d78526087a7056f3d51"
   },
   "phase_timings_microsecond": {
-    "phase_1": 811.7000106722116,
-    "phase_2": 183.90000332146883,
-    "phase_3": 1310.399966314435,
-    "phase_4": 1829.999964684248,
-    "phase_5": 1915.7000351697206,
-    "phase_6": 452.1000082604587
+    "phase_1": 528.7000094540417,
+    "phase_2": 126.60003267228603,
+    "phase_3": 1326.5999732539058,
+    "phase_4": 1550.3999893553555,
+    "phase_5": 1680.3000471554697,
+    "phase_6": 397.09999691694975
   },
   "disclaimer_audit": {
     "prohibited_phrases_checked": 10,

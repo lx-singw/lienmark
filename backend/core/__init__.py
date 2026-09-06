@@ -55,6 +55,8 @@ from backend.core.security import (
     CounselAuthContext,
     verify_counsel_token,
     is_strict_auth_enabled,
+    VALID_COUNSEL_REGISTRY,
+    VALID_DEMO_COUNSEL_TOKENS,
     REDACTED_API_KEY,
     MAX_PAYLOAD_SIZE_BYTES,
 )
@@ -108,6 +110,8 @@ __all__ = [
     "CounselAuthContext",
     "verify_counsel_token",
     "is_strict_auth_enabled",
+    "VALID_COUNSEL_REGISTRY",
+    "VALID_DEMO_COUNSEL_TOKENS",
     "REDACTED_API_KEY",
     "MAX_PAYLOAD_SIZE_BYTES",
 ]

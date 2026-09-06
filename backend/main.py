@@ -30,6 +30,10 @@ from backend.domain.models import (
     ReviewActionRequest,
     UnauthorizedApprovalError,
     FailClosedSecurityViolation,
+    CreativeUse,
+    CounselDecision,
+    ContractAgreement,
+    PublicEvidenceSnapshot,
 )
 from backend.core.counsel_checkpoint import (
     CounselCheckpointManager,
@@ -789,6 +793,51 @@ async def run_drift_analysis(
     except Exception as e:
         logger.warning(f"Failed to increment usage counter: {e}")
 
+    # Parse dynamic comparison payload if provided
+    dynamic_contracts = None
+    dynamic_base_uses = None
+    dynamic_target_uses = None
+    dynamic_prior_decisions = None
+    dynamic_evidence = None
+    base_version_id = "v7"
+    target_version_id = "v8"
+
+    if payload and isinstance(payload, dict):
+        base_version_id = payload.get("base_version_id") or payload.get("base_version") or "v7"
+        target_version_id = payload.get("target_version_id") or payload.get("target_version") or "v8"
+
+        if "contracts" in payload and payload["contracts"]:
+            dynamic_contracts = [
+                ContractAgreement(**c) if isinstance(c, dict) else c
+                for c in payload["contracts"]
+            ]
+        if "base_uses" in payload and payload["base_uses"]:
+            dynamic_base_uses = [
+                CreativeUse(**u) if isinstance(u, dict) else u
+                for u in payload["base_uses"]
+            ]
+        if "target_uses" in payload and payload["target_uses"]:
+            dynamic_target_uses = [
+                CreativeUse(**u) if isinstance(u, dict) else u
+                for u in payload["target_uses"]
+            ]
+        if "prior_decisions" in payload and payload["prior_decisions"]:
+            dynamic_prior_decisions = [
+                CounselDecision(**d) if isinstance(d, dict) else d
+                for d in payload["prior_decisions"]
+            ]
+        if "evidence_snapshots" in payload and payload["evidence_snapshots"]:
+            if isinstance(payload["evidence_snapshots"], dict):
+                dynamic_evidence = {
+                    k: PublicEvidenceSnapshot(**v) if isinstance(v, dict) else v
+                    for k, v in payload["evidence_snapshots"].items()
+                }
+            elif isinstance(payload["evidence_snapshots"], list):
+                dynamic_evidence = {
+                    (v.stable_lineage_key if hasattr(v, "stable_lineage_key") else v.get("stable_lineage_key", f"ev_{i}")): (PublicEvidenceSnapshot(**v) if isinstance(v, dict) else v)
+                    for i, v in enumerate(payload["evidence_snapshots"])
+                }
+
     if session_id and spend_guard_manager.is_limit_exceeded(session_id):
         from backend.services.gemini_service import GeminiService
         from backend.services.parallel_service import ParallelSearchService
@@ -796,7 +845,15 @@ async def run_drift_analysis(
             gemini_service=GeminiService(use_fallback=True),
             parallel_service=ParallelSearchService(use_fallback=True),
         )
-        result = await workflow.execute_drift_detection()
+        result = await workflow.execute_drift_detection(
+            contracts=dynamic_contracts,
+            base_uses=dynamic_base_uses,
+            target_uses=dynamic_target_uses,
+            prior_decisions=dynamic_prior_decisions,
+            evidence_snapshots=dynamic_evidence,
+            base_version_id=base_version_id,
+            target_version_id=target_version_id,
+        )
         _latest_run_result = result
         if session_id in (counsel_checkpoint_manager.DEFAULT_SESSION_ID, "default_session"):
             _counsel_reattestations.clear()
@@ -810,7 +867,15 @@ async def run_drift_analysis(
         return data
 
     workflow = LienmarkWorkflow()
-    result = await workflow.execute_drift_detection()
+    result = await workflow.execute_drift_detection(
+        contracts=dynamic_contracts,
+        base_uses=dynamic_base_uses,
+        target_uses=dynamic_target_uses,
+        prior_decisions=dynamic_prior_decisions,
+        evidence_snapshots=dynamic_evidence,
+        base_version_id=base_version_id,
+        target_version_id=target_version_id,
+    )
     _latest_run_result = result
     if session_id in (counsel_checkpoint_manager.DEFAULT_SESSION_ID, "default_session"):
         _counsel_reattestations.clear()
@@ -928,8 +993,9 @@ def submit_review_action(request: ReviewActionRequest, http_req: Request = None)
     enforcing fail-closed security gates, generating a tamper-evident SupersessionEvent,
     and recording the transition in the immutable audit ledger.
     """
+    auth_ctx = None
     if http_req is not None:
-        verify_counsel_token(http_req)
+        auth_ctx = verify_counsel_token(http_req)
     try:
         sess_id = getattr(request, "session_id", None) or get_session_id(http_req)
         eff_run_id = getattr(request, "run_id", None) or (http_req.headers.get("X-Run-ID") if http_req else None)
@@ -954,9 +1020,21 @@ def submit_review_action(request: ReviewActionRequest, http_req: Request = None)
                 detail="Counsel rationale is required and cannot be empty."
             )
 
-        reviewer = request.reviewer
-        if not reviewer:
-            reviewer = ReviewerIdentity(name=request.reviewer_name or "Sarah Jenkins, Esq.")
+        reviewer = None
+        if auth_ctx and auth_ctx.strict_mode_active and auth_ctx.reviewer_identity:
+            reviewer = auth_ctx.reviewer_identity
+        elif auth_ctx and auth_ctx.token and auth_ctx.reviewer_identity:
+            reviewer = auth_ctx.reviewer_identity
+        elif request.reviewer:
+            reviewer = request.reviewer
+        elif request.reviewer_name is not None and request.reviewer_name != "":
+            reviewer = ReviewerIdentity(name=request.reviewer_name)
+        else:
+            reviewer = (
+                auth_ctx.reviewer_identity
+                if (auth_ctx and auth_ctx.reviewer_identity)
+                else ReviewerIdentity(name="Sarah Jenkins, Esq.")
+            )
 
         new_decision, event = counsel_checkpoint_manager.apply_review_action(
             action=request.action,
@@ -1070,29 +1148,85 @@ def get_review_audit_trail(
 @app.post("/api/attorney-override")
 def record_counsel_reattestation(request: ReattestationRequest, http_req: Request = None):
     """Backwards-compatible endpoint for legacy tests and dashboard."""
+    auth_ctx = None
     if http_req is not None:
-        verify_counsel_token(http_req)
+        auth_ctx = verify_counsel_token(http_req)
     sess_id = get_session_id(http_req)
-    sess_reattestations = get_session_reattestations(sess_id)
-    sess_reattestations[request.stable_lineage_key] = request
+
+    final_rationale = (request.counsel_rationale or "").strip()
     action = ReviewAction.RE_ATTEST if request.new_status == DecisionStatus.APPROVED else ReviewAction.REJECT
+    if action == ReviewAction.RE_ATTEST and not final_rationale:
+        raise HTTPException(
+            status_code=403,
+            detail="Fail-closed safety invariant: Counsel re-attestation requires explicit legal rationale.",
+        )
+    elif not final_rationale:
+        raise HTTPException(
+            status_code=400,
+            detail="Counsel rationale is required and cannot be empty.",
+        )
+
+    reviewer = None
+    if auth_ctx and auth_ctx.strict_mode_active and auth_ctx.reviewer_identity:
+        reviewer = auth_ctx.reviewer_identity
+    elif auth_ctx and auth_ctx.token and auth_ctx.reviewer_identity:
+        reviewer = auth_ctx.reviewer_identity
+    elif request.reviewer_name is not None and request.reviewer_name.strip() != "":
+        reviewer = ReviewerIdentity(name=request.reviewer_name.strip())
+    else:
+        reviewer = (
+            auth_ctx.reviewer_identity
+            if (auth_ctx and auth_ctx.reviewer_identity)
+            else ReviewerIdentity(name="Sarah Jenkins, Esq.")
+        )
+
+    if not reviewer or not reviewer.name or not reviewer.name.strip():
+        raise HTTPException(status_code=400, detail="Reviewer identity name is required.")
+
     try:
-        counsel_checkpoint_manager.apply_review_action(
+        new_decision, event = counsel_checkpoint_manager.apply_review_action(
             action=action,
             lineage_key=request.stable_lineage_key,
-            rationale=request.counsel_rationale,
-            reviewer=ReviewerIdentity(name=request.reviewer_name),
+            rationale=final_rationale,
+            reviewer=reviewer,
             target_version_id=request.version_id or "v8",
             decision_id=request.decision_id,
             session_id=sess_id,
         )
+    except StaleRunCommitError as e:
+        raise HTTPException(status_code=409, detail=f"In-flight commit invalidation: {str(e)}")
+    except UnauthorizedApprovalError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.warning(f"Could not record checkpoint event from legacy attest endpoint: {e}")
+        logger.error(f"Failed to record counsel reattestation: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to apply review action: {e}")
+
+    sess_reattestations = get_session_reattestations(sess_id)
+    sess_reattestations[request.stable_lineage_key] = ReattestationRequest(
+        decision_id=new_decision.decision_id,
+        stable_lineage_key=request.stable_lineage_key,
+        version_id=request.version_id or "v8",
+        new_status=new_decision.status,
+        counsel_rationale=final_rationale,
+        reviewer_name=reviewer.name,
+    )
+
     return {
         "status": "recorded",
         "stable_lineage_key": request.stable_lineage_key,
         "new_status": request.new_status.value,
-        "rationale": request.counsel_rationale,
+        "rationale": final_rationale,
+        "event_id": event.event_id,
+        "event_hash": event.event_hash,
+        "audit_event_hash": event.event_hash,
+        "parent_event_hash": event.parent_event_hash,
+        "decision_id": new_decision.decision_id,
+        "reviewer": reviewer.model_dump() if hasattr(reviewer, "model_dump") else {"name": reviewer.name},
+        "reviewer_name": reviewer.name,
     }
 
 
@@ -1186,7 +1320,7 @@ def _get_reconciled_schedule(
 @app.get("/api/reports/form-eo-2026")
 def get_exceptions_schedule(
     production_id: str = "proj_blockbuster_cinema",
-    auto_reconcile_demo: bool = True,
+    auto_reconcile_demo: bool = Query(default=False),
     http_req: Request = None,
 ):
     """
@@ -1207,6 +1341,7 @@ def get_exceptions_schedule(
 @app.get("/api/reports/form-eo-2026/html", response_class=HTMLResponse)
 def serve_form_eo_2026_report(
     production_id: str = "proj_blockbuster_cinema",
+    auto_reconcile_demo: bool = Query(default=False),
     http_req: Request = None,
 ):
     """
@@ -1217,7 +1352,7 @@ def serve_form_eo_2026_report(
     sess_id = get_session_id(http_req)
     schedule = _get_reconciled_schedule(
         project_id=production_id,
-        auto_reconcile_demo=True,
+        auto_reconcile_demo=auto_reconcile_demo,
         session_id=sess_id,
     )
     html_content = InvalidationEngine.render_form_eo_2026_html(schedule)
@@ -1228,6 +1363,7 @@ def serve_form_eo_2026_report(
 def export_exceptions_schedule(
     production_id: str = "proj_blockbuster_cinema",
     format: str = Query(default="json", pattern="^(json|html)$"),
+    auto_reconcile_demo: bool = Query(default=False),
     http_req: Request = None,
 ):
     """
@@ -1237,7 +1373,7 @@ def export_exceptions_schedule(
     sess_id = get_session_id(http_req)
     schedule = _get_reconciled_schedule(
         project_id=production_id,
-        auto_reconcile_demo=True,
+        auto_reconcile_demo=auto_reconcile_demo,
         session_id=sess_id,
     )
 

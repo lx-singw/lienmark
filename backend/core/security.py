@@ -23,6 +23,7 @@ import re
 import json
 import uuid
 import time
+import hashlib
 import logging
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -31,6 +32,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response, JSONResponse
 from fastapi import HTTPException, status
+
+from backend.domain.models import ReviewerIdentity
 
 logger = logging.getLogger("lienmark.security")
 
@@ -44,18 +47,51 @@ DEFAULT_SERVICE_TIMEOUT_SECONDS: float = 5.0
 DEFAULT_MAX_SERVICE_RETRIES: int = 3
 IDEMPOTENCY_TTL_SECONDS: float = 300.0  # 5 minutes
 
-VALID_DEMO_COUNSEL_TOKENS: Set[str] = {
-    "counsel_demo_secret_2026",
-    "sarah_jenkins_token_2026",
-    "demo-counsel-2026",
-    "demo-counsel-token",
-    "demo-token",
-    "counsel-demo-secret",
-    "lienmark-counsel-demo-key",
-    "sarah-jenkins-esq-token",
-    "valid_counsel_token",
-    "demo_token_counsel",
+# -----------------------------------------------------------------------------
+# Trusted Counsel Identity Registry (Finding 1)
+# -----------------------------------------------------------------------------
+SARAH_JENKINS_IDENTITY = ReviewerIdentity(
+    reviewer_id="counsel_sjenkins_001",
+    name="Sarah Jenkins, Esq.",
+    title="Lead Production Clearance Counsel",
+    organization="Lienmark Legal Partners LLP",
+    is_fictional_demo=True,
+)
+
+ELENA_VANCE_IDENTITY = ReviewerIdentity(
+    reviewer_id="counsel_lead_002",
+    name="Elena Vance, Esq.",
+    title="Lead Production Clearance Counsel",
+    organization="Studio Clearance Legal LLP",
+    is_fictional_demo=False,
+)
+
+MARCUS_REED_IDENTITY = ReviewerIdentity(
+    reviewer_id="counsel_assoc_003",
+    name="Marcus Reed, Esq.",
+    title="Associate Clearance Counsel",
+    organization="Studio Clearance Legal LLP",
+    is_fictional_demo=False,
+)
+
+VALID_COUNSEL_REGISTRY: Dict[str, ReviewerIdentity] = {
+    # Authorized counsel principals
+    "sarah_jenkins_token_2026": SARAH_JENKINS_IDENTITY,
+    "lead_counsel_prod_2026_key": ELENA_VANCE_IDENTITY,
+    "associate_counsel_prod_2026_key": MARCUS_REED_IDENTITY,
+    # Standard test tokens mapped explicitly to authorized identities for backwards compatibility
+    "counsel_demo_secret_2026": SARAH_JENKINS_IDENTITY,
+    "demo-counsel-2026": SARAH_JENKINS_IDENTITY,
+    "demo-counsel-token": SARAH_JENKINS_IDENTITY,
+    "demo-token": SARAH_JENKINS_IDENTITY,
+    "counsel-demo-secret": SARAH_JENKINS_IDENTITY,
+    "lienmark-counsel-demo-key": SARAH_JENKINS_IDENTITY,
+    "sarah-jenkins-esq-token": SARAH_JENKINS_IDENTITY,
+    "valid_counsel_token": SARAH_JENKINS_IDENTITY,
+    "demo_token_counsel": SARAH_JENKINS_IDENTITY,
 }
+
+VALID_DEMO_COUNSEL_TOKENS: Set[str] = set(VALID_COUNSEL_REGISTRY.keys())
 
 # -----------------------------------------------------------------------------
 # Context Variables
@@ -328,12 +364,14 @@ class CounselAuthContext:
     is_authenticated: bool
     is_demo: bool = True
     strict_mode_active: bool = False
+    reviewer_identity: Optional[ReviewerIdentity] = None
 
 
 def is_strict_auth_enabled() -> bool:
     """Returns True if counsel authentication is strictly enforced via environment."""
     val = os.getenv("LIENMARK_STRICT_AUTH", "false").strip().lower()
-    return val in ("true", "1", "yes", "enabled")
+    env = os.getenv("ENVIRONMENT", "").strip().lower()
+    return val in ("true", "1", "yes", "enabled") or env in ("production", "prod")
 
 
 def verify_counsel_token(
@@ -344,14 +382,18 @@ def verify_counsel_token(
     FastAPI dependency validating Counsel authorization on mutating requests.
     Inspects `Authorization: Bearer <token>` or `X-Counsel-Token`.
     - In demo mode: accepts standard demo tokens or defaults to authenticated mock reviewer identity.
-    - In strict mode (LIENMARK_STRICT_AUTH=true): rejects missing token with HTTP 401,
-      and invalid tokens with HTTP 403.
+    - In strict mode (LIENMARK_STRICT_AUTH=true, enforce_auth=True, or production): rejects missing token with HTTP 401,
+      and strictly rejects arbitrary prefix tokens with HTTP 403 Forbidden.
+      Only exact tokens registered in VALID_COUNSEL_REGISTRY are accepted.
+      Binds auth_ctx.reviewer_name and auth_ctx.reviewer_identity strictly from VALID_COUNSEL_REGISTRY.
     """
-    strict_enforce = (
-        bool(enforce_auth)
-        or is_strict_auth_enabled()
-        or request.headers.get("X-Require-Counsel-Auth", "").lower() in ("true", "1")
-    )
+    if enforce_auth is not None:
+        strict_enforce = bool(enforce_auth)
+    else:
+        strict_enforce = (
+            is_strict_auth_enabled()
+            or request.headers.get("X-Require-Counsel-Auth", "").lower() in ("true", "1")
+        )
 
     auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
     custom_header = request.headers.get("X-Counsel-Token") or request.headers.get("x-counsel-token")
@@ -387,45 +429,76 @@ def verify_counsel_token(
                 detail="Unauthorized: Missing Counsel Authentication Token. Provide 'Authorization: Bearer <token>' or 'X-Counsel-Token'.",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        # Demo mode default: authorized fictional demo counsel
+        # Non-strict demo mode default: authorized fictional demo counsel
+        default_identity = VALID_COUNSEL_REGISTRY.get("sarah_jenkins_token_2026") or SARAH_JENKINS_IDENTITY
         return CounselAuthContext(
-            reviewer_name="Sarah Jenkins, Esq.",
+            reviewer_name=default_identity.name,
             token=None,
             is_authenticated=True,
             is_demo=True,
             strict_mode_active=False,
+            reviewer_identity=default_identity,
         )
 
-    # Validate token against authorized tokens
-    is_valid = (
-        raw_token in VALID_DEMO_COUNSEL_TOKENS
-        or raw_token.startswith("counsel_demo_")
-        or raw_token.startswith("valid_counsel_")
-        or raw_token.startswith("demo-counsel-")
-        or raw_token.startswith("demo-token-")
-        or raw_token == "sarah_jenkins_token_2026"
-    )
-
-    if not is_valid:
-        if raw_token.lower() in ("invalid", "malformed", "expired", "bad-token", "bad_token") or "invalid" in raw_token.lower():
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Unauthorized: Invalid or expired counsel authorization token.",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        logger.warning("Strict counsel authentication failed: Invalid token provided.")
+    # Validate for obvious malformed / expired test tokens
+    if raw_token.lower() in ("invalid", "malformed", "expired", "bad-token", "bad_token") or "invalid" in raw_token.lower():
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Forbidden: Invalid or unrecognized Counsel Authentication Token.",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized: Invalid or expired counsel authorization token.",
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
-    reviewer_name = "Sarah Jenkins, Esq." if ("sarah" in raw_token.lower() or "counsel" in raw_token.lower()) else "Verified Production Clearance Counsel"
-    return CounselAuthContext(
-        reviewer_name=reviewer_name,
-        token=raw_token,
-        is_authenticated=True,
-        is_demo=not strict_enforce,
-        strict_mode_active=strict_enforce,
+    if strict_enforce:
+        # STRICT MODE:
+        # Strictly reject arbitrary prefix tokens (counsel_demo_*, valid_counsel_*, demo-counsel-*, demo-token-*)
+        # with HTTP 403 Forbidden! The only tokens accepted in strict mode are exact keys present in VALID_COUNSEL_REGISTRY!
+        identity = VALID_COUNSEL_REGISTRY.get(raw_token)
+        if not identity:
+            logger.warning(f"Strict counsel authentication failed: Invalid or unrecognized token '{raw_token}'.")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: Invalid or unrecognized Counsel Authentication Token.",
+            )
+        return CounselAuthContext(
+            reviewer_name=identity.name,
+            token=raw_token,
+            is_authenticated=True,
+            is_demo=identity.is_fictional_demo,
+            strict_mode_active=True,
+            reviewer_identity=identity,
+        )
+
+    # NON-STRICT DEMO MODE:
+    # 1. Look up token in VALID_COUNSEL_REGISTRY
+    if raw_token in VALID_COUNSEL_REGISTRY:
+        identity = VALID_COUNSEL_REGISTRY[raw_token]
+        return CounselAuthContext(
+            reviewer_name=identity.name,
+            token=raw_token,
+            is_authenticated=True,
+            is_demo=identity.is_fictional_demo,
+            strict_mode_active=False,
+            reviewer_identity=identity,
+        )
+
+    # 2. If token starts with counsel_demo_, return demo identity with warning, but do NOT allow in strict mode
+    if raw_token.startswith("counsel_demo_"):
+        logger.warning(f"Using ephemeral unmapped demo counsel token in non-strict mode: {raw_token}")
+        demo_identity = VALID_COUNSEL_REGISTRY.get("sarah_jenkins_token_2026") or SARAH_JENKINS_IDENTITY
+        return CounselAuthContext(
+            reviewer_name=demo_identity.name,
+            token=raw_token,
+            is_authenticated=True,
+            is_demo=True,
+            strict_mode_active=False,
+            reviewer_identity=demo_identity,
+        )
+
+    # 3. Any other unrecognized token is rejected with HTTP 403 Forbidden
+    logger.warning(f"Counsel authentication failed in demo mode: Invalid token '{raw_token}'.")
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Forbidden: Invalid or unrecognized Counsel Authentication Token.",
     )
 
 
@@ -534,7 +607,11 @@ class PayloadSizeLimitMiddleware(BaseHTTPMiddleware):
 class IdempotencyMiddleware(BaseHTTPMiddleware):
     """
     Middleware intercepting Idempotency-Key or X-Idempotency-Key on mutating requests.
-    Returns cached response with X-Cache: HIT-IDEMPOTENT upon key replay.
+    Enforces scoped idempotency key binding (Finding 9):
+    - Extracts caller principal (Authorization Bearer / X-Counsel-Token / session cookie / IP)
+    - Hashes buffered request body (SHA-256)
+    - Derives scoped cache key: f"{principal_id}:{method}:{path}:{body_hash}:{idempotency_key}"
+    - Returns cached response with X-Cache: HIT-IDEMPOTENT upon key replay without bypassing auth or scoping.
     """
 
     IDEMPOTENCY_HEADERS = ("Idempotency-Key", "X-Idempotency-Key", "idempotency-key", "x-idempotency-key")
@@ -543,6 +620,39 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
     def __init__(self, app: Any, manager: Optional[IdempotencyKeyManager] = None):
         super().__init__(app)
         self.manager = manager or idempotency_key_manager
+
+    @staticmethod
+    def extract_principal_id(request: Request) -> str:
+        """Extracts caller principal identifier from auth header, counsel token, session cookie, or IP fallback."""
+        # 1. Authorization header (Bearer token)
+        auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
+        if auth_header:
+            parts = auth_header.strip().split()
+            if len(parts) == 2 and parts[0].lower() == "bearer":
+                return parts[1].strip()
+            elif auth_header.strip():
+                return auth_header.strip()
+
+        # 2. X-Counsel-Token header
+        counsel_token = request.headers.get("X-Counsel-Token") or request.headers.get("x-counsel-token")
+        if counsel_token and counsel_token.strip():
+            return counsel_token.strip()
+
+        # 3. Session cookie (lienmark_session_id)
+        session_cookie = request.cookies.get("lienmark_session_id")
+        if session_cookie and session_cookie.strip():
+            return session_cookie.strip()
+
+        # 4. Session header (X-Session-ID) fallback
+        session_header = request.headers.get("X-Session-ID") or request.headers.get("x-session-id")
+        if session_header and session_header.strip():
+            return session_header.strip()
+
+        # 5. Client IP fallback
+        if request.client and request.client.host:
+            return f"ip:{request.client.host}"
+
+        return "anonymous_principal"
 
     async def dispatch(self, request: Request, call_next):
         if request.method not in self.MUTATING_METHODS:
@@ -560,10 +670,26 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
 
         corr_id = request.headers.get("X-Correlation-ID") or get_correlation_id()
 
-        # Check Cache Hit
-        cached = self.manager.get(idempotency_key)
+        # 1. Extract caller principal identifier
+        principal_id = self.extract_principal_id(request)
+
+        # 2. Read and buffer request body stream for reuse and hashing
+        try:
+            request_body = await request.body()
+        except Exception:
+            request_body = b""
+
+        body_hash = hashlib.sha256(request_body).hexdigest()
+
+        # 3. Derive composite cache key
+        cache_key = f"{principal_id}:{request.method}:{request.url.path}:{body_hash}:{idempotency_key}"
+
+        # 4. Check Cache Hit
+        cached = self.manager.get(cache_key)
         if cached:
-            logger.info(f"Idempotent replay cache HIT for key '{idempotency_key}' (status {cached.status_code})")
+            logger.info(
+                f"Idempotent replay cache HIT for key '{idempotency_key}' (scoped '{cache_key}', status {cached.status_code})"
+            )
             cached_headers = dict(cached.headers)
             cached_headers["X-Correlation-ID"] = corr_id
             cached_headers["X-Cache"] = "HIT-IDEMPOTENT"
@@ -575,17 +701,23 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                 media_type=cached.media_type or "application/json",
             )
 
-        # Cache Miss: execute downstream
-        response = await call_next(request)
+        # 5. Cache Miss: Reconstruct request receive channel to ensure downstream reads succeed
+        async def receive():
+            return {"type": "http.request", "body": request_body, "more_body": False}
 
-        # Buffer response and cache if non-5xx
+        downstream_request = Request(request.scope, receive=receive)
+        downstream_request._body = request_body
+
+        response = await call_next(downstream_request)
+
+        # 6. Buffer response and cache if non-5xx
         if response.status_code < 500:
             response_body = b""
             async for chunk in response.body_iterator:
                 response_body += chunk
 
             self.manager.set(
-                key=idempotency_key,
+                key=cache_key,
                 status_code=response.status_code,
                 content=response_body,
                 headers=dict(response.headers),
@@ -684,8 +816,17 @@ class SecurityAndReliabilityMiddleware(BaseHTTPMiddleware):
             and any(request.url.path == p or request.url.path.endswith(p) for p in self.IDEMPOTENT_PATHS)
         )
 
+        cache_key = None
         if is_idempotent_target and idempotency_key:
-            cached = idempotency_key_manager.get(idempotency_key)
+            principal_id = IdempotencyMiddleware.extract_principal_id(request)
+            try:
+                body_bytes = await request.body()
+            except Exception:
+                body_bytes = b""
+            body_hash = hashlib.sha256(body_bytes).hexdigest()
+            cache_key = f"{principal_id}:{request.method}:{request.url.path}:{body_hash}:{idempotency_key}"
+
+            cached = idempotency_key_manager.get(cache_key)
             if cached:
                 cached_headers = dict(cached.headers)
                 cached_headers["X-Correlation-ID"] = corr_id
@@ -719,9 +860,9 @@ class SecurityAndReliabilityMiddleware(BaseHTTPMiddleware):
                 pass
 
         # Cache successful response for idempotency
-        if is_idempotent_target and idempotency_key and response.status_code < 500:
+        if is_idempotent_target and idempotency_key and cache_key and response.status_code < 500:
             idempotency_key_manager.set(
-                key=idempotency_key,
+                key=cache_key,
                 status_code=response.status_code,
                 content=response_body,
                 headers=dict(response.headers),
