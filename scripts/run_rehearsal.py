@@ -57,6 +57,7 @@ from backend.fixtures.golden_dataset import (
     get_v7_version,
     get_v8_version,
     get_golden_fixtures,
+    resolve_lineage_key,
 )
 from backend.main import _counsel_reattestations, counsel_checkpoint_manager
 
@@ -504,7 +505,34 @@ async def execute_rehearsal() -> int:
             assert phrase not in json_dump.lower(), f"Phase 7: Forbidden phrase '{phrase}' in JSON dump"
             assert phrase not in json_meta_str.lower(), f"Phase 7: Forbidden phrase '{phrase}' in metadata"
 
-        # 3. Export artifacts creation
+        # 3. Four Core Issues Verification Gates
+        # Gate 1: Cryptographic Seal Verification
+        expected_seal = f"CRYPTOGRAPHIC AUDIT SEAL: SHA256:{evt_12.event_hash}"
+        assert expected_seal in html, f"Phase 7: Verified cryptographic seal missing from HTML: {expected_seal}"
+        assert "[VERIFIED CHAIN HASH]" in html, "Phase 7: Seal missing [VERIFIED CHAIN HASH] badge"
+
+        # Gate 2: Telemetry Provenance & Anti-Mock Hash Verification
+        if "525.8" in html:
+            assert "[DEMO FIXTURE]" in html or "[Awaiting Run]" in html, "Phase 7: Unbadged 525.8 in report HTML"
+        assert "7f3a9b1c2d4e80f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9" not in html, "Phase 7: Hardcoded mock hash in HTML"
+
+        # Gate 3: Poster Disambiguation
+        assert "poster_paris_expo_1937" in html
+        assert "poster_noir_detective_magazine" in html
+        assert resolve_lineage_key("artwork_vintage_travel_poster") == "poster_paris_expo_1937"
+        assert any("Scene 08" in u.scene_or_timecode and u.stable_lineage_key == "poster_paris_expo_1937" for u in v7_uses)
+        assert any("Scene 42" in u.scene_or_timecode and u.stable_lineage_key == "poster_noir_detective_magazine" for u in v8_uses)
+
+        # Gate 4: Dashboard / Report Synchronization Parity
+        from fastapi.testclient import TestClient
+        from backend.main import app as fastapi_app
+        test_client = TestClient(fastapi_app)
+        sync_claims = test_client.get("/api/claims").json()
+        sync_report = test_client.get("/api/reports/form-eo-2026").json()
+        assert sync_claims["total_claims"] == sync_report["total_claims"] == 12
+        assert sync_claims["carried_forward_count"] == sync_report["carried_forward_count"] == 10
+
+        # 4. Export artifacts creation
         output_dir = REPO_ROOT / "output"
         output_dir.mkdir(parents=True, exist_ok=True)
         html_file = output_dir / "form_eo_2026_rehearsal.html"

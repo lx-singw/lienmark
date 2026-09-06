@@ -48,6 +48,21 @@ def get_v8_version() -> ProductionVersion:
     )
 
 
+POSTER_KEY_ALIASES: Dict[str, str] = {
+    "artwork_vintage_travel_poster": "poster_paris_expo_1937",
+    "poster_paris_expo_1937": "poster_paris_expo_1937",
+    "poster_noir_detective_magazine": "poster_noir_detective_magazine",
+}
+
+
+def resolve_lineage_key(key: str) -> str:
+    """
+    Resolves any poster or asset key aliases to their canonical stable lineage key.
+    Ensures 'artwork_vintage_travel_poster' maps strictly to 'poster_paris_expo_1937' (Scene 08).
+    """
+    return POSTER_KEY_ALIASES.get(key, key)
+
+
 def get_golden_fixtures() -> Tuple[
     List[CreativeUse],
     List[CreativeUse],

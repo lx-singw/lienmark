@@ -60,6 +60,19 @@ from backend.core.security import (
     REDACTED_API_KEY,
     MAX_PAYLOAD_SIZE_BYTES,
 )
+from backend.core.lifecycle import (
+    InvalidStateTransitionError,
+    LifecycleAuditEvent,
+    ALLOWED_TRANSITIONS,
+    TERMINAL_STATES,
+    coerce_run_status,
+    is_terminal_state,
+    get_allowed_transitions,
+    can_transition,
+    validate_transition,
+    transition_run,
+    RunLifecycleManager,
+)
 
 __all__ = [
     "InvalidationEngine",
@@ -114,4 +127,15 @@ __all__ = [
     "VALID_DEMO_COUNSEL_TOKENS",
     "REDACTED_API_KEY",
     "MAX_PAYLOAD_SIZE_BYTES",
+    "InvalidStateTransitionError",
+    "LifecycleAuditEvent",
+    "ALLOWED_TRANSITIONS",
+    "TERMINAL_STATES",
+    "coerce_run_status",
+    "is_terminal_state",
+    "get_allowed_transitions",
+    "can_transition",
+    "validate_transition",
+    "transition_run",
+    "RunLifecycleManager",
 ]

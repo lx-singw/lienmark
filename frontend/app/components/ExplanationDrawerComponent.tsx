@@ -55,8 +55,8 @@ export const ExplanationDrawerComponent: React.FC<ExplanationDrawerComponentProp
   const prior = activeQueueItem?.prior_decision;
 
   const key = activeQueueItem?.stable_lineage_key || (activeQueueItem as any)?.key || (activeQueueItem as any)?.claim_id || '';
-  const isItem11 = key === 'poster_noir_detective_magazine' || key.includes('poster') || key.includes('claim_11');
-  const isItem12 = key === 'music_cue_midnight_serenade' || key.includes('midnight') || key.includes('serenade') || key.includes('jazz') || key.includes('claim_12');
+  const isItem11 = key === 'poster_noir_detective_magazine' || key === 'claim_11';
+  const isItem12 = key === 'music_cue_midnight_serenade' || key === 'claim_12';
 
   // Format high-contrast cinematic scene timecode
   const cinematicTimecode = formatCinematicTimecode(

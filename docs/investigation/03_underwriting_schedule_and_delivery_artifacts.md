@@ -1,0 +1,416 @@
+# Draft Clearance Exceptions Schedule for Counsel and Underwriter Review & Production Delivery Artifacts
+
+**Lienmark Legal Operations & Clearance Architecture Specification**  
+**Document Reference:** `docs/investigation/03_underwriting_schedule_and_delivery_artifacts.md`  
+**Classification:** Underwriter Reporting & Production Legal Deliverables  
+**Status:** Canonical Release (v1.0.0)  
+**Governing Standard:** Draft Clearance Exceptions Schedule for counsel and underwriter review  
+
+---
+
+## Executive Summary
+
+Entertainment Errors and Omissions (E&O) insurance policies protect film and television productions, distributors, sales agents, and financiers from copyright infringement, trademark dilution, invasion of privacy, and defamation liabilities. A cornerstone of every production policy is the **Carrier Clearance Warranty**: the production company explicitly warrants that all creative elements (music, art, brands, clips, script) are either cleared under valid licenses/public domain doctrine or expressly enumerated on the policy's **Clearance Exceptions Schedule**.
+
+Failure to list an uncleared asset on the Exceptions Schedule constitutes a material breach of warranty, entitling the insurance underwriter to disclaim coverage and deny indemnification in the event of a claim.
+
+This document establishes the canonical specification for:
+1. **Draft Clearance Exceptions Schedule for Counsel and Underwriter Review:** The standardized tripartite risk schedule dividing assets into Section I (Open Exceptions & Rejections), Section II (Re-Attested Items), and Section III (Carried Forward Approvals). This document serves strictly as a decision-support leave-behind for legal counsel and underwriter review, not a self-executing binder or autonomous policy endorsement.
+2. **Draft Music Cue Sheet Generation:** PRO-compliant cue sheet formatting with automated split validation and missing-data flags.
+3. **Production Delivery Wrap Checklist:** The comprehensive distribution delivery checklist mapping digital twin records to studio delivery schedules.
+4. **Counsel Defense Memorandum Export:** Formal, factual legal research briefs generated from cryptographic audit trails to assist litigation defense counsel.
+
+---
+
+## 1. Draft Clearance Exceptions Schedule for Counsel and Underwriter Review
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│             DRAFT CLEARANCE EXCEPTIONS SCHEDULE ARCHITECTURE (DECISION-SUPPORT)             │
+├─────────────────────────────────────────────────────────────────────────────────────────────┤
+│ CARRIER & APPLICATION HEADER: Policy Submission Ref, Broker ID, Statutory Disclaimers        │
+│ Decision-Support Leave-Behind Notice: Non-binding draft for underwriter and counsel review   │
+├─────────────────────────────────────────────────────────────────────────────────────────────┤
+│ SECTION I: OPEN EXCEPTIONS & REJECTIONS                                                     │
+│ Uncleared assets, unshielded adverse claims, counsel rejections, missing licenses.          │
+│ • Carrier Underwriting Exclusion Riders                                                     │
+│ • Statutory Exposure (17 U.S.C. § 504(c) Willful Infringement Risk)                         │
+│ • Decision Provenance: Bound to policy_version_id, evidence_snapshot_ids & counsel_rationale │
+├─────────────────────────────────────────────────────────────────────────────────────────────┤
+│ SECTION II: RE-ATTESTED ITEMS (CREATIVE DRIFT / CATALOG REVALIDATION)                       │
+│ Items altered between versions (e.g. Cut v7 -> Cut v8) or subject to external catalog      │
+│ shifts, re-researched via Parallel Search API v1, and affirmed by Counsel sign-off.         │
+│ • Side-by-Side Prominence Shifts                                                            │
+│ • Attributable External Registry Citations & SHA-256 Payload Hashes (Negative Find != PD)   │
+│ • Counsel Statutory Rationale & Immutable Audit Sign-offs                                   │
+│ • Decision Provenance: Bound to policy_version_id, evidence_snapshot_ids & counsel_rationale │
+├─────────────────────────────────────────────────────────────────────────────────────────────┤
+│ SECTION III: CARRIED FORWARD APPROVALS (INVARIANT BASELINE)                                 │
+│ Items with identical creative hashes (context_hash) and valid, unexpired agreements.        │
+│ • Zero Incremental API Spend & Zero Duplicate Legal Hours                                   │
+│ • Cryptographically Bound to Locked Baseline (e.g. Script Cut v7)                           │
+│ • Bound to historical policy_version_id and prior counsel attestation                       │
+└─────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 1.1 Application Header & Decision-Support Structure
+
+Every Draft Clearance Exceptions Schedule generated by Lienmark includes a standardized application header binding the report to the production's insurance application and clearance review workflow:
+
+```json
+{
+  "application_header": {
+    "carrier_name": "Standard Entertainment & Media Underwriters Syndicate",
+    "submission_reference": "EO-APP-2026-DEVPOST",
+    "broker_name": "Gallagher / Front Row Insurance Brokers",
+    "warranty_clause": "Warranted clearance schedule of exceptions; uncleared and unlisted rights are excluded from policy coverage.",
+    "underwriter_status": "PENDING_UNDERWRITER_REVIEW",
+    "document_type": "DRAFT_CLEARANCE_EXCEPTIONS_SCHEDULE",
+    "nature_of_document": "DECISION_SUPPORT_LEAVE_BEHIND",
+    "disclaimer": "DECISION-SUPPORT LEAVE-BEHIND: This document is a draft clearance exceptions schedule prepared solely for review by production legal counsel and insurance underwriters. It does not constitute an insurance binder, certified legal schedule, or self-executing policy endorsement. Policy issuance and coverage terms remain subject to carrier underwriting discretion and counsel sign-off.",
+    "effective_date": "2026-09-04T00:00:00Z",
+    "production_title": "Midnight Diner (Feature Film)",
+    "production_entity": "Midnight Diner Productions LLC"
+  }
+}
+```
+
+---
+
+### 1.2 Section I: Open Exceptions & Rejections
+
+**Definition:** Contains any creative element identified in the cut that lacks legal authorization, has an unresolved adverse third-party claim, was rejected during counsel review, or has an expired/incomplete license. These items are excluded from the insurance policy warranty until resolved.
+
+#### Section I Example Item: Unshielded Music Cue Conflict & § 205(e) Inapplicability
+* **Asset Lineage Key:** `music_cue_midnight_serenade`
+* **Scene / Timecode:** Scene 42 (01:14:02:10 - 01:14:22:10)
+* **Asset Type:** `music_master`
+* **Description:** "Midnight Serenade" (20s background jazz trio recording)
+* **V7 Decision Status:** `APPROVED` (Relied on prior unverified cue sheet)
+* **V8 Evaluation State:** `EXCEPTION` (Unresolved Adverse Copyright Transfer)
+* **Rights Deficiency & 17 U.S.C. § 205(e) Boundary:** Parallel search grounded against ASCAP and trade announcements discovered that worldwide exclusive master recording synchronization rights were assigned in August 2026 to Vanguard Media Holdings LLC (Administered by Kobalt Music). Under 17 U.S.C. § 205(e), a nonexclusive license prevails over a conflicting transfer of copyright ownership only if evidenced by a written instrument signed by the copyright owner or authorized agent, and taken before transfer execution OR taken in good faith before transfer recordation without notice. Production possesses no executed Master Use License from Vanguard Media. Because no written signed agreement exists, the statutory factual predicates are completely unmet. The agent does NOT declare statutory immunity or a "contract priority shield"; the item is immediately placed as an Open Exception on Section I for counsel and underwriter review.
+* **Statutory Exposure:** 17 U.S.C. §§ 106(6), 501, 504(c). Statutory damages up to $150,000 for willful infringement plus potential injunctive relief barring commercial distribution of the cut.
+* **Counsel Action & Decision Provenance:** `EXCEPTION` (Logged by Sarah Jenkins, Esq. on 2026-09-04T16:50:00Z; locked to `policy_version_id: policy_v2026.09_r01`, bound to evidence snapshot `ev_snap_ascap_ms_012` retrieved 2026-09-04T11:20:15.102Z, with explicit `counsel_rationale`).
+* **Carrier Underwriting Rider:** *"Special Exclusion 4: Coverage is excluded for any claims, demands, or suits arising from the unauthorized reproduction, synchronization, or exhibition of the sound recording 'Midnight Serenade' unless and until an executed Master Use License from Vanguard Media Holdings LLC is approved by underwriter endorsement."*
+* **Required Remediation:** Obtain executed Master Use License from Vanguard Media or replace audio with cleared library master prior to final mix lock.
+
+```json
+{
+  "section_i_open_exceptions": [
+    {
+      "stable_lineage_key": "music_cue_midnight_serenade",
+      "policy_version_id": "policy_v2026.09_r01",
+      "applicable_version_id": "v8",
+      "asset_type": "music_master",
+      "description": "20s background jazz trio recording 'Midnight Serenade'",
+      "scene_or_timecode": "SCENE 42 (01:14:02:10)",
+      "v7_decision_status": "APPROVED",
+      "v8_evaluation_state": "EXCEPTION",
+      "invalidation_reason": "ADVERSE_COPYRIGHT_ASSIGNMENT_DISCOVERED",
+      "statutory_exposure": "17 U.S.C. § 504(c) ($150,000 statutory damages) & 17 U.S.C. § 502 (injunctive relief)",
+      "carrier_action": "EXCLUDED_FROM_COVERAGE",
+      "counsel_rationale": "Open Exception: ASCAP registry search confirms worldwide exclusive master rights assigned to Vanguard Media Holdings in August 2026. No executed master license exists on file; 17 U.S.C. § 205(e) factual predicates cannot be met without a signed written instrument. Excluded from policy warranty until executed license secured or audio replaced.",
+      "evidence_snapshot_ids": [
+        {
+          "snapshot_id": "ev_snap_ascap_ms_012",
+          "retrieved_at": "2026-09-04T11:20:15.102Z",
+          "source_url": "https://ascap.com/ace-title-search/midnight-serenade-9921",
+          "provider_call_id": "prl_search_ms_012",
+          "payload_hash": "3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a",
+          "excerpt": "Worldwide exclusive synchronization and master rights assigned August 2026 to Vanguard Media Holdings LLC."
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+### 1.3 Section II: Re-Attested Items (Material Drift / Revalidated)
+
+**Definition:** Contains creative elements that underwent material prominence shifts between versions (e.g., moving from incidental background dressing to prominent focal foreground dialogue) or experienced external catalog reclassification, were targeted for revalidation via the Parallel Search API v1, and were reviewed and re-approved by lead legal counsel under governing statutory defenses.
+
+#### Public Search Evidentiary Boundary & Counsel Determination
+Public search retrieves attributable evidence; it does NOT automatically prove public-domain status, ownership, or permission for a particular use. Crucially, negative search results (such as the absence of an indexed renewal registration in the Copyright Office catalog) do not equal public domain as a matter of law.
+In this workflow:
+- The automated agent queried `cocatalog.loc.gov` via the Parallel Search API v1 and retrieved attributable catalog records showing Registration #B-1946-8821 published in 1946, with zero Class R renewal records returned for the statutory 1974 renewal window.
+- The agent preserved the attributable verbatim evidence excerpt, the exact UTC retrieval timestamp (`2026-09-03T14:31:02.184Z`), the source URL, and the SHA-256 payload hash. The agent did NOT declare the work to be public domain or clear title.
+- Production clearance counsel independently evaluated the broader legal context—including verifying domestic publication to rule out foreign term restoration under 17 U.S.C. § 104A—and confirmed expiration of the initial 28-year copyright term under 17 U.S.C. § 304(a).
+- Counsel then authored and executed a formal `RecordedDecision`, permanently binding the `policy_version_id`, `evidence_snapshot_ids` with retrieval timestamps, and substantive `counsel_rationale`.
+
+#### Section II Example Item: Prominence Escalation Affirmed Under Public Domain
+* **Asset Lineage Key:** `poster_noir_detective_magazine`
+* **Policy Version ID:** `policy_v2026.09_r01`
+* **Applicable Version ID:** `v8`
+* **Scene / Timecode:** Scene 42 (01:14:22:04 - 01:14:36:12)
+* **Asset Type:** `artwork`
+* **Description:** 1946 Crime Detective Magazine cover artwork prop ("Shadows Over Broadway")
+* **V7 Baseline Staging:** 2 seconds background blur on far office wall. Prior counsel cleared under the *de minimis* doctrine (*Sandoval v. New Line Cinema*, 147 F.3d 215).
+* **V8 Revised Staging:** 14 seconds close-up focal dialogue. Lead actor thrusts poster directly into camera plane while speaking dialogue.
+* **Invalidation Trigger:** `CREATIVE_CONTEXT_ALTERED`. The *de minimis* defense is voided as a matter of law by focal, long-duration framing.
+* **Parallel Search Evidentiary Grounding:** Library of Congress US Copyright Office Historical Catalog (`cocatalog.loc.gov`). Registration #B-1946-8821 published 1946; search returned no statutory Class R renewal. (Agent preserved attributable record; counsel evaluated public domain status).
+* **Counsel Re-Attestation Rationale:** *"Re-attested by Sarah Jenkins, Esq. Sandoval de minimis defense is voided by 14s focal close-up. However, clear title is affirmed under public domain doctrine: US Copyright Office records confirm work was published in 1946 and was not renewed during the statutory 28th year window (1974) under 17 U.S.C. § 304(a). Work entered US public domain on January 1, 1975. Counsel independently confirmed inapplicability of foreign term restoration under 17 U.S.C. § 104A."*
+* **Statutory Code Reference:** 17 U.S.C. § 304(a).
+* **Reviewer & Cryptographic Hash:** Sarah Jenkins, Esq. (Lead Clearance Counsel) | Event Hash: `9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e`.
+
+```json
+{
+  "section_ii_reattested_items": [
+    {
+      "stable_lineage_key": "poster_noir_detective_magazine",
+      "policy_version_id": "policy_v2026.09_r01",
+      "applicable_version_id": "v8",
+      "asset_type": "artwork",
+      "description": "1946 Crime Detective Magazine cover artwork prop",
+      "scene_or_timecode": "SCENE 42 (01:14:22:04)",
+      "v7_decision_status": "APPROVED",
+      "v8_evaluation_state": "RE_ATTESTED",
+      "prominence_shift": "2s background blur -> 14s close-up focal dialogue",
+      "counsel_action": "RE_ATTESTED_UNDER_PUBLIC_DOMAIN",
+      "counsel_name": "Sarah Jenkins, Esq.",
+      "counsel_rationale": "De minimis defense voided by focal framing; affirmed public domain under 17 U.S.C. § 304(a) via LOC renewal absence. Foreign term restoration under 17 U.S.C. § 104A verified inapplicable due to domestic publication.",
+      "statutory_code": "17 U.S.C. § 304(a)",
+      "evidence_snapshot_ids": [
+        {
+          "snapshot_id": "ev_snap_loc_1946_det_001",
+          "retrieved_at": "2026-09-03T14:31:02.184Z",
+          "source_url": "https://cocatalog.loc.gov/cgi-bin/Pwebrecon.cgi?v1=1946-crime-detective",
+          "provider_call_id": "prl_search_loc_1946_det",
+          "payload_hash": "8f4b23a10e7b99c0c18d34e56b4f7a28e9102c3d4e5f6a7b8c9d0e1f2a3b4c5d",
+          "excerpt": "Registration #B-1946-8821 expired 1974 without timely renewal under 17 U.S.C. § 304(a)."
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+### 1.4 Section III: Carried Forward Approvals (Invariant Baseline)
+
+**Definition:** Assets whose creative use parameters (`context_hash`) between the locked baseline (Cut v7) and the revised cut (Cut v8) are mathematically identical, and whose underlying private contracts and public registry records have suffered no legal invalidation or expiration.
+
+* **Underwriter Advantage:** Carried forward items require zero incremental search calls and zero billable counsel hours. They are protected by cryptographic lineage hashes and permanently bound to the baseline decision record.
+* **Example:** `billboard_neon_classic_diner` (Exterior neon sign cleared under location agreement #LOC-401). Unchanged duration (3.2s), identical context hash, license unexpired.
+
+```json
+{
+  "section_iii_carried_forward_approvals": [
+    {
+      "stable_lineage_key": "billboard_neon_classic_diner",
+      "policy_version_id": "policy_v2026.08_r02",
+      "applicable_version_id": "v8",
+      "asset_type": "trademark_and_building",
+      "description": "Exterior roadside diner neon signage",
+      "scene_or_timecode": "SCENE 1 (00:01:12:00)",
+      "v7_decision_status": "APPROVED",
+      "v8_evaluation_state": "CARRIED_FORWARD",
+      "baseline_version": "v7",
+      "context_hash_match": true,
+      "license_ref": "AGR-2026-LOC-401",
+      "expiration_date": "2036-12-31T00:00:00Z",
+      "prior_counsel_attestation": "Cleared under perpetual location agreement #LOC-401; scope encompasses all media now known or hereafter devised."
+    }
+  ]
+}
+```
+
+---
+
+## 2. Production Deliverable: Draft Music Cue Sheet Generation
+
+The music cue sheet is a mandatory post-production delivery item required by ASCAP, BMI, SESAC, SAG-AFTRA, AFM, and international collecting societies. Lienmark generates structured, audit-ready draft cue sheets derived directly from the digital twin timeline:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│                             OFFICIAL MUSIC CUE SHEET (DRAFT)                                │
+│ Production: MIDNIGHT DINER (Feature Film)         Total Film Duration: 01:42:15             │
+│ Production Co: Midnight Diner Productions LLC    Delivery Cut: Script Cut v8 Revised        │
+├─────┬──────────────────┬─────────────────┬────────────────────┬───────────┬────────┬────────┤
+│ CUE │ TITLE OF WORK    │ COMPOSER(S)     │ PUBLISHER(S)       │ USAGE     │ TIME   │ STATUS │
+├─────┼──────────────────┼─────────────────┼────────────────────┼───────────┼────────┼────────┤
+│ 01  │ Clair de Lune    │ Claude Debussy  │ Public Domain      │ BI (0:45) │ 00:01  │ CLEARED│
+│     │                  │ (100%) [PD]     │ (100%) [PD]        │           │        │ (PD)   │
+├─────┼──────────────────┼─────────────────┼────────────────────┼───────────┼────────┼────────┤
+│ 12  │ Midnight         │ David Miller    │ Kobalt Music (50%) │ BV (0:20) │ 01:14  │ HOLD:  │
+│     │ Serenade         │ (50% / ASCAP)   │ [PENDING SPLIT:    │           │        │ UNCLRD │
+│     │                  │ [PENDING SPLIT] │ 50% / BMI]         │           │        │ MASTER │
+└─────┴──────────────────┴─────────────────┴────────────────────┴───────────┴────────┴────────┘
+```
+
+### Cue Sheet Schema & Strict Validation Rules
+
+```json
+{
+  "cue_number": 12,
+  "cue_title": "Midnight Serenade",
+  "usage_type": "BV",
+  "usage_type_description": "Background Vocal",
+  "start_timecode": "01:14:02:10",
+  "end_timecode": "01:14:22:10",
+  "duration_seconds": 20.0,
+  "scene_number": "SCENE 42",
+  "composition_status": "COPYRIGHTED",
+  "composers": [
+    {
+      "name": "David Miller",
+      "pro_affiliation": "ASCAP",
+      "cae_ipi_number": "00492810294",
+      "share_percentage": 50.0
+    },
+    {
+      "name": "[UNKNOWN CO-WRITER]",
+      "pro_affiliation": "[PENDING_CLARIFICATION]",
+      "cae_ipi_number": null,
+      "share_percentage": 50.0
+    }
+  ],
+  "publishers": [
+    {
+      "name": "Kobalt Music Publishing",
+      "pro_affiliation": "ASCAP",
+      "share_percentage": 50.0,
+      "administrator": "Kobalt Songs Music Publishing"
+    },
+    {
+      "name": "[UNCONFIRMED PUBLISHER]",
+      "pro_affiliation": "BMI",
+      "share_percentage": 50.0,
+      "administrator": null
+    }
+  ],
+  "master_recording": {
+    "track_title": "Midnight Serenade (Jazz Trio Session)",
+    "performer": "The David Miller Trio",
+    "record_label": "Vanguard Media Holdings LLC",
+    "isrc_code": "[CLARIFICATION_PENDING: ISRC_REQUIRED]",
+    "catalog_number": "VM-1948-J",
+    "master_license_status": "MISSING_ON_FILE"
+  },
+  "clearance_reconciliation": {
+    "stable_lineage_key": "music_cue_midnight_serenade",
+    "status": "OPEN_EXCEPTION",
+    "clearance_schedule_section": "SECTION_I"
+  }
+}
+```
+
+* **No Hallucinated Splits:** If writer shares do not total 100%, Lienmark *never* artificially balances the equation. It renders explicit `[PENDING_CLARIFICATION]` tags and links directly to open clarification requests.
+* **Usage Types Standard:** Enforces standard industry usage taxonomy: Visual Vocal (`VV`), Visual Instrumental (`VI`), Background Vocal (`BV`), Background Instrumental (`BI`), and Feature / Theme (`FT`).
+
+---
+
+## 3. Production Deliverable: Delivery Wrap Checklist
+
+Prior to final distributor sign-off, studio legal departments require an exhaustive **Delivery Wrap Checklist** confirming the physical and digital presence of all required conveyance documents:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│                             PRODUCTION DELIVERY WRAP CHECKLIST                              │
+│ Production Title: MIDNIGHT DINER                           Project ID: PROJ_MD_2026_01      │
+│ Target Distribution Cut: Version Cut v8 Revised             Lock Date: 2026-09-06           │
+├─────────────────────────────────────────────┬───────────┬───────────────────────────────────┤
+│ ITEM DESCRIPTION & LEGAL BINDER CATEGORY    │ STATUS    │ VERIFIED DIGITAL TWIN ARTIFACT    │
+├─────────────────────────────────────────────┼───────────┼───────────────────────────────────┤
+│ 1. Screenplay Chain of Title & WGA Accords  │ CLEARED   │ cert_authorship_screenplay_v1.pdf │
+├─────────────────────────────────────────────┼───────────┼───────────────────────────────────┤
+│ 2. Composer Work-for-Hire Agreement         │ CLEARED   │ agr_composer_score_midnight.pdf   │
+├─────────────────────────────────────────────┼───────────┼───────────────────────────────────┤
+│ 3. Master Cue Sheet (Conforming to Cut v8)  │ HOLD      │ cue_sheet_draft_cut_v8.json       │
+│    (Uncleared Cue 12 'Midnight Serenade')   │           │ (Requires Vanguard Master Lic)    │
+├─────────────────────────────────────────────┼───────────┼───────────────────────────────────┤
+│ 4. Prop House Magazine Cover Release        │ CLEARED   │ dec_v8_poster_noir_001 (17 USC 304)│
+├─────────────────────────────────────────────┼───────────┼───────────────────────────────────┤
+│ 5. SAG-AFTRA Cast Clearances & Day Players  │ CLEARED   │ sag_aftra_exhibit_a_binder.pdf    │
+├─────────────────────────────────────────────┼───────────┼───────────────────────────────────┤
+│ 6. AI Synthetic Media Provenance Checklist  │ CLEARED   │ c2pa_provenance_manifest_v8.json  │
+└─────────────────────────────────────────────┴───────────┴───────────────────────────────────┘
+```
+
+---
+
+## 4. Production Deliverable: Counsel Defense Memorandum Export
+
+In the event of an intellectual property claim, cease-and-desist letter, or underwriter audit, Lienmark compiles an authoritative, evidence-grounded **Counsel Defense Memorandum**. This document synthesizes the complete cryptographic audit trail into an operational research brief for litigation defense counsel.
+
+### Structure of the Generated Defense Memorandum
+
+```markdown
+# PRIVILEGED & CONFIDENTIAL ATTORNEY WORK PRODUCT
+## MEMORANDUM OF FACTUAL & LEGAL CLEARANCE DEFENSE
+
+**TO:** Litigation Defense Counsel & Claims Adjuster  
+**FROM:** Sarah Jenkins, Esq., Production Clearance Counsel  
+**DATE:** September 4, 2026  
+**MATTER:** Midnight Diner (Feature Film) — Scene 42 "Crime Detective Magazine" Prop Clearance  
+**ASSET LINEAGE KEY:** `poster_noir_detective_magazine`  
+**POLICY VERSION ID:** `policy_v2026.09_r01`  
+**APPLICABLE REVISION:** Production Script Cut v8 Revised  
+**EVIDENCE SNAPSHOT IDS & RETRIEVAL TIMESTAMPS:** `ev_snap_loc_1946_det_001` (Retrieved: 2026-09-03T14:31:02.184Z)  
+**CRYPTOGRAPHIC RECORD:** Event Hash `9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e`  
+
+---
+
+### I. EXECUTIVE SUMMARY OF CLAIM & DEFENSE
+In Script Cut v8 (Scene 42, 01:14:22:04), the production depicts a vintage magazine prop entitled *Crime Detective Magazine* (Cover Story: "Shadows Over Broadway"). The staging involves a 14-second focal close-up in which the lead detective holds the prop toward the camera plane and recites dialogue referencing the title.
+
+While the revised framing voids the *de minimis* non curat lex defense previously relied upon in Cut v7, this office has established **unassailable clear title under statutory public domain doctrine**. Library of Congress historical records establish attributable evidence that the underlying work was published in 1946 and was not renewed during its statutory 28th-year renewal window under 17 U.S.C. § 304(a). Following independent review of foreign term restoration inapplicability under 17 U.S.C. § 104A, this office determined that the work entered the public domain on January 1, 1975.
+
+---
+
+### II. CHRONOLOGICAL VISUAL SCRIPT DIFF (V7 vs. V8)
+| Parameter | Locked Baseline (Cut v7) | Revised Timeline (Cut v8) | Legal Impact |
+|:---|:---|:---|:---|
+| **Duration** | 2.1 seconds | 14.2 seconds | Duration exceeds de minimis threshold |
+| **Framing** | Incidental background blur on wall | Close-up foreground framing | Focal placement establishes substantial use |
+| **Dialogue** | None | "Shadows Over Broadway! They knew..." | Dialogue draws viewer attention to artwork |
+| **Defense Relied Upon** | Sandoval v. New Line Cinema (De minimis) | 17 U.S.C. § 304(a) (Public Domain) | Transition to absolute public domain defense |
+
+---
+
+### III. PUBLIC REGISTRY PROVENANCE & RECORD EVIDENCE
+1. **Catalog Retrieval Telemetry & Evidentiary Boundary:**
+   - **Registry:** US Copyright Office Historical Catalog (`cocatalog.loc.gov`)
+   - **Provider:** Parallel Search API v1 (Call ID: `prl_search_loc_1946_det`)
+   - **Request Payload SHA-256:** `8f4b23a10e7b99c0c18d34e56b4f7a28e9102c3d4e5f6a7b8c9d0e1f2a3b4c5d`
+   - **Retrieval Timestamp:** 2026-09-03T14:31:02.184Z (Latency: 142.5ms)
+   - **Attributable Record:** Original Registration #B-1946-8821, published November 12, 1946 by Crime Publications Ltd.
+   - *Evidentiary Standard:* Public search retrieves attributable evidence; it does not automatically prove public domain status or title. Negative search results (absence of finding) do not equal public domain. The research agent preserved attributable excerpts, retrieval timestamps, and source URLs. Counsel independently verified that foreign restoration (17 U.S.C. § 104A) does not apply and confirmed statutory term lapse under 17 U.S.C. § 304(a).
+2. **Statutory Renewal Non-Filing:**
+   Under Section 24 of the Copyright Act of 1909 (codified at 17 U.S.C. § 304(a)), works published prior to January 1, 1978 required a renewal registration filed with the US Copyright Office within the strict statutory window of the 28th calendar year following publication. For a work published in 1946, the renewal window closed December 31, 1974. A comprehensive audit of Class R renewal registers confirms zero renewal filings were recorded.
+
+---
+
+### IV. STATUTORY DEFENSE ANALYSIS
+1. **Title 17, U.S. Code, § 304(a) (Expiration of Term):**
+   Failure to timely record a Class R renewal prior to January 1, 1978 resulted in permanent, non-curable expiration of statutory copyright protection. The work entered the public domain in the United States on January 1, 1975.
+2. **Inapplicability of URAA / GATT Restorations (17 U.S.C. § 104A):**
+   The publisher (Crime Publications Ltd.) was a domestic corporate entity organized under the laws of the State of New York, and initial publication occurred exclusively within the United States. Accordingly, Section 104A foreign term restoration is inapplicable.
+3. **Lanham Act / Trademark Analysis (15 U.S.C. § 1125(a)):**
+   Under *Rogers v. Grimaldi*, 875 F.2d 994 (2d Cir. 1989), depiction of historical magazine titles in narrative motion pictures is protected under the First Amendment where the mark has artistic relevance to the work and does not explicitly mislead as to the source or content of the work.
+
+---
+
+### V. COUNSEL ATTESTATION & CHAIN OF CUSTODY
+I hereby attest under penalty of professional responsibility that the foregoing legal research reflects true and correct public record retrievals as of September 4, 2026. This finding has been incorporated into Section II of the Draft Clearance Exceptions Schedule for counsel and underwriter review (Application Ref #EO-APP-2026-DEVPOST). This schedule serves as a decision-support leave-behind and does not constitute an insurance binder or self-executing endorsement.
+
+**Signed:** Sarah Jenkins, Esq.  
+Lead Production Clearance Counsel, Lienmark Legal Partners LLP  
+*Cryptographic Event Signature Hash:* `9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e`  
+```
+
+---
+
+## 5. Summary of Verification & Compliance Metrics
+
+To ensure production deliverables maintain evidentiary admissibility and underwriter compatibility, the Lienmark system validates every export against six mandatory metrics:
+
+1. **Deterministic Lineage Concordance & Decision Provenance (100%):** Every item on the Draft Clearance Exceptions Schedule, Music Cue Sheet, and Delivery Checklist must trace to an immutable `stable_lineage_key` and permanently bind the exact `policy_version_id`, `evidence_snapshot_ids` with UTC retrieval timestamps, and `counsel_rationale`. Orphaned or unprovenanced items are blocked at export time.
+2. **Cryptographic Payload Tamper Evidence (SHA-256):** Every external citation must contain a verified `raw_payload_hash` matching the Parallel Search API v1 transaction.
+3. **Public Search Evidentiary Boundary:** Public search retrieves attributable evidence; it does NOT automatically prove public-domain status, ownership, or permission for a particular use. Negative search results (absence of finding) do not equal public domain. The agent strictly preserves evidence excerpts, retrieval dates, and source URLs for counsel review.
+4. **Decision-Support Leave-Behind Status:** The Draft Clearance Exceptions Schedule serves strictly as a decision-support leave-behind for counsel and underwriter review. The system disclaims and avoids all unsubstantiated representations of "certified legal schedules," "insurer portal acceptance," or self-executing binders.
+5. **Statutory § 205(e) Boundary:** 17 U.S.C. § 205(e) is not an unconditional "contract priority shield" or blanket legal defense. The agent's role is strictly to assemble factual predicates (signed written instrument, execution/recordation timing) for counsel priority evaluation, never to declare statutory immunity.
+6. **Mandatory Disclaimer Integration:** All exported artifacts carry the statutory disclaimer:  
+   > *"This Clearance Intelligence & Verification Audit report reflects automated research and is intended to inform, not replace, professional legal clearance review."*

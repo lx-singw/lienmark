@@ -281,9 +281,11 @@ class TestZeroLeakedSecretsInTrackedFiles:
         for d in scan_dirs:
             if not d.exists():
                 continue
-            for p in d.rglob("*"):
-                if p.is_file() and p.suffix.lower() in code_exts:
-                    if not any(part in p.parts for part in [".git", "node_modules", ".next", "__pycache__"]):
+            for root, dirs, files in os.walk(d):
+                dirs[:] = [sub for sub in dirs if sub not in [".git", "node_modules", ".next", "__pycache__"]]
+                for f in files:
+                    p = Path(root) / f
+                    if p.suffix.lower() in code_exts:
                         scanned_files.append(p)
 
         for sf in standalone_files:

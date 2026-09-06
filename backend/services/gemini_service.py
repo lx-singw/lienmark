@@ -385,7 +385,14 @@ Return a valid JSON object matching this schema:
             "call_count": self.call_count,
         }
 
-        if "poster" in asset_name.lower():
+        name_lower = asset_name.lower()
+        if (
+            "detective" in name_lower
+            or "poster_noir" in name_lower
+            or "crime detective" in name_lower
+            or ("noir" in name_lower and "poster" in name_lower)
+            or ("noir" in name_lower and "magazine" in name_lower)
+        ):
             return DeltaAnalysisResult(
                 is_material=True,
                 prominence_shift="Escalated from 2s out-of-focus background blur to 14s close-up focal dialogue.",
@@ -588,7 +595,14 @@ Return a valid JSON object matching this schema:
                 token_estimate=token_estimate,
                 metadata=metadata,
             )
-        elif "poster" in stable_lineage_key.lower() or "poster" in asset_name.lower():
+        elif (
+            stable_lineage_key == "poster_noir_detective_magazine"
+            or "poster_noir" in stable_lineage_key.lower()
+            or "crime detective" in asset_name.lower()
+            or "detective magazine" in asset_name.lower()
+            or ("noir" in asset_name.lower() and "poster" in asset_name.lower())
+            or ("noir" in asset_name.lower() and "magazine" in asset_name.lower())
+        ):
             return ClearanceBriefing(
                 claim_id=stable_lineage_key if stable_lineage_key else "poster_noir_detective_magazine",
                 asset_name=asset_name,
@@ -633,15 +647,21 @@ Return a valid JSON object matching this schema:
         Legacy/compat method synthesizing a 15-second counsel decision briefing.
         Delegates to synthesize_clearance_briefing.
         """
-        key = "music_cue_midnight_serenade" if "midnight" in asset_name.lower() else (
-            "poster_noir_detective_magazine" if "poster" in asset_name.lower() else asset_name
+        key = (
+            "music_cue_midnight_serenade"
+            if ("midnight" in asset_name.lower() or "serenade" in asset_name.lower())
+            else (
+                "poster_noir_detective_magazine"
+                if ("detective" in asset_name.lower() or "poster_noir" in asset_name.lower() or "crime detective" in asset_name.lower())
+                else asset_name
+            )
         )
         fake_delta = {"is_material": True, "prominence_shift": reason_code, "narrative_impact": reason_code}
         fake_evidence = {
             "source_title": source_title,
             "source_url": source_url,
             "excerpt": evidence_excerpt,
-            "stance": "CONTRADICTORY" if "midnight" in asset_name.lower() else "SUPPORTING",
+            "stance": "CONTRADICTORY" if ("midnight" in asset_name.lower() or "serenade" in asset_name.lower()) else "SUPPORTING",
         }
         return await self.synthesize_clearance_briefing(
             stable_lineage_key=key,

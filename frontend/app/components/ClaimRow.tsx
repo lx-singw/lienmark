@@ -46,19 +46,15 @@ export function formatCinematicTimecode(scene: string = '', key: string = '', in
   // Specific studio production cut timecodes
   if (
     safeKey === 'poster_noir_detective_magazine' ||
-    safeKey.includes('poster') ||
-    safeKey.includes('claim_11') ||
-    safeScene.includes('42')
+    safeKey.includes('noir_detective') ||
+    safeKey === 'claim_11'
   ) {
     return 'SC 42 (00:41:12)';
   }
   if (
     safeKey === 'music_cue_midnight_serenade' ||
-    safeKey.includes('midnight') ||
-    safeKey.includes('serenade') ||
-    safeKey.includes('jazz') ||
-    safeKey.includes('claim_12') ||
-    safeScene.includes('18')
+    safeKey.includes('midnight_serenade') ||
+    safeKey === 'claim_12'
   ) {
     return 'SC 18 (00:19:40)';
   }

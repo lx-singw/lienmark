@@ -38,6 +38,16 @@ export const DecisionStatus = {
 
 export type DecisionStatus = (typeof DecisionStatus)[keyof typeof DecisionStatus];
 
+export const CensusDisposition = {
+  APPROVED: 'APPROVED',
+  CONDITIONAL: 'CONDITIONAL',
+  NEEDS_REVIEW: 'NEEDS_REVIEW',
+  REJECTED: 'REJECTED',
+  UNKNOWN: 'UNKNOWN',
+} as const;
+
+export type CensusDisposition = (typeof CensusDisposition)[keyof typeof CensusDisposition];
+
 export const EvidenceStance = {
   SUPPORTING: 'supporting',
   INFORMATIONAL: 'informational',
@@ -46,6 +56,50 @@ export const EvidenceStance = {
 } as const;
 
 export type EvidenceStance = (typeof EvidenceStance)[keyof typeof EvidenceStance];
+
+export const ScopeStatus = {
+  UNKNOWN: 'unknown',
+  PARTIALLY_SPECIFIED: 'partially_specified',
+  FULLY_SPECIFIED: 'fully_specified',
+  UNLICENSED_EXPOSURE: 'unlicensed_exposure',
+} as const;
+
+export type ScopeStatus = (typeof ScopeStatus)[keyof typeof ScopeStatus];
+
+export const RunStatus = {
+  QUEUED: 'queued',
+  INITIALIZING: 'initializing',
+  EXTRACTING: 'extracting',
+  EVALUATING: 'evaluating',
+  WAITING_FOR_INFORMATION: 'waiting_for_information',
+  WAITING_FOR_BUDGET: 'waiting_for_budget',
+  READY_FOR_REVIEW: 'ready_for_review',
+  COMPLETED: 'completed',
+  FAILED: 'failed',
+  CANCELLED: 'cancelled',
+} as const;
+
+export type RunStatus = (typeof RunStatus)[keyof typeof RunStatus];
+
+export const StorageProvider = {
+  GCS: 'gcs',
+  S3: 's3',
+  DROPBOX: 'dropbox',
+  BOX: 'box',
+  FRAME_IO: 'frame_io',
+  LOCAL_VOLUME: 'local_volume',
+} as const;
+
+export type StorageProvider = (typeof StorageProvider)[keyof typeof StorageProvider];
+
+export const ConnectionStatus = {
+  ACTIVE: 'active',
+  SYNCING: 'syncing',
+  PAUSED: 'paused',
+  ERROR: 'error',
+} as const;
+
+export type ConnectionStatus = (typeof ConnectionStatus)[keyof typeof ConnectionStatus];
 
 // ============================================================================
 // Core Domain Entities
@@ -66,6 +120,7 @@ export interface ProductionVersion {
 
 /**
  * CreativeUse captures a single rights-bearing asset instance within a production version.
+ * Separates intended production exploitation from documented licensed scope.
  */
 export interface CreativeUse {
   use_id: string;
@@ -78,6 +133,141 @@ export interface CreativeUse {
   stable_lineage_key: string;
   source_span?: string | null;
   context_hash: string;
+  
+  // Intended Production Exploitation Use
+  intended_territory?: string[] | null;
+  intended_media?: string[] | null;
+  intended_duration?: number | null;
+  distribution_window?: string | null;
+
+  // Documented Licensed Scope
+  licensed_territory?: string[] | null;
+  licensed_media?: string[] | null;
+  licensed_term?: string | null;
+  licensor_grant_confirmed?: boolean;
+
+  // Scope Evaluation & Clarification Trigger
+  scope_status?: ScopeStatus;
+  needs_clarification?: boolean;
+}
+
+export type Claim = CreativeUse;
+
+/**
+ * StorageConnection models a cloud storage watcher connection with discovery cursors and pagination checkpoints.
+ */
+export interface StorageConnection {
+  connection_id: string;
+  org_id: string;
+  production_id: string;
+  provider: StorageProvider;
+  bucket_or_vault_uri: string;
+  watch_prefix: string;
+  discovery_cursor?: string | null;
+  checkpoint_token?: string | null;
+  last_sync_timestamp?: string | null;
+  sync_interval_seconds: number;
+  status: ConnectionStatus;
+  secret_manager_credential_ref?: string | null;
+  created_at: string;
+  updated_at: string;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Run models an authoritative Google ADK workflow run bound to source and target revisions with content digest.
+ */
+export interface Run {
+  run_id: string;
+  production_id: string;
+  org_id: string;
+  source_revision_id: string;
+  target_revision_id: string;
+  content_digest: string;
+  session_id: string;
+  status: RunStatus;
+  trigger_source: string;
+  plan_id?: string | null;
+  claims_evaluated_count: number;
+  carried_forward_count: number;
+  stale_count: number;
+  unresolved_exceptions_count: number;
+  total_dollar_spend_usd: number;
+  total_tokens_consumed: number;
+  parallel_api_calls_count: number;
+  llm_inferences_count: number;
+  error_message?: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at?: string | null;
+}
+
+export interface InvestigationGoal {
+  goal_id: string;
+  stable_lineage_key: string;
+  objective: string;
+  priority: 'critical' | 'high' | 'medium' | 'low' | string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'budget_halted' | string;
+}
+
+export interface ExecutedStep {
+  step_id: string;
+  step_name: string;
+  tool_name: string;
+  input_summary: string;
+  status: 'success' | 'failed' | 'timed_out' | 'circuit_opened' | string;
+  duration_ms: number;
+  timestamp: string;
+}
+
+export interface ToolExecutionResult {
+  result_id: string;
+  step_id: string;
+  tool_name: string;
+  raw_payload_hash: string;
+  execution_status: string;
+  latency_ms: number;
+  dollar_cost: number;
+  tokens_consumed: number;
+  result_summary: string;
+  stance?: EvidenceStance | null;
+}
+
+export interface InvestigationPlan {
+  plan_id: string;
+  run_id: string;
+  target_version_id: string;
+  status: 'planning' | 'executing' | 'paused_clarification' | 'completed' | 'budget_exhausted' | string;
+  goals: InvestigationGoal[];
+  executed_steps: ExecutedStep[];
+  tool_results: ToolExecutionResult[];
+  allocated_dollar_budget: number;
+  remaining_dollar_budget: number;
+  allocated_token_budget: number;
+  remaining_token_budget: number;
+  allocated_call_budget: number;
+  remaining_call_budget: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ClarificationRequest {
+  request_id: string;
+  run_id: string;
+  claim_id: string;
+  revision_id: string;
+  stable_lineage_key: string;
+  scope_field_missing?: string | null;
+  question_text: string;
+  suggested_options?: string[] | null;
+  required_document_type?: string | null;
+  assigned_role: string;
+  assigned_user_id?: string | null;
+  status: string;
+  response_text?: string | null;
+  attached_document_ref?: string | null;
+  created_at: string;
+  resolved_at?: string | null;
 }
 
 /**
@@ -128,6 +318,11 @@ export interface CounselDecision {
   rationale: string;
   reviewer_display_name: string;
   reviewed_at: string;
+  policy_version_id?: string;
+  evidence_snapshot_ids?: string[];
+  state?: DecisionState;
+  reviewer_user_id?: string;
+  claim_id?: string;
   supersedes_decision_id?: string | null;
   dependency_ids: string[];
   system_recommendation?: string | null;
@@ -215,6 +410,35 @@ export interface CarrierHeader {
   underwriter_status: string;
 }
 
+export interface AtomicRightsClaim {
+  claim_id: string;
+  occurrence_id: string;
+  occurrence_lineage_id: string;
+  asset_id?: string | null;
+  right_category: string;
+  rights_subject: string;
+  intended_territory?: string[] | null;
+  intended_media?: string[] | null;
+  intended_duration?: number | null;
+  distribution_window?: string | null;
+  intended_context?: string;
+  licensed_territory?: string[] | null;
+  licensed_media?: string[] | null;
+  licensed_term?: string | null;
+  licensor_grant_confirmed?: boolean;
+  union_option_expires_at?: string | null;
+  is_docudrama_context?: boolean;
+  disposition: CensusDisposition;
+  approval_origin?: string;
+  workflow_reason?: string;
+  decision_id?: string | null;
+  decision_conditions?: string[];
+  evidence_ids?: string[];
+  clarification_request_id?: string | null;
+  notes?: string;
+  metadata?: Record<string, unknown>;
+}
+
 /**
  * Version-bound Form E&O Exceptions Schedule generated for underwriter review.
  */
@@ -235,8 +459,17 @@ export interface ExceptionsSchedule {
   re_attested_count: number;
   unresolved_exception_count: number;
   items: ExceptionsScheduleItem[];
+  warranted_items?: ExceptionsScheduleItem[];
   unresolved_exceptions_schedule?: ExceptionsScheduleItem[];
   unresolved_exceptions?: ExceptionsScheduleItem[];
+
+  // Universal Census Partition for Active Rights Claims
+  census_approved_count?: number;
+  census_conditional_count?: number;
+  census_needs_review_count?: number;
+  census_rejected_count?: number;
+  census_unknown_count?: number;
+  atomic_claims?: AtomicRightsClaim[];
 }
 
 // ============================================================================

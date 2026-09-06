@@ -547,20 +547,36 @@ async def execute_live_http_probe(target_url: str, output_path: str, environment
         assert res12.get("status") == "success"
         assert res12.get("new_state") == "exception"
         benchmarks["adjudication_ms"] = round((time.perf_counter() - t0) * 1000, 2)
-        print(f"      [PASS] Adjudications verified in {benchmarks['adjudication_ms']:.2f}ms (Item 11 RE_ATTEST, Item 12 EXCEPTION)")
-
-        # 7. Form E&O-2026 Exceptions Schedule Reconciled Export
-        print(f"\n[7/8] Probing Reconciled Form E&O-2026 Exceptions Schedule (GET /api/reports/exceptions)...")
+        # 7. Form E&O-2026 Exceptions Schedule Reconciled Export & Dashboard /api/claims Synchronization
+        print(f"\n[7/8] Probing Reconciled Form E&O-2026 Exceptions Schedule & /api/claims Synchronization...")
         t0 = time.perf_counter()
         resp_rep = await client.get(f"{target_url}/api/reports/exceptions")
+        if resp_rep.status_code != 200:
+            resp_rep = await client.get(f"{target_url}/api/reports/form-eo-2026")
         assert resp_rep.status_code == 200, f"Failed to get exceptions report: {resp_rep.text}"
         rep_data = resp_rep.json()
         assert rep_data.get("carried_forward_count") == 10, "Schedule must contain 10 carried forward claims"
         assert rep_data.get("re_attested_count") == 1, "Schedule must contain 1 re-attested claim"
         assert rep_data.get("unresolved_exception_count") == 1, "Schedule must contain 1 underwriter exception"
         assert rep_data.get("total_claims") == 12, "Schedule must total 12 claims"
+
+        # Issue 1 Gate: Dashboard /api/claims parity check
+        resp_claims = await client.get(f"{target_url}/api/claims")
+        assert resp_claims.status_code == 200, f"Failed to get claims: {resp_claims.text}"
+        claims_data = resp_claims.json()
+        assert claims_data.get("total_claims") == rep_data.get("total_claims") == 12, "Claims/report total mismatch"
+        assert claims_data.get("carried_forward_count") == rep_data.get("carried_forward_count") == 10, "Claims/report carried mismatch"
+        assert claims_data.get("re_attested_count") == rep_data.get("re_attested_count") == 1, "Claims/report re-attested mismatch"
+        assert claims_data.get("unresolved_exception_count") == rep_data.get("unresolved_exception_count") == 1, "Claims/report exception mismatch"
+
+        # Issue 4 Gate: Poster disambiguation verification
+        travel_claim = next((c for c in claims_data.get("claims", []) if c.get("stable_lineage_key") == "poster_paris_expo_1937"), None)
+        assert travel_claim and "Scene 08" in travel_claim.get("scene", ""), "Travel poster not bound to Scene 08"
+        noir_claim = next((c for c in claims_data.get("claims", []) if c.get("stable_lineage_key") == "poster_noir_detective_magazine"), None)
+        assert noir_claim and "Scene 42" in noir_claim.get("scene", ""), "Noir poster not bound to Scene 42"
+
         benchmarks["exceptions_report_ms"] = round((time.perf_counter() - t0) * 1000, 2)
-        print(f"      [PASS] Exceptions schedule verified in {benchmarks['exceptions_report_ms']:.2f}ms (10 carried + 1 re-attested + 1 exception = 12)")
+        print(f"      [PASS] Exceptions schedule and /api/claims verified in {benchmarks['exceptions_report_ms']:.2f}ms (10 carried + 1 re-attested + 1 exception = 12)")
 
         # 8. Cryptographic Audit Ledger, SSR Report & Reviewer Dashboard
         print(f"\n[8/8] Probing Cryptographic Audit Ledger & Web Dashboard (GET /api/review/audit-trail & /)...")
@@ -569,17 +585,35 @@ async def execute_live_http_probe(target_url: str, output_path: str, environment
         assert resp_audit.status_code == 200, f"Failed to get audit trail: {resp_audit.text}"
         audit_res = resp_audit.json()
         assert audit_res.get("is_ledger_tamper_free") is True, "Audit ledger integrity compromised"
+        chain_head = audit_res.get("chain_head_hash")
 
         resp_dash = await client.get(f"{target_url}/")
         assert resp_dash.status_code == 200, f"Failed to get dashboard: {resp_dash.status_code}"
         assert "Lienmark" in resp_dash.text, "Dashboard HTML missing Lienmark branding"
 
+        # Issue 2 Gate: Telemetry provenance audit on rendered DOM
+        if "525.8" in resp_dash.text:
+            assert "[DEMO FIXTURE]" in resp_dash.text or "[Awaiting Run]" in resp_dash.text or "Scenario" in resp_dash.text, (
+                "Unbadged 525.8 rendered in dashboard DOM without [DEMO FIXTURE] or [Awaiting Run]!"
+            )
+
         resp_ssr = await client.get(f"{target_url}/report/proj_blockbuster_cinema")
+        if resp_ssr.status_code != 200:
+            resp_ssr = await client.get(f"{target_url}/api/reports/form-eo-2026/html")
         assert resp_ssr.status_code == 200, f"Failed to get SSR report: {resp_ssr.status_code}"
         assert "E&O" in resp_ssr.text or "Exceptions Schedule" in resp_ssr.text, "SSR report missing expected underwriter content"
 
+        # Issue 3 Gate: Cryptographic seal verification
+        if chain_head:
+            assert chain_head in resp_ssr.text or "[VERIFIED CHAIN HASH]" in resp_ssr.text, (
+                "SSR report seal missing verified SHA-256 chain hash!"
+            )
+        assert "7f3a9b1c2d4e80f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9" not in resp_ssr.text, (
+            "Hardcoded mock hash detected in live SSR report!"
+        )
+
         benchmarks["ledger_and_dashboard_ms"] = round((time.perf_counter() - t0) * 1000, 2)
-        print(f"      [PASS] Audit ledger & dashboard verified in {benchmarks['ledger_and_dashboard_ms']:.2f}ms (Ledger tamper-free: TRUE)")
+        print(f"      [PASS] Audit ledger & dashboard verified in {benchmarks['ledger_and_dashboard_ms']:.2f}ms (Ledger tamper-free: TRUE, Seal Verified: TRUE)")
 
     total_latency_ms = round((time.perf_counter() - suite_start) * 1000, 2)
     now_utc_str = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")

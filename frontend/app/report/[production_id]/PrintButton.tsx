@@ -149,17 +149,22 @@ export function PrintButton({
   const handleDownloadAuditLedgerJson = () => {
     setIsExportingLedger(true);
     try {
+      const anyAudit = auditLedgerData as Record<string, unknown> | undefined;
+      const headHash = typeof anyAudit?.chain_head_hash === 'string' ? anyAudit.chain_head_hash : '';
+      const totalEvents = typeof anyAudit?.total_events === 'number' ? anyAudit.total_events : 0;
+      const isSealed = Boolean(headHash && headHash.length === 64 && totalEvents > 0);
+
       const ledgerPayload = auditLedgerData || {
         schedule_id: scheduleId,
         production_title: productionTitle,
         version: versionLabel,
         ledger_name: 'SHA-256 Append-Only Clearance Supersession Ledger',
         exported_at: new Date().toISOString(),
-        is_ledger_tamper_free: true,
+        is_ledger_tamper_free: isSealed,
         cryptographic_proof: {
           algorithm: 'SHA-256',
           invariant_equation: '12 Total = 10 Carried Forward + 1 Re-Attested + 1 Unresolved Exception',
-          root_hash: '7f3a9b1c2d4e80f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9',
+          root_hash: isSealed ? headHash : '[PENDING ADJUDICATION - UNSEALED]',
         },
         counsel_attestation: {
           counsel_name: 'Sarah Jenkins, Esq.',

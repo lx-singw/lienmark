@@ -74,6 +74,11 @@ if (-not $ServiceAccount) {
     }
 }
 
+# Default to Secret Manager if not explicitly specified to preserve Cloud Run secret bindings
+if (-not $PSBoundParameters.ContainsKey('UseSecretManager')) {
+    $UseSecretManager = $true
+}
+
 # Locate gcloud.cmd to bypass PowerShell execution policy restrictions on Windows
 $gcloudCmd = (Get-Command "gcloud.cmd" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1)
 if (-not $gcloudCmd) {

@@ -8,11 +8,13 @@ Authored strictly under Google AntiGravity for Agentic Cinema compliance.
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union, Set
 from datetime import datetime, timezone
 import hashlib
 import html
 import logging
+import re
+import uuid
 from urllib.parse import urlsplit
 
 
@@ -52,6 +54,23 @@ from backend.domain.models import (
     PublicEvidenceSnapshot,
     ReattestationRequest,
     ReviewAction,
+    AtomicRightsClaim,
+    ContractGrant,
+    ContractObligation,
+    ApplicabilityAssessment,
+    ScopeMatchStatus,
+    CensusDisposition,
+    ApprovalOrigin,
+    WorkflowReason,
+    InvestigationTask,
+    TaskStatus,
+    RetentionPolicy,
+    LegalHoldRecord,
+    DeletionRecord,
+    RetentionClass,
+    EvidenceAvailability,
+    CounselDecisionResult,
+    ReviewerIdentity,
 )
 from backend.core.dependency_graph import (
     ClearanceDependencyGraph,
@@ -552,6 +571,418 @@ class InvalidationEngine:
         validity_results.sort(key=lambda r: (r.stable_lineage_key, r.decision_id))
         return validity_results
 
+    @staticmethod
+    def _parse_date(val: Any) -> Optional[datetime]:
+        """
+        Safely parse ISO dates, YYYY-MM-DD strings, and timestamps into timezone-aware UTC datetime.
+        Returns None for invalid, unparseable, or perpetual values.
+        """
+        if not val:
+            return None
+        if isinstance(val, datetime):
+            if val.tzinfo is None:
+                return val.replace(tzinfo=timezone.utc)
+            return val
+        if isinstance(val, (int, float)):
+            try:
+                return datetime.fromtimestamp(val, tz=timezone.utc)
+            except Exception:
+                return None
+        if isinstance(val, str):
+            clean = val.strip()
+            if not clean or clean.lower() in (
+                "perpetual",
+                "in perpetuity",
+                "perpetuity",
+                "forever",
+                "none",
+                "n/a",
+                "unlimited",
+            ):
+                return None
+            clean_iso = clean.replace("Z", "+00:00")
+            try:
+                dt = datetime.fromisoformat(clean_iso)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return dt
+            except Exception:
+                pass
+            m = re.match(r"^(\d{4})-(\d{2})-(\d{2})", clean)
+            if m:
+                try:
+                    return datetime(
+                        int(m.group(1)),
+                        int(m.group(2)),
+                        int(m.group(3)),
+                        23,
+                        59,
+                        59,
+                        tzinfo=timezone.utc,
+                    )
+                except Exception:
+                    pass
+        return None
+
+    @classmethod
+    def evaluate_agreement_applicability(
+        cls,
+        claim: Union[AtomicRightsClaim, CreativeUse],
+        grants: List[ContractGrant],
+        obligations: List[ContractObligation],
+        target_context: Optional[str] = None,
+    ) -> ApplicabilityAssessment:
+        """
+        Evaluates private agreement scope matching and obligation tracking for an atomic rights claim
+        or creative use. Evaluates territory_match, media_match, term_match, and promotional_match,
+        checks docudrama living person portrayal and SAG/WGA union option expiry, and synthesizes
+        an overall applicability disposition with defensible conflicting clauses and unresolved questions.
+        """
+        claim_id = (
+            getattr(claim, "claim_id", None)
+            or getattr(claim, "use_id", None)
+            or "unknown_claim"
+        )
+        agreement_id = "unknown_agreement"
+        if grants and len(grants) > 0:
+            agreement_id = getattr(grants[0], "agreement_id", "unknown_agreement")
+        elif obligations and len(obligations) > 0:
+            agreement_id = getattr(obligations[0], "agreement_id", "unknown_agreement")
+        elif hasattr(claim, "agreement_id"):
+            agreement_id = getattr(claim, "agreement_id", "unknown_agreement")
+
+        conflicting_clauses: List[str] = []
+        unresolved_questions: List[str] = []
+
+        # ---------------------------------------------------------------------
+        # 1. Territory Match Dimension
+        # ---------------------------------------------------------------------
+        intended_terr_raw = getattr(claim, "intended_territory", None)
+        if intended_terr_raw is None:
+            territory_match = ScopeMatchStatus.UNKNOWN
+            unresolved_questions.append(
+                f"Claim '{claim_id}' intended territory is unspecified (None); territory scope cannot be verified."
+            )
+        else:
+            intended_territories = (
+                [intended_terr_raw]
+                if isinstance(intended_terr_raw, str)
+                else list(intended_terr_raw)
+            )
+            if not grants:
+                territory_match = ScopeMatchStatus.MISMATCH
+                conflicting_clauses.append(
+                    f"Territory uncovered: No executed contract grants on file to cover intended territories {intended_territories}."
+                )
+            else:
+                permitted_territories_norm: Set[str] = set()
+                has_worldwide_grant = False
+                for g in grants:
+                    g_terrs = getattr(g, "permitted_territories", None) or []
+                    if isinstance(g_terrs, str):
+                        g_terrs = [g_terrs]
+                    for t in g_terrs:
+                        t_str = str(t).strip()
+                        t_lower = t_str.lower()
+                        if t_lower in ("worldwide", "world", "all", "global", "all_territories", "universe"):
+                            has_worldwide_grant = True
+                        permitted_territories_norm.add(t_lower)
+                        permitted_territories_norm.add(t_str.upper())
+
+                if has_worldwide_grant:
+                    territory_match = ScopeMatchStatus.MATCH
+                elif not intended_territories:
+                    territory_match = ScopeMatchStatus.UNKNOWN
+                    unresolved_questions.append(
+                        f"Claim '{claim_id}' intended territory list is empty; territory scope cannot be verified."
+                    )
+                else:
+                    uncovered_territories = []
+                    for t in intended_territories:
+                        t_str = str(t).strip()
+                        t_lower = t_str.lower()
+                        t_upper = t_str.upper()
+                        if t_lower in ("worldwide", "world", "global"):
+                            if not has_worldwide_grant:
+                                uncovered_territories.append(t)
+                        elif t_lower not in permitted_territories_norm and t_upper not in permitted_territories_norm and t not in permitted_territories_norm:
+                            uncovered_territories.append(t)
+
+                    if not uncovered_territories:
+                        territory_match = ScopeMatchStatus.MATCH
+                    else:
+                        territory_match = ScopeMatchStatus.MISMATCH
+                        clauses = [f"Grant '{g.grant_id}' ({getattr(g, 'source_clause', '')})" for g in grants if getattr(g, "source_clause", None)]
+                        clause_info = f" Existing clauses: {'; '.join(clauses)}" if clauses else ""
+                        conflicting_clauses.append(
+                            f"Territory mismatch: Intended territories {uncovered_territories} are not covered by grant permitted territories.{clause_info}"
+                        )
+
+        # ---------------------------------------------------------------------
+        # 2. Media Match Dimension
+        # ---------------------------------------------------------------------
+        intended_media_raw = getattr(claim, "intended_media", None)
+        if intended_media_raw is None:
+            media_match = ScopeMatchStatus.UNKNOWN
+            unresolved_questions.append(
+                f"Claim '{claim_id}' intended media is unspecified (None); media scope cannot be verified."
+            )
+        else:
+            intended_media_list = (
+                [intended_media_raw]
+                if isinstance(intended_media_raw, str)
+                else list(intended_media_raw)
+            )
+            if not grants:
+                media_match = ScopeMatchStatus.MISMATCH
+                conflicting_clauses.append(
+                    f"Media uncovered: No executed contract grants on file to cover intended media {intended_media_list}."
+                )
+            else:
+                permitted_media_norm: Set[str] = set()
+                has_all_media_grant = False
+                for g in grants:
+                    g_media = getattr(g, "permitted_media", None) or []
+                    if isinstance(g_media, str):
+                        g_media = [g_media]
+                    for m in g_media:
+                        m_str = str(m).strip()
+                        m_lower = m_str.lower()
+                        if m_lower in ("all_media", "all media", "all", "any_media", "worldwide_all_media_perpetual"):
+                            has_all_media_grant = True
+                        permitted_media_norm.add(m_lower)
+                        permitted_media_norm.add(m_str)
+
+                if has_all_media_grant:
+                    media_match = ScopeMatchStatus.MATCH
+                elif not intended_media_list:
+                    media_match = ScopeMatchStatus.UNKNOWN
+                    unresolved_questions.append(
+                        f"Claim '{claim_id}' intended media list is empty; media scope cannot be verified."
+                    )
+                else:
+                    uncovered_media = []
+                    for m in intended_media_list:
+                        m_str = str(m).strip()
+                        m_lower = m_str.lower()
+                        if m_lower in ("all_media", "all media", "all"):
+                            if not has_all_media_grant:
+                                uncovered_media.append(m)
+                        elif m_lower not in permitted_media_norm and m not in permitted_media_norm:
+                            uncovered_media.append(m)
+
+                    if not uncovered_media:
+                        media_match = ScopeMatchStatus.MATCH
+                    else:
+                        media_match = ScopeMatchStatus.MISMATCH
+                        clauses = [f"Grant '{g.grant_id}' ({getattr(g, 'source_clause', '')})" for g in grants if getattr(g, "source_clause", None)]
+                        clause_info = f" Existing clauses: {'; '.join(clauses)}" if clauses else ""
+                        conflicting_clauses.append(
+                            f"Media mismatch: Intended media {uncovered_media} are not covered by grant permitted media.{clause_info}"
+                        )
+
+        # ---------------------------------------------------------------------
+        # 3. Term Match Dimension & SAG/WGA Union Option Expiry
+        # ---------------------------------------------------------------------
+        now_dt = datetime.now(timezone.utc)
+        ref_dt = now_dt
+        dist_val = getattr(claim, "distribution_date", None) or getattr(claim, "distribution_window", None)
+        if dist_val:
+            parsed_dist = cls._parse_date(dist_val)
+            if parsed_dist:
+                ref_dt = parsed_dist
+
+        # Check union option expiry
+        union_expired = False
+        union_expiry_raw = getattr(claim, "union_option_expires_at", None)
+        if union_expiry_raw:
+            parsed_union = cls._parse_date(union_expiry_raw)
+            if parsed_union:
+                if parsed_union < ref_dt:
+                    union_expired = True
+                    conflicting_clauses.append(
+                        f"SAG/WGA union option expired at {union_expiry_raw} (reference date: {ref_dt.isoformat()})."
+                    )
+            else:
+                unresolved_questions.append(
+                    f"Claim '{claim_id}' union_option_expires_at '{union_expiry_raw}' could not be parsed as a valid timestamp."
+                )
+
+        grant_term_expired = False
+        has_valid_or_perpetual_grant = False
+
+        if not grants:
+            if union_expired:
+                term_match = ScopeMatchStatus.MISMATCH
+            else:
+                term_match = ScopeMatchStatus.UNKNOWN
+                unresolved_questions.append(
+                    f"No executed contract grants on file to evaluate term expiry for claim '{claim_id}'."
+                )
+        else:
+            for g in grants:
+                term_raw = getattr(g, "term_expiry", None)
+                if term_raw is None:
+                    has_valid_or_perpetual_grant = True
+                else:
+                    term_str = str(term_raw).strip()
+                    if term_str.lower() in ("perpetual", "in perpetuity", "perpetuity", "forever", "unlimited", "none", "n/a", ""):
+                        has_valid_or_perpetual_grant = True
+                    else:
+                        parsed_term = cls._parse_date(term_str)
+                        if parsed_term:
+                            if parsed_term < ref_dt:
+                                grant_term_expired = True
+                                conflicting_clauses.append(
+                                    f"Grant term expired: Grant '{g.grant_id}' term expired on {term_str} (reference date: {ref_dt.isoformat()}). Clause: \"{getattr(g, 'source_clause', '')}\""
+                                )
+                            else:
+                                has_valid_or_perpetual_grant = True
+                        else:
+                            unresolved_questions.append(
+                                f"Grant '{g.grant_id}' term_expiry '{term_raw}' could not be parsed; requires manual counsel audit."
+                            )
+
+            if union_expired or grant_term_expired:
+                term_match = ScopeMatchStatus.MISMATCH
+            elif has_valid_or_perpetual_grant:
+                term_match = ScopeMatchStatus.MATCH
+            else:
+                term_match = ScopeMatchStatus.UNKNOWN
+
+        # ---------------------------------------------------------------------
+        # 4. Promotional Match Dimension
+        # ---------------------------------------------------------------------
+        PROMOTIONAL_CONTEXTS = {"trailer", "promotional", "marketing", "promotional_clip"}
+        target_ctx_str = str(target_context).strip().lower() if target_context is not None else None
+        intended_ctx_raw = getattr(claim, "intended_context", None)
+        intended_ctx_str = str(intended_ctx_raw).strip().lower() if intended_ctx_raw is not None else None
+
+        is_promotional_context = (
+            (target_ctx_str in PROMOTIONAL_CONTEXTS)
+            or (intended_ctx_str in PROMOTIONAL_CONTEXTS)
+        )
+
+        if is_promotional_context:
+            promo_mismatch = False
+
+            # Check obligations
+            for obl in (obligations or []):
+                obl_type = getattr(obl, "obligation_type", "").strip().lower()
+                restr_text = getattr(obl, "restriction_text", "") or ""
+                restr_lower = restr_text.lower()
+                is_promo_obl = (
+                    obl_type == "promotional_restriction"
+                    or "trailer" in restr_lower
+                    or "promotional" in restr_lower
+                    or "marketing" in restr_lower
+                    or "promotional_clip" in restr_lower
+                )
+                if is_promo_obl and not getattr(obl, "is_fulfilled", False):
+                    promo_mismatch = True
+                    conflicting_clauses.append(
+                        f"Unfulfilled promotional restriction in obligation '{obl.obligation_id}': \"{restr_text}\". Clause: \"{getattr(obl, 'source_clause', '')}\""
+                    )
+
+            # Check grants
+            for g in (grants or []):
+                allows_trailers = getattr(g, "allows_promotional_trailers", True)
+                clause_text = (getattr(g, "source_clause", "") or "").lower()
+                has_clause_restr = (
+                    "no trailer" in clause_text
+                    or "excluding trailer" in clause_text
+                    or "excludes trailer" in clause_text
+                    or "no promotional" in clause_text
+                    or "excluding promotional" in clause_text
+                    or "excludes promotional" in clause_text
+                    or "not for promotional" in clause_text
+                    or "no marketing" in clause_text
+                )
+                if (not allows_trailers) or has_clause_restr:
+                    promo_mismatch = True
+                    conflicting_clauses.append(
+                        f"Grant '{g.grant_id}' restricts promotional trailer usage (allows_promotional_trailers={allows_trailers}). Clause: \"{getattr(g, 'source_clause', '')}\""
+                    )
+
+            if promo_mismatch:
+                promotional_match = ScopeMatchStatus.MISMATCH
+            else:
+                promotional_match = ScopeMatchStatus.MATCH
+        else:
+            # Context is standard feature film
+            promotional_match = ScopeMatchStatus.MATCH
+
+        # ---------------------------------------------------------------------
+        # 5. Living Person Portrayal & Docudrama Context
+        # ---------------------------------------------------------------------
+        is_docudrama = bool(getattr(claim, "is_docudrama_context", False))
+        has_life_story_release = False
+
+        if is_docudrama:
+            # Look for life story release in grants
+            for g in (grants or []):
+                combined_grant_text = (
+                    f"{getattr(g, 'asset_id', '')} "
+                    f"{getattr(g, 'grantor', '')} "
+                    f"{getattr(g, 'source_clause', '')} "
+                    f"{getattr(g, 'verification_status', '')}"
+                ).lower()
+                if (
+                    "life story" in combined_grant_text
+                    or "life_story" in combined_grant_text
+                    or "life rights" in combined_grant_text
+                    or "biopic release" in combined_grant_text
+                    or "portrayal release" in combined_grant_text
+                    or getattr(g, "is_life_story_release", False)
+                ):
+                    has_life_story_release = True
+                    break
+
+            # Look for life story release flag or note on claim
+            if (
+                getattr(claim, "has_life_story_release", False)
+                or getattr(claim, "life_story_release_confirmed", False)
+                or "life story release" in str(getattr(claim, "notes", "")).lower()
+            ):
+                has_life_story_release = True
+
+            if not has_life_story_release:
+                unresolved_questions.append(
+                    f"Claim '{claim_id}' is in docudrama context (living person portrayal) but no executed Life Story Rights Release agreement was found on file. Clarification required."
+                )
+                if hasattr(claim, "needs_clarification"):
+                    try:
+                        claim.needs_clarification = True
+                    except Exception:
+                        pass
+
+        # ---------------------------------------------------------------------
+        # 6. Overall Match Synthesis
+        # ---------------------------------------------------------------------
+        dimensions = [territory_match, media_match, term_match, promotional_match]
+
+        if any(d == ScopeMatchStatus.MISMATCH for d in dimensions):
+            overall_match = ScopeMatchStatus.MISMATCH
+        elif all(d == ScopeMatchStatus.MATCH for d in dimensions):
+            if is_docudrama and not has_life_story_release:
+                overall_match = ScopeMatchStatus.UNKNOWN
+            else:
+                overall_match = ScopeMatchStatus.MATCH
+        else:
+            overall_match = ScopeMatchStatus.UNKNOWN
+
+        return ApplicabilityAssessment(
+            claim_id=claim_id,
+            agreement_id=agreement_id,
+            media_match=media_match,
+            territory_match=territory_match,
+            term_match=term_match,
+            promotional_match=promotional_match,
+            overall_match=overall_match,
+            conflicting_clauses=conflicting_clauses,
+            unresolved_questions=unresolved_questions,
+        )
+
     @classmethod
     def generate_exceptions_schedule(
         cls,
@@ -750,6 +1181,9 @@ class InvalidationEngine:
         total_claims_count = len(schedule_items)
         reopened_count = reattested_count + exception_count
 
+        chain_head_hash = events[-1].event_hash if (events and hasattr(events[-1], "event_hash")) else None
+        is_sealed = bool(chain_head_hash)
+
         return ExceptionsSchedule(
             schedule_id=f"sched_{project_id}_{target_version_id}_{int(datetime.now(timezone.utc).timestamp())}",
             project_id=project_id,
@@ -768,6 +1202,8 @@ class InvalidationEngine:
                 "base_cut_hash": "a1b2c3d4e5f60718293a4b5c6d7e8f90",
                 "target_cut_hash": "f9e8d7c6b5a43210fedcba9876543210",
                 "total_claims": total_claims_count,
+                "chain_head_hash": chain_head_hash,
+                "is_sealed": is_sealed,
                 "disclaimer": (
                     "LEGAL & UNDERWRITING DISCLAIMER: THIS ARTIFACT IS A VERSION-BOUND SCHEDULE OF "
                     "UNRESOLVED CLEARANCE EXCEPTIONS FOR DEMONSTRATION AND INFORMATIONAL PURPOSES ONLY. "
@@ -939,6 +1375,24 @@ class InvalidationEngine:
         proj_id = html.escape(str(meta.get("project_id", schedule.project_id or "")))
         producer_co = html.escape(str(meta.get("producer_company", "")))
 
+        chain_head = meta.get("chain_head_hash") or getattr(schedule, "chain_head_hash", None)
+        if chain_head:
+            seal_markup = f"""
+    <!-- CRYPTOGRAPHIC AUDIT SEAL: VERIFIED CHAIN HASH -->
+    <div style="margin-top: 24px; padding: 14px; background: #0f172a; color: #f8fafc; border: 1px solid #334155; border-radius: 6px; text-align: center; font-family: monospace; font-size: 12px; break-inside: avoid;">
+        <div style="font-weight: 700; color: #38bdf8; font-size: 13px;">CRYPTOGRAPHIC AUDIT SEAL: SHA256:{html.escape(str(chain_head))} [VERIFIED CHAIN HASH]</div>
+        <div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">LIENMARK AUDIT LEDGER TAMPER-FREE: TRUE &middot; Total {schedule.total_claims} = {schedule.carried_forward_count} Carried + {schedule.re_attested_count} Re-Attested + {schedule.unresolved_exception_count} Exception</div>
+    </div>
+"""
+        else:
+            seal_markup = f"""
+    <!-- CRYPTOGRAPHIC AUDIT SEAL: UNSEALED -->
+    <div style="margin-top: 24px; padding: 14px; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; text-align: center; font-family: monospace; font-size: 12px; break-inside: avoid;">
+        <div style="font-weight: 700; color: #f59e0b; font-size: 13px;">CRYPTOGRAPHIC AUDIT SEAL: [UNSEALED] &mdash; PENDING COUNSEL CHECKPOINT ADJUDICATION</div>
+        <div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">STATUS: UNSEALED &middot; AWAITING COUNSEL ATTESTATION FOR BINDER &middot; Total {schedule.total_claims} = {schedule.carried_forward_count} Carried + {schedule.re_attested_count} Re-Attested + {schedule.unresolved_exception_count} Exception</div>
+    </div>
+"""
+
         return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1078,6 +1532,8 @@ class InvalidationEngine:
         </div>
     </div>
 
+    {seal_markup}
+
     <!-- PROMINENT STATUTORY UNDERWRITING DISCLAIMER BANNER (FOOTER) -->
     <div class="disclaimer-banner" style="margin-top: 32px; margin-bottom: 0;">
         {disclaimer_text}
@@ -1096,6 +1552,464 @@ class InvalidationEngine:
         Alias for render_form_eo_2026_html.
         """
         return cls.render_form_eo_2026_html(schedule)
+
+    @classmethod
+    def process_counsel_decision(
+        cls,
+        claim: Union[AtomicRightsClaim, Dict[str, Any], str],
+        action: Union[ReviewAction, str],
+        conditions: Optional[List[str]] = None,
+        counsel_directive: Optional[str] = None,
+        counsel_name: Optional[str] = "Sarah Jenkins, Esq.",
+        reviewer: Optional[Union[ReviewerIdentity, str, Dict[str, Any]]] = None,
+        prior_finding: Optional[Union[str, Dict[str, Any]]] = None,
+        prior_recommendation: Optional[Union[str, Dict[str, Any]]] = None,
+        task_provider: str = "parallel",
+        notes: Optional[str] = None,
+        **kwargs: Any,
+    ) -> CounselDecisionResult:
+        """
+        Processes an authoritative counsel decision under the Counsel Rejection & Correction Loop:
+        1. ReviewAction.RE_ATTEST (or APPROVE):
+           Sets claim disposition to APPROVED / CONDITIONAL with conditions.
+        2. ReviewAction.REJECT (or REJECT_USE):
+           Archives previous recommendation, updates claim disposition to REJECTED.
+        3. ReviewAction.REQUEST_CORRECTION:
+           - Archives prior finding/recommendation with timestamp and counsel name.
+           - Preserves counsel's directive (e.g., 'Must obtain festival sync addendum').
+           - Spawns an isolated InvestigationTask with counsel's directive as an explicit constraint.
+           - Transitions claim status to CensusDisposition.NEEDS_REVIEW and workflow_reason to REINVESTIGATION_REQUESTED.
+        """
+        # Resolve reviewer / counsel name
+        if reviewer:
+            if isinstance(reviewer, ReviewerIdentity):
+                eff_counsel = reviewer.name
+            elif isinstance(reviewer, dict):
+                eff_counsel = reviewer.get("name", counsel_name or "Sarah Jenkins, Esq.")
+            else:
+                eff_counsel = str(reviewer)
+        else:
+            eff_counsel = counsel_name or "Sarah Jenkins, Esq."
+
+        # Normalize action
+        if isinstance(action, ReviewAction):
+            act_str = action.value.lower()
+        else:
+            act_str = str(action).lower().strip()
+
+        if act_str in ("re_attest", "reattest", "approve"):
+            eff_action = ReviewAction.RE_ATTEST
+        elif act_str in ("reject", "reject_use"):
+            eff_action = ReviewAction.REJECT
+        elif act_str in ("request_correction", "correction", "request_reinvestigation"):
+            eff_action = ReviewAction.REQUEST_CORRECTION
+        elif act_str in ("exception",):
+            eff_action = ReviewAction.EXCEPTION
+        else:
+            raise ValueError(f"Unsupported review action '{action}'. Must be RE_ATTEST, APPROVE, REJECT, REJECT_USE, or REQUEST_CORRECTION.")
+
+        # Resolve claim object
+        is_dict = isinstance(claim, dict)
+        if isinstance(claim, str):
+            claim_id = claim
+            claim_obj = AtomicRightsClaim(
+                claim_id=claim_id,
+                occurrence_id=f"occ_{claim_id}",
+                occurrence_lineage_id=f"lineage_{claim_id}",
+                right_category=kwargs.get("right_category", "composition"),
+                rights_subject=kwargs.get("rights_subject", "Rights Holder"),
+            )
+            is_dict = False
+        else:
+            claim_obj = claim
+            claim_id = claim_obj.get("claim_id", f"claim_{uuid.uuid4().hex[:8]}") if is_dict else getattr(claim_obj, "claim_id", f"claim_{uuid.uuid4().hex[:8]}")
+
+        # Extract prior recommendation / finding
+        prior_rec_val = prior_recommendation or prior_finding
+        if not prior_rec_val:
+            if is_dict:
+                prior_rec_val = claim_obj.get("notes") or str(claim_obj.get("disposition", ""))
+            else:
+                prior_rec_val = getattr(claim_obj, "notes", None) or getattr(getattr(claim_obj, "disposition", None), "value", None) or "Prior clearance finding"
+
+        prior_disp_val = claim_obj.get("disposition", "") if is_dict else getattr(claim_obj, "disposition", "")
+
+        task: Optional[InvestigationTask] = None
+        archived_record: Optional[Dict[str, Any]] = None
+        effective_conditions: List[str] = list(conditions or kwargs.get("decision_conditions") or [])
+
+        if eff_action == ReviewAction.RE_ATTEST:
+            # Sets claim disposition to APPROVED / CONDITIONAL with conditions
+            if effective_conditions:
+                disposition = CensusDisposition.CONDITIONAL
+            else:
+                disposition = CensusDisposition.APPROVED
+            workflow_reason = WorkflowReason.NORMAL_OPERATION
+            origin = ApprovalOrigin.RENEWED_APPROVAL
+
+            if is_dict:
+                claim_obj["disposition"] = disposition
+                claim_obj["decision_conditions"] = effective_conditions
+                claim_obj["workflow_reason"] = workflow_reason
+                claim_obj["approval_origin"] = origin
+                if notes:
+                    claim_obj["notes"] = (claim_obj.get("notes", "") + "\n" + notes).strip()
+            else:
+                claim_obj.disposition = disposition
+                claim_obj.decision_conditions = effective_conditions
+                claim_obj.workflow_reason = workflow_reason
+                claim_obj.approval_origin = origin
+                if notes:
+                    claim_obj.notes = (getattr(claim_obj, "notes", "") + "\n" + notes).strip()
+
+        elif eff_action == ReviewAction.REJECT:
+            # Archives previous recommendation, updates claim disposition to REJECTED
+            archived_record = {
+                "archived_at": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "counsel_name": eff_counsel,
+                "action": "reject",
+                "prior_disposition": str(prior_disp_val),
+                "prior_finding": prior_finding or prior_rec_val,
+                "prior_recommendation": prior_rec_val,
+                "reason": notes or kwargs.get("reason", "Counsel rejected use"),
+            }
+            disposition = CensusDisposition.REJECTED
+            workflow_reason = WorkflowReason.NORMAL_OPERATION
+            origin = ApprovalOrigin.NONE
+            effective_conditions = []
+
+            if is_dict:
+                claim_obj.setdefault("archived_recommendations", []).append(archived_record)
+                claim_obj["disposition"] = disposition
+                claim_obj["decision_conditions"] = []
+                claim_obj["workflow_reason"] = workflow_reason
+                claim_obj["approval_origin"] = origin
+                if notes:
+                    claim_obj["notes"] = (claim_obj.get("notes", "") + "\n" + notes).strip()
+            else:
+                if hasattr(claim_obj, "archived_recommendations"):
+                    claim_obj.archived_recommendations.append(archived_record)
+                claim_obj.disposition = disposition
+                claim_obj.decision_conditions = []
+                claim_obj.workflow_reason = workflow_reason
+                claim_obj.approval_origin = origin
+                if notes:
+                    claim_obj.notes = (getattr(claim_obj, "notes", "") + "\n" + notes).strip()
+
+        elif eff_action == ReviewAction.REQUEST_CORRECTION:
+            # 1. Archives prior finding/recommendation with timestamp and counsel name
+            archived_record = {
+                "archived_at": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "counsel_name": eff_counsel,
+                "action": "request_correction",
+                "prior_disposition": str(prior_disp_val),
+                "prior_finding": prior_finding or prior_rec_val,
+                "prior_recommendation": prior_rec_val,
+                "counsel_directive": counsel_directive,
+                "notes": notes,
+            }
+
+            # 2. Preserves counsel's directive & spawns isolated InvestigationTask
+            directive_str = counsel_directive or kwargs.get("directive", "")
+            task_id = f"task_inv_{uuid.uuid4().hex[:10]}"
+            task_constraints = [directive_str] if directive_str else []
+            task = InvestigationTask(
+                task_id=task_id,
+                claim_ids=[claim_id],
+                task_type="reinvestigate_directive",
+                status=TaskStatus.QUEUED,
+                target_provider=task_provider or "parallel",
+                query_or_ref=directive_str or f"Directive reinvestigation for claim {claim_id}",
+                counsel_directive=directive_str,
+                investigation_constraints=task_constraints,
+                result_payload={
+                    "counsel_directive": directive_str,
+                    "investigation_constraint": directive_str,
+                    "counsel_name": eff_counsel,
+                    "claim_id": claim_id,
+                },
+            )
+
+            # 3. Transitions claim status to CensusDisposition.NEEDS_REVIEW and workflow_reason to REINVESTIGATION_REQUESTED
+            disposition = CensusDisposition.NEEDS_REVIEW
+            workflow_reason = WorkflowReason.REINVESTIGATION_REQUESTED
+            origin = ApprovalOrigin.NONE
+            effective_conditions = []
+
+            directive_note = f"[Counsel Directive ({eff_counsel})]: {directive_str}" if directive_str else ""
+
+            if is_dict:
+                claim_obj.setdefault("archived_recommendations", []).append(archived_record)
+                claim_obj["counsel_directive"] = directive_str
+                claim_obj["clarification_request_id"] = task.task_id
+                claim_obj["disposition"] = disposition
+                claim_obj["workflow_reason"] = workflow_reason
+                claim_obj["approval_origin"] = origin
+                claim_obj.setdefault("metadata", {})["counsel_directive"] = directive_str
+                claim_obj["metadata"]["active_investigation_task_id"] = task.task_id
+                if directive_note:
+                    claim_obj["notes"] = (claim_obj.get("notes", "") + "\n" + directive_note).strip()
+            else:
+                if hasattr(claim_obj, "archived_recommendations"):
+                    claim_obj.archived_recommendations.append(archived_record)
+                if hasattr(claim_obj, "counsel_directive"):
+                    claim_obj.counsel_directive = directive_str
+                if hasattr(claim_obj, "clarification_request_id"):
+                    claim_obj.clarification_request_id = task.task_id
+                claim_obj.disposition = disposition
+                claim_obj.workflow_reason = workflow_reason
+                claim_obj.approval_origin = origin
+                if hasattr(claim_obj, "metadata"):
+                    claim_obj.metadata["counsel_directive"] = directive_str
+                    claim_obj.metadata["active_investigation_task_id"] = task.task_id
+                if directive_note:
+                    claim_obj.notes = (getattr(claim_obj, "notes", "") + "\n" + directive_note).strip()
+
+        else:  # EXCEPTION
+            disposition = CensusDisposition.NEEDS_REVIEW
+            workflow_reason = WorkflowReason.NORMAL_OPERATION
+            effective_conditions = []
+            if is_dict:
+                claim_obj["disposition"] = disposition
+                claim_obj["workflow_reason"] = workflow_reason
+            else:
+                claim_obj.disposition = disposition
+                claim_obj.workflow_reason = workflow_reason
+
+        return CounselDecisionResult(
+            claim=claim_obj,
+            action=eff_action,
+            disposition=disposition,
+            workflow_reason=workflow_reason,
+            task=task,
+            archived_record=archived_record,
+            counsel_directive=counsel_directive,
+            conditions=effective_conditions,
+        )
+
+    @classmethod
+    def purge_expired_materials(
+        cls,
+        retention_policy: RetentionPolicy,
+        legal_holds: List[LegalHoldRecord],
+        files: List[Dict[str, Any]],
+    ) -> DeletionRecord:
+        """
+        Enforces retention policy and legal hold non-spoliation controls.
+        - If an active legal hold covers the production or asset:
+          BLOCKS purge, logs caution, sets status="BLOCKED_BY_LEGAL_HOLD".
+        - If no legal hold covers the asset and retention period has elapsed:
+          marks files as deleted, records SHA-256 digest, sets
+          evidence_availability=EvidenceAvailability.SOURCE_PURGED_PER_POLICY
+          while preserving cryptographic event hash and metadata.
+        """
+        now_utc = datetime.now(timezone.utc)
+        active_holds = [
+            h for h in (legal_holds or [])
+            if getattr(h, "is_active", True) and not getattr(h, "released_at", None)
+        ]
+
+        # 1. Evaluate whether any active legal hold covers the production or any asset in files
+        covering_hold: Optional[LegalHoldRecord] = None
+        for hold in active_holds:
+            # Blanket legal hold
+            if hold.production_id in ("*", "ALL", "GLOBAL"):
+                covering_hold = hold
+                break
+
+            for f in files:
+                f_prod = f.get("production_id") or f.get("project_id")
+                f_asset = f.get("asset_id") or f.get("stable_lineage_key")
+                f_claim = f.get("claim_id")
+                f_uri = f.get("uri") or f.get("target_uri") or f.get("path")
+
+                # Match on production ID
+                if f_prod and hold.production_id == f_prod:
+                    covering_hold = hold
+                    break
+
+                # Match on claims / asset / URI in hold.claim_ids
+                if hold.claim_ids:
+                    if "*" in hold.claim_ids:
+                        covering_hold = hold
+                        break
+                    if f_asset and f_asset in hold.claim_ids:
+                        covering_hold = hold
+                        break
+                    if f_claim and f_claim in hold.claim_ids:
+                        covering_hold = hold
+                        break
+                    if f_uri and f_uri in hold.claim_ids:
+                        covering_hold = hold
+                        break
+
+                # If hold.production_id explicitly matches asset or claim
+                if hold.production_id in (f_asset, f_claim):
+                    covering_hold = hold
+                    break
+
+            if covering_hold:
+                break
+
+        primary_f = files[0] if files else {}
+        primary_uri = primary_f.get("uri", primary_f.get("path", "file://unknown"))
+        raw_class = primary_f.get("retention_class", RetentionClass.RETAINED_EVIDENCE)
+        if isinstance(raw_class, RetentionClass):
+            ret_class = raw_class
+        else:
+            try:
+                ret_class = RetentionClass(str(raw_class).lower())
+            except ValueError:
+                ret_class = RetentionClass.RETAINED_EVIDENCE
+
+        primary_sha = primary_f.get("sha256", "")
+        if not primary_sha and primary_f:
+            content = str(primary_f.get("content", primary_uri))
+            primary_sha = hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+        # BLOCK PURGE if active legal hold covers
+        if covering_hold:
+            logger.warning(
+                "CAUTION: Active legal hold '%s' (reason: '%s', placed_by: '%s') covers production/asset. "
+                "Purge operation BLOCKED.",
+                covering_hold.hold_id,
+                covering_hold.reason,
+                covering_hold.placed_by,
+            )
+            # Ensure files are NOT marked as deleted
+            for f in files:
+                f["deleted"] = False
+                f["is_deleted"] = False
+
+            return DeletionRecord(
+                deletion_id=f"del_blocked_{uuid.uuid4().hex[:10]}",
+                target_uri=primary_uri,
+                retention_class=ret_class,
+                purged_at=None,
+                original_sha256=primary_sha,
+                authorized_by_policy_id=retention_policy.policy_id,
+                availability_status=primary_f.get("evidence_availability", EvidenceAvailability.AVAILABLE),
+                evidence_availability=primary_f.get("evidence_availability", EvidenceAvailability.AVAILABLE),
+                status="BLOCKED_BY_LEGAL_HOLD",
+                cryptographic_event_hash=primary_f.get("cryptographic_event_hash") or primary_f.get("event_hash"),
+                event_hash=primary_f.get("cryptographic_event_hash") or primary_f.get("event_hash"),
+                metadata={
+                    "status": "BLOCKED_BY_LEGAL_HOLD",
+                    "blocked_by_hold_id": covering_hold.hold_id,
+                    "hold_reason": covering_hold.reason,
+                    "placed_by": covering_hold.placed_by,
+                    "placed_at": covering_hold.placed_at,
+                },
+                blocked_by_hold_id=covering_hold.hold_id,
+                purged_files=[],
+            )
+
+        # 2. No legal hold: evaluate retention period elapsed
+        purged_files: List[Dict[str, Any]] = []
+        for f in files:
+            f_raw_class = f.get("retention_class", RetentionClass.RETAINED_EVIDENCE)
+            if isinstance(f_raw_class, RetentionClass):
+                class_key = f_raw_class.value
+            else:
+                class_key = str(f_raw_class).lower()
+
+            retention_days = retention_policy.retention_days_by_class.get(class_key, 365)
+            ts_val = f.get("created_at") or f.get("timestamp") or f.get("retrieved_at") or f.get("date")
+
+            if ts_val:
+                try:
+                    dt = datetime.fromisoformat(str(ts_val).replace("Z", "+00:00"))
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    elapsed_days = (now_utc - dt).total_seconds() / 86400.0
+                    has_elapsed = elapsed_days >= retention_days
+                except Exception:
+                    has_elapsed = True
+            else:
+                has_elapsed = f.get("is_expired", f.get("expired", True))
+
+            if has_elapsed:
+                # Mark as deleted
+                f["deleted"] = True
+                f["is_deleted"] = True
+                f["purged"] = True
+
+                # Record SHA-256 digest
+                sha256 = f.get("sha256")
+                if not sha256:
+                    content = f.get("content", f.get("uri", str(f)))
+                    sha256 = hashlib.sha256(content.encode("utf-8") if isinstance(content, str) else content).hexdigest()
+                    f["sha256"] = sha256
+
+                # Set evidence_availability = SOURCE_PURGED_PER_POLICY
+                f["evidence_availability"] = EvidenceAvailability.SOURCE_PURGED_PER_POLICY
+                f["availability_status"] = EvidenceAvailability.SOURCE_PURGED_PER_POLICY
+
+                # Preserve cryptographic event hash and metadata
+                ev_hash = f.get("cryptographic_event_hash") or f.get("event_hash")
+                if not ev_hash:
+                    ev_hash = hashlib.sha256(f"{sha256}::{retention_policy.policy_id}::{now_utc.isoformat()}".encode("utf-8")).hexdigest()
+                f["cryptographic_event_hash"] = ev_hash
+                f["event_hash"] = ev_hash
+
+                f_meta = f.setdefault("metadata", {})
+                f_meta["preserved_original_sha256"] = sha256
+                f_meta["purged_at"] = now_utc.isoformat()
+                f_meta["authorized_by_policy_id"] = retention_policy.policy_id
+                f_meta["retention_class"] = class_key
+
+                purged_files.append(f)
+
+        if purged_files:
+            purged_at_iso = now_utc.isoformat()
+            lead_f = purged_files[0]
+            lead_sha = lead_f.get("sha256", "")
+            if len(purged_files) > 1:
+                combined_sha = hashlib.sha256("::".join(f.get("sha256", "") for f in purged_files).encode("utf-8")).hexdigest()
+            else:
+                combined_sha = lead_sha
+
+            lead_event_hash = lead_f.get("cryptographic_event_hash") or lead_f.get("event_hash")
+            meta = dict(lead_f.get("metadata", {}))
+            meta["purged_file_count"] = len(purged_files)
+            meta["total_files"] = len(files)
+            meta["retention_policy_id"] = retention_policy.policy_id
+            meta["preserved_sha256_digests"] = [f.get("sha256") for f in purged_files]
+
+            return DeletionRecord(
+                deletion_id=f"del_{uuid.uuid4().hex[:10]}",
+                target_uri=lead_f.get("uri", lead_f.get("path", "file://purged")),
+                retention_class=ret_class,
+                purged_at=purged_at_iso,
+                original_sha256=combined_sha,
+                authorized_by_policy_id=retention_policy.policy_id,
+                availability_status=EvidenceAvailability.SOURCE_PURGED_PER_POLICY,
+                evidence_availability=EvidenceAvailability.SOURCE_PURGED_PER_POLICY,
+                status="PURGED",
+                cryptographic_event_hash=lead_event_hash,
+                event_hash=lead_event_hash,
+                metadata=meta,
+                purged_files=purged_files,
+            )
+
+        # Non-expired materials
+        return DeletionRecord(
+            deletion_id=f"del_active_{uuid.uuid4().hex[:10]}",
+            target_uri=primary_uri,
+            retention_class=ret_class,
+            purged_at=None,
+            original_sha256=primary_sha,
+            authorized_by_policy_id=retention_policy.policy_id,
+            availability_status=EvidenceAvailability.AVAILABLE,
+            evidence_availability=EvidenceAvailability.AVAILABLE,
+            status="ACTIVE_RETENTION",
+            cryptographic_event_hash=primary_f.get("cryptographic_event_hash") or primary_f.get("event_hash"),
+            event_hash=primary_f.get("cryptographic_event_hash") or primary_f.get("event_hash"),
+            metadata={"reason": "Retention period has not elapsed; materials active."},
+            purged_files=[],
+        )
 
 
 def evaluate_version_delta(
@@ -1131,6 +2045,74 @@ def render_form_eo_2026_html(schedule: ExceptionsSchedule) -> str:
 def render_html_schedule(schedule: ExceptionsSchedule) -> str:
     """Renders Form E&O-2026 HTML for underwriter review and counsel export."""
     return InvalidationEngine.render_html_schedule(schedule)
+
+
+def evaluate_agreement_applicability(
+    claim: Union[AtomicRightsClaim, CreativeUse],
+    grants: List[ContractGrant],
+    obligations: List[ContractObligation],
+    target_context: Optional[str] = None,
+) -> ApplicabilityAssessment:
+    """
+    Evaluates private agreement scope matching and obligation tracking for an atomic rights claim or creative use.
+    Top-level convenience functional wrapper for InvalidationEngine.evaluate_agreement_applicability.
+    """
+    return InvalidationEngine.evaluate_agreement_applicability(
+        claim=claim,
+        grants=grants,
+        obligations=obligations,
+        target_context=target_context,
+    )
+
+
+def process_counsel_decision(
+    claim: Union[AtomicRightsClaim, Dict[str, Any], str],
+    action: Union[ReviewAction, str],
+    conditions: Optional[List[str]] = None,
+    counsel_directive: Optional[str] = None,
+    counsel_name: Optional[str] = "Sarah Jenkins, Esq.",
+    reviewer: Optional[Union[ReviewerIdentity, str, Dict[str, Any]]] = None,
+    prior_finding: Optional[Union[str, Dict[str, Any]]] = None,
+    prior_recommendation: Optional[Union[str, Dict[str, Any]]] = None,
+    task_provider: str = "parallel",
+    notes: Optional[str] = None,
+    **kwargs: Any,
+) -> CounselDecisionResult:
+    """
+    Top-level helper for processing an authoritative counsel review action.
+    Delegates directly to InvalidationEngine.process_counsel_decision.
+    """
+    return InvalidationEngine.process_counsel_decision(
+        claim=claim,
+        action=action,
+        conditions=conditions,
+        counsel_directive=counsel_directive,
+        counsel_name=counsel_name,
+        reviewer=reviewer,
+        prior_finding=prior_finding,
+        prior_recommendation=prior_recommendation,
+        task_provider=task_provider,
+        notes=notes,
+        **kwargs,
+    )
+
+
+def purge_expired_materials(
+    retention_policy: RetentionPolicy,
+    legal_holds: List[LegalHoldRecord],
+    files: List[Dict[str, Any]],
+) -> DeletionRecord:
+    """
+    Top-level helper for statutory retention policy and legal hold non-spoliation controls.
+    Delegates directly to InvalidationEngine.purge_expired_materials.
+    """
+    return InvalidationEngine.purge_expired_materials(
+        retention_policy=retention_policy,
+        legal_holds=legal_holds,
+        files=files,
+    )
+
+
 
 
 

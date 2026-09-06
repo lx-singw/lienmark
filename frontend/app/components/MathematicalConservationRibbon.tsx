@@ -91,17 +91,30 @@ export const MathematicalConservationRibbon: React.FC<MathematicalConservationRi
     // Do NOT synthesize 2 network calls if networkCalls === 0 and traces are empty
     const effectiveCalls = networkCalls;
     const effectiveRetries = retries;
-    const effectiveElapsed =
-      typeof elapsedMs === 'number' && elapsedMs > 0
-        ? elapsedMs
-        : traceDurationSum > 0
-        ? traceDurationSum
-        : null;
+    const isLive = typeof elapsedMs === 'number' && elapsedMs > 0;
+    const effectiveElapsed = isLive
+      ? elapsedMs
+      : traceDurationSum > 0
+      ? traceDurationSum
+      : null;
+    const badge = isLive
+      ? 'Measured Runtime'
+      : traceDurationSum > 0
+      ? '[DEMO FIXTURE]'
+      : '[Awaiting Run]';
+    const subtext = isLive
+      ? 'Live Telemetry'
+      : traceDurationSum > 0
+      ? '[DEMO FIXTURE]'
+      : 'Awaiting Run';
 
     return {
       networkCalls: effectiveCalls,
       retries: effectiveRetries,
       elapsedMs: effectiveElapsed,
+      isLive,
+      badge,
+      subtext,
     };
   }, [traces, elapsedMs]);
 
@@ -449,15 +462,17 @@ export const MathematicalConservationRibbon: React.FC<MathematicalConservationRi
               <Clock className="h-3 w-3" aria-hidden="true" />
               <span>Measured Latency</span>
             </span>
-            {telemetry.elapsedMs !== null ? (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase tracking-wider bg-teal-950/80 text-teal-300 border border-teal-500/40">
-                Measured Runtime
-              </span>
-            ) : (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase tracking-wider bg-slate-800 text-slate-400 border border-slate-700">
-                [Awaiting Run]
-              </span>
-            )}
+            <span
+              className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase tracking-wider ${
+                telemetry.isLive
+                  ? 'bg-teal-950/80 text-teal-300 border border-teal-500/40'
+                  : telemetry.elapsedMs !== null
+                  ? 'bg-amber-950/80 text-amber-300 border border-amber-500/40'
+                  : 'bg-slate-800 text-slate-400 border border-slate-700'
+              }`}
+            >
+              {telemetry.badge}
+            </span>
           </div>
           <div className="mt-2 flex items-baseline justify-between">
             {telemetry.elapsedMs !== null ? (
@@ -465,12 +480,12 @@ export const MathematicalConservationRibbon: React.FC<MathematicalConservationRi
                 <span className="text-2xl font-bold text-teal-300 font-mono">
                   {telemetry.elapsedMs.toFixed(1)} ms
                 </span>
-                <span className="text-[10px] font-mono text-slate-400">Live Telemetry</span>
+                <span className="text-[10px] font-mono text-slate-400">{telemetry.subtext}</span>
               </>
             ) : (
               <>
                 <span className="text-xl font-bold text-slate-400 font-mono">Not measured</span>
-                <span className="text-[10px] font-mono text-slate-500">Awaiting Run</span>
+                <span className="text-[10px] font-mono text-slate-500">{telemetry.subtext}</span>
               </>
             )}
           </div>

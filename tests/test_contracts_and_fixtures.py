@@ -26,8 +26,16 @@ from backend.domain.models import (
     ReattestationRequest,
     ExceptionsScheduleItem,
     ExceptionsSchedule,
+    AtomicRightsClaim,
+    ContractGrant,
+    ContractObligation,
+    ApplicabilityAssessment,
+    ScopeMatchStatus,
 )
-from backend.core.invalidation_engine import InvalidationEngine
+from backend.core.invalidation_engine import (
+    InvalidationEngine,
+    evaluate_agreement_applicability,
+)
 from backend.fixtures.golden_dataset import (
     get_v7_version,
     get_v8_version,
@@ -933,3 +941,542 @@ def test_golden_expected_deltas_contract():
         if key != "poster_noir_detective_magazine":
             assert d.is_material is False
             assert d.clearance_risk_level == "low"
+
+
+# =============================================================================
+# 12. PRIVATE AGREEMENT SCOPE & OBLIGATION EVALUATOR TESTS
+# =============================================================================
+
+def test_territory_match_unknown_when_intended_is_none():
+    claim = AtomicRightsClaim(
+        claim_id="clm_01",
+        occurrence_id="occ_01",
+        occurrence_lineage_id="lin_01",
+        right_category="music",
+        rights_subject="Publisher",
+        intended_territory=None,
+        intended_media=["theatrical"],
+    )
+    grant = ContractGrant(
+        grant_id="grt_01",
+        agreement_id="agr_01",
+        asset_id="ast_01",
+        grantor="Publisher Inc",
+        grantee="Production Co",
+        permitted_territories=["US", "CA"],
+        permitted_media=["theatrical"],
+        source_clause="Territory: United States and Canada.",
+    )
+
+    assessment = InvalidationEngine.evaluate_agreement_applicability(
+        claim=claim, grants=[grant], obligations=[]
+    )
+    assert assessment.territory_match == ScopeMatchStatus.UNKNOWN
+    assert any("intended territory is unspecified" in q for q in assessment.unresolved_questions)
+    assert assessment.overall_match == ScopeMatchStatus.UNKNOWN
+
+
+def test_territory_match_mismatch_when_no_grants():
+    claim = AtomicRightsClaim(
+        claim_id="clm_02",
+        occurrence_id="occ_01",
+        occurrence_lineage_id="lin_01",
+        right_category="music",
+        rights_subject="Publisher",
+        intended_territory=["US"],
+        intended_media=["theatrical"],
+    )
+
+    assessment = InvalidationEngine.evaluate_agreement_applicability(
+        claim=claim, grants=[], obligations=[]
+    )
+    assert assessment.territory_match == ScopeMatchStatus.MISMATCH
+    assert assessment.overall_match == ScopeMatchStatus.MISMATCH
+    assert any("Territory uncovered" in c for c in assessment.conflicting_clauses)
+
+
+def test_territory_match_worldwide_grant_satisfies_all():
+    claim = AtomicRightsClaim(
+        claim_id="clm_03",
+        occurrence_id="occ_01",
+        occurrence_lineage_id="lin_01",
+        right_category="music",
+        rights_subject="Publisher",
+        intended_territory=["US", "GB", "JP", "FR"],
+        intended_media=["theatrical"],
+    )
+    grant = ContractGrant(
+        grant_id="grt_ww",
+        agreement_id="agr_01",
+        asset_id="ast_01",
+        grantor="Publisher Inc",
+        grantee="Production Co",
+        permitted_territories=["worldwide"],
+        permitted_media=["theatrical"],
+        source_clause="Grant is worldwide across all territories.",
+    )
+
+    assessment = InvalidationEngine.evaluate_agreement_applicability(
+        claim=claim, grants=[grant], obligations=[]
+    )
+    assert assessment.territory_match == ScopeMatchStatus.MATCH
+
+
+def test_territory_match_exact_coverage():
+    claim = AtomicRightsClaim(
+        claim_id="clm_04",
+        occurrence_id="occ_01",
+        occurrence_lineage_id="lin_01",
+        right_category="music",
+        rights_subject="Publisher",
+        intended_territory=["US", "CA"],
+        intended_media=["theatrical"],
+    )
+    grant = ContractGrant(
+        grant_id="grt_na",
+        agreement_id="agr_01",
+        asset_id="ast_01",
+        grantor="Publisher Inc",
+        grantee="Production Co",
+        permitted_territories=["US", "CA", "MX"],
+        permitted_media=["theatrical"],
+        source_clause="Territories: North America.",
+    )
+
+    assessment = InvalidationEngine.evaluate_agreement_applicability(
+        claim=claim, grants=[grant], obligations=[]
+    )
+    assert assessment.territory_match == ScopeMatchStatus.MATCH
+
+
+def test_territory_match_uncovered_territory_triggers_mismatch():
+    claim = AtomicRightsClaim(
+        claim_id="clm_05",
+        occurrence_id="occ_01",
+        occurrence_lineage_id="lin_01",
+        right_category="music",
+        rights_subject="Publisher",
+        intended_territory=["US", "DE", "FR"],
+        intended_media=["theatrical"],
+    )
+    grant = ContractGrant(
+        grant_id="grt_us_only",
+        agreement_id="agr_01",
+        asset_id="ast_01",
+        grantor="Publisher Inc",
+        grantee="Production Co",
+        permitted_territories=["US"],
+        permitted_media=["theatrical"],
+        source_clause="Territory strictly limited to the United States.",
+    )
+
+    assessment = InvalidationEngine.evaluate_agreement_applicability(
+        claim=claim, grants=[grant], obligations=[]
+    )
+    assert assessment.territory_match == ScopeMatchStatus.MISMATCH
+    assert assessment.overall_match == ScopeMatchStatus.MISMATCH
+    assert any("DE" in c or "FR" in c for c in assessment.conflicting_clauses)
+
+
+def test_media_match_unknown_when_intended_is_none():
+    claim = AtomicRightsClaim(
+        claim_id="clm_med_none",
+        occurrence_id="occ_01",
+        occurrence_lineage_id="lin_01",
+        right_category="music",
+        rights_subject="Publisher",
+        intended_territory=["US"],
+        intended_media=None,
+    )
+    grant = ContractGrant(
+        grant_id="grt_01",
+        agreement_id="agr_01",
+        asset_id="ast_01",
+        grantor="Publisher Inc",
+        grantee="Production Co",
+        permitted_territories=["US"],
+        permitted_media=["theatrical", "vod"],
+        source_clause="Media: All theatrical and VOD.",
+    )
+
+    assessment = InvalidationEngine.evaluate_agreement_applicability(
+        claim=claim, grants=[grant], obligations=[]
+    )
+    assert assessment.media_match == ScopeMatchStatus.UNKNOWN
+    assert any("intended media is unspecified" in q for q in assessment.unresolved_questions)
+
+
+def test_media_match_all_media_grant_satisfies_all():
+    claim = AtomicRightsClaim(
+        claim_id="clm_med_all",
+        occurrence_id="occ_01",
+        occurrence_lineage_id="lin_01",
+        right_category="music",
+        rights_subject="Publisher",
+        intended_territory=["US"],
+        intended_media=["theatrical", "svod", "linear", "in-flight", "metaverse"],
+    )
+    grant = ContractGrant(
+        grant_id="grt_all_med",
+        agreement_id="agr_01",
+        asset_id="ast_01",
+        grantor="Publisher Inc",
+        grantee="Production Co",
+        permitted_territories=["US"],
+        permitted_media=["all_media"],
+        source_clause="Media: All media now known or hereafter devised.",
+    )
+
+    assessment = InvalidationEngine.evaluate_agreement_applicability(
+        claim=claim, grants=[grant], obligations=[]
+    )
+    assert assessment.media_match == ScopeMatchStatus.MATCH
+
+
+def test_media_match_uncovered_triggers_mismatch():
+    claim = AtomicRightsClaim(
+        claim_id="clm_med_uncovered",
+        occurrence_id="occ_01",
+        occurrence_lineage_id="lin_01",
+        right_category="music",
+        rights_subject="Publisher",
+        intended_territory=["US"],
+        intended_media=["theatrical", "svod"],
+    )
+    grant = ContractGrant(
+        grant_id="grt_th_only",
+        agreement_id="agr_01",
+        asset_id="ast_01",
+        grantor="Publisher Inc",
+        grantee="Production Co",
+        permitted_territories=["US"],
+        permitted_media=["theatrical"],
+        source_clause="Media strictly restricted to theatrical release.",
+    )
+
+    assessment = InvalidationEngine.evaluate_agreement_applicability(
+        claim=claim, grants=[grant], obligations=[]
+    )
+    assert assessment.media_match == ScopeMatchStatus.MISMATCH
+    assert any("svod" in c for c in assessment.conflicting_clauses)
+
+
+def test_term_match_perpetual_grant():
+    claim = AtomicRightsClaim(
+        claim_id="clm_term_perp",
+        occurrence_id="occ_01",
+        occurrence_lineage_id="lin_01",
+        right_category="music",
+        rights_subject="Publisher",
+        intended_territory=["US"],
+        intended_media=["theatrical"],
+    )
+    grant = ContractGrant(
+        grant_id="grt_perp",
+        agreement_id="agr_01",
+        asset_id="ast_01",
+        grantor="Publisher Inc",
+        grantee="Production Co",
+        permitted_territories=["US"],
+        permitted_media=["theatrical"],
+        term_expiry="in perpetuity",
+        source_clause="Term: In perpetuity throughout the universe.",
+    )
+
+    assessment = InvalidationEngine.evaluate_agreement_applicability(
+        claim=claim, grants=[grant], obligations=[]
+    )
+    assert assessment.term_match == ScopeMatchStatus.MATCH
+
+
+def test_term_match_expired_grant():
+    claim = AtomicRightsClaim(
+        claim_id="clm_term_exp",
+        occurrence_id="occ_01",
+        occurrence_lineage_id="lin_01",
+        right_category="music",
+        rights_subject="Publisher",
+        intended_territory=["US"],
+        intended_media=["theatrical"],
+    )
+    grant = ContractGrant(
+        grant_id="grt_exp",
+        agreement_id="agr_01",
+        asset_id="ast_01",
+        grantor="Publisher Inc",
+        grantee="Production Co",
+        permitted_territories=["US"],
+        permitted_media=["theatrical"],
+        term_expiry="2020-01-01",
+        source_clause="Term expires January 1, 2020.",
+    )
+
+    assessment = InvalidationEngine.evaluate_agreement_applicability(
+        claim=claim, grants=[grant], obligations=[]
+    )
+    assert assessment.term_match == ScopeMatchStatus.MISMATCH
+    assert assessment.overall_match == ScopeMatchStatus.MISMATCH
+    assert any("expired on 2020-01-01" in c for c in assessment.conflicting_clauses)
+
+
+def test_term_match_sag_wga_union_option_expired_overrides_to_mismatch():
+    claim = AtomicRightsClaim(
+        claim_id="clm_sag_exp",
+        occurrence_id="occ_01",
+        occurrence_lineage_id="lin_01",
+        right_category="screenplay",
+        rights_subject="Screenwriter (WGA)",
+        intended_territory=["worldwide"],
+        intended_media=["all_media"],
+        union_option_expires_at="2021-06-30T23:59:59Z",
+    )
+    grant = ContractGrant(
+        grant_id="grt_wga",
+        agreement_id="agr_option",
+        asset_id="ast_script",
+        grantor="Writer",
+        grantee="Production Co",
+        permitted_territories=["worldwide"],
+        permitted_media=["all_media"],
+        term_expiry=None,
+        source_clause="Literary purchase option.",
+    )
+
+    assessment = InvalidationEngine.evaluate_agreement_applicability(
+        claim=claim, grants=[grant], obligations=[]
+    )
+    assert assessment.term_match == ScopeMatchStatus.MISMATCH
+    assert assessment.overall_match == ScopeMatchStatus.MISMATCH
+    assert any("SAG/WGA union option expired" in c for c in assessment.conflicting_clauses)
+
+
+def test_promotional_match_standard_feature_context_is_match():
+    claim = AtomicRightsClaim(
+        claim_id="clm_feat",
+        occurrence_id="occ_01",
+        occurrence_lineage_id="lin_01",
+        right_category="music",
+        rights_subject="Publisher",
+        intended_territory=["worldwide"],
+        intended_media=["all_media"],
+        intended_context="feature",
+    )
+    grant = ContractGrant(
+        grant_id="grt_feat",
+        agreement_id="agr_feat",
+        asset_id="ast_song",
+        grantor="Publisher Inc",
+        grantee="Production Co",
+        permitted_territories=["worldwide"],
+        permitted_media=["all_media"],
+        allows_promotional_trailers=False,
+        source_clause="Feature film use only.",
+    )
+
+    assessment = InvalidationEngine.evaluate_agreement_applicability(
+        claim=claim, grants=[grant], obligations=[], target_context="feature"
+    )
+    assert assessment.promotional_match == ScopeMatchStatus.MATCH
+    assert assessment.overall_match == ScopeMatchStatus.MATCH
+
+
+def test_promotional_match_trailer_context_unfulfilled_obligation_mismatch():
+    claim = AtomicRightsClaim(
+        claim_id="clm_promo_obl",
+        occurrence_id="occ_01",
+        occurrence_lineage_id="lin_01",
+        right_category="music",
+        rights_subject="Label",
+        intended_territory=["worldwide"],
+        intended_media=["all_media"],
+    )
+    grant = ContractGrant(
+        grant_id="grt_01",
+        agreement_id="agr_01",
+        asset_id="ast_01",
+        grantor="Label",
+        grantee="Production Co",
+        permitted_territories=["worldwide"],
+        permitted_media=["all_media"],
+        allows_promotional_trailers=True,
+        source_clause="Standard master license.",
+    )
+    obl = ContractObligation(
+        obligation_id="obl_promo",
+        agreement_id="agr_01",
+        obligation_type="promotional_restriction",
+        restriction_text="Promotional trailer usage requires prior written publisher approval and trailer fee.",
+        source_clause="Section 4(b): No promotional marketing without written addendum.",
+        is_fulfilled=False,
+    )
+
+    assessment = InvalidationEngine.evaluate_agreement_applicability(
+        claim=claim, grants=[grant], obligations=[obl], target_context="trailer"
+    )
+    assert assessment.promotional_match == ScopeMatchStatus.MISMATCH
+    assert assessment.overall_match == ScopeMatchStatus.MISMATCH
+    assert any("obl_promo" in c for c in assessment.conflicting_clauses)
+
+
+def test_promotional_match_trailer_context_fulfilled_obligation_is_match():
+    claim = AtomicRightsClaim(
+        claim_id="clm_promo_obl_ok",
+        occurrence_id="occ_01",
+        occurrence_lineage_id="lin_01",
+        right_category="music",
+        rights_subject="Label",
+        intended_territory=["worldwide"],
+        intended_media=["all_media"],
+    )
+    grant = ContractGrant(
+        grant_id="grt_01",
+        agreement_id="agr_01",
+        asset_id="ast_01",
+        grantor="Label",
+        grantee="Production Co",
+        permitted_territories=["worldwide"],
+        permitted_media=["all_media"],
+        allows_promotional_trailers=True,
+        source_clause="Standard master license.",
+    )
+    obl = ContractObligation(
+        obligation_id="obl_promo_done",
+        agreement_id="agr_01",
+        obligation_type="promotional_restriction",
+        restriction_text="Trailer fee must be remitted.",
+        source_clause="Section 4(b): Trailer usage payment.",
+        is_fulfilled=True,
+    )
+
+    assessment = InvalidationEngine.evaluate_agreement_applicability(
+        claim=claim, grants=[grant], obligations=[obl], target_context="trailer"
+    )
+    assert assessment.promotional_match == ScopeMatchStatus.MATCH
+    assert assessment.overall_match == ScopeMatchStatus.MATCH
+
+
+def test_promotional_match_trailer_context_grant_disallows_trailers():
+    claim = AtomicRightsClaim(
+        claim_id="clm_promo_no_grant",
+        occurrence_id="occ_01",
+        occurrence_lineage_id="lin_01",
+        right_category="music",
+        rights_subject="Composer",
+        intended_territory=["worldwide"],
+        intended_media=["all_media"],
+        intended_context="promotional_clip",
+    )
+    grant = ContractGrant(
+        grant_id="grt_no_promo",
+        agreement_id="agr_01",
+        asset_id="ast_01",
+        grantor="Composer",
+        grantee="Production Co",
+        permitted_territories=["worldwide"],
+        permitted_media=["all_media"],
+        allows_promotional_trailers=False,
+        source_clause="Excluding trailer and marketing promo use.",
+    )
+
+    assessment = InvalidationEngine.evaluate_agreement_applicability(
+        claim=claim, grants=[grant], obligations=[]
+    )
+    assert assessment.promotional_match == ScopeMatchStatus.MISMATCH
+    assert assessment.overall_match == ScopeMatchStatus.MISMATCH
+
+
+def test_docudrama_without_life_story_release_flags_unknown():
+    claim = AtomicRightsClaim(
+        claim_id="clm_docudrama_missing_release",
+        occurrence_id="occ_01",
+        occurrence_lineage_id="lin_01",
+        right_category="publicity",
+        rights_subject="Living Public Figure",
+        intended_territory=["worldwide"],
+        intended_media=["all_media"],
+        is_docudrama_context=True,
+    )
+    grant = ContractGrant(
+        grant_id="grt_gen",
+        agreement_id="agr_01",
+        asset_id="ast_person",
+        grantor="Agent",
+        grantee="Production Co",
+        permitted_territories=["worldwide"],
+        permitted_media=["all_media"],
+        source_clause="General consulting services.",
+    )
+
+    assessment = InvalidationEngine.evaluate_agreement_applicability(
+        claim=claim, grants=[grant], obligations=[]
+    )
+    assert assessment.territory_match == ScopeMatchStatus.MATCH
+    assert assessment.media_match == ScopeMatchStatus.MATCH
+    assert assessment.term_match == ScopeMatchStatus.MATCH
+    assert assessment.promotional_match == ScopeMatchStatus.MATCH
+    assert assessment.overall_match == ScopeMatchStatus.UNKNOWN
+    assert any("Life Story Rights Release" in q for q in assessment.unresolved_questions)
+
+
+def test_docudrama_with_life_story_release_grant_is_match():
+    claim = AtomicRightsClaim(
+        claim_id="clm_docudrama_with_release",
+        occurrence_id="occ_01",
+        occurrence_lineage_id="lin_01",
+        right_category="publicity",
+        rights_subject="Living Public Figure",
+        intended_territory=["worldwide"],
+        intended_media=["all_media"],
+        is_docudrama_context=True,
+    )
+    grant = ContractGrant(
+        grant_id="grt_life_rights",
+        agreement_id="agr_life_story",
+        asset_id="ast_life_story_john_doe",
+        grantor="John Doe",
+        grantee="Production Co",
+        permitted_territories=["worldwide"],
+        permitted_media=["all_media"],
+        source_clause="Life story rights and living portrayal release granted in perpetuity.",
+    )
+
+    assessment = InvalidationEngine.evaluate_agreement_applicability(
+        claim=claim, grants=[grant], obligations=[]
+    )
+    assert assessment.overall_match == ScopeMatchStatus.MATCH
+    assert not any("Life Story Rights Release" in q for q in assessment.unresolved_questions)
+
+
+def test_creative_use_polymorphism():
+    use = CreativeUse(
+        use_id="use_creative_01",
+        version_id="v8",
+        scene_or_timecode="Scene 12",
+        asset_type="music",
+        description="Background track playing in cafe",
+        duration_or_prominence="15s background",
+        context="Dialogue between detectives",
+        stable_lineage_key="track_cafe_scene",
+        context_hash="a1b2c3d4e5f67890",
+        intended_territory=["US", "CA"],
+        intended_media=["theatrical"],
+        intended_context="feature",
+    )
+    grant = ContractGrant(
+        grant_id="grt_cafe",
+        agreement_id="agr_cafe",
+        asset_id="ast_cafe",
+        grantor="Publisher",
+        grantee="Production",
+        permitted_territories=["US", "CA"],
+        permitted_media=["theatrical"],
+        source_clause="Master & sync license.",
+    )
+
+    assessment = evaluate_agreement_applicability(
+        claim=use, grants=[grant], obligations=[]
+    )
+    assert assessment.claim_id == "use_creative_01"
+    assert assessment.agreement_id == "agr_cafe"
+    assert assessment.overall_match == ScopeMatchStatus.MATCH
+

@@ -80,7 +80,7 @@ class RevalidationPlanner:
             return cls.QUERY_POSTER_PUBLIC_DOMAIN
 
         # Specific Golden Item 12: Midnight Serenade (Music Cue)
-        if "midnight" in key_lower or "serenade" in key_lower or "jazz" in key_lower:
+        if key_lower == "music_cue_midnight_serenade" or "midnight_serenade" in key_lower or key_lower == "claim_12":
             return cls.QUERY_MUSIC_RIGHTS_DISPUTE
 
         # General dynamic query formulation for arbitrary production assets

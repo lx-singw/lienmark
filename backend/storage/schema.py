@@ -2,7 +2,7 @@
 schema.py
 
 Lienmark Data Schema Definitions.
-Mirrors docs/06-data-schema.md exactly with full Pydantic data models for:
+Mirrors docs/legacy/06-data-schema.md exactly with full Pydantic data models for:
 - Production
 - Claim
 - ResearchFinding

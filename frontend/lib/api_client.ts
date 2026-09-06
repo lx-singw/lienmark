@@ -12,6 +12,7 @@ import {
   DecisionState,
   DecisionStatus,
   DriftEvaluationResult,
+  EvaluatedClaim,
   ExceptionsSchedule,
   FixturesResponse,
   HealthCheckResponse,
@@ -392,7 +393,7 @@ export class LienmarkApiClient {
       typeof optionsOrTimeout === 'object'
         ? optionsOrTimeout
         : { timeoutMs: optionsOrTimeout };
-    const autoReconcile = opts.autoReconcileDemo ?? true;
+    const autoReconcile = opts.autoReconcileDemo ?? false;
     const url = `/api/reports/exceptions${autoReconcile ? '?auto_reconcile_demo=true' : ''}`;
     try {
       return await this.request<ExceptionsSchedule>(
@@ -412,6 +413,33 @@ export class LienmarkApiClient {
         reattestMap[key] = { status: val.status, rationale: val.rationale };
       }
       return getGoldenExceptionsSchedule(reattestMap, autoReconcile);
+    }
+  }
+
+  /**
+   * GET /api/claims
+   * Retrieves current session claims reconciled with latest decisions.
+   */
+  async getClaims(
+    optionsOrTimeout?: { autoReconcileDemo?: boolean; timeoutMs?: number } | number
+  ): Promise<EvaluatedClaim[]> {
+    const opts =
+      typeof optionsOrTimeout === 'object'
+        ? optionsOrTimeout
+        : { timeoutMs: optionsOrTimeout };
+    const autoReconcile = opts.autoReconcileDemo ?? false;
+    const url = `/api/claims${autoReconcile ? '?auto_reconcile_demo=true' : ''}`;
+    try {
+      const res = await this.request<{ claims: EvaluatedClaim[] }>(
+        url,
+        { method: 'GET' },
+        opts.timeoutMs
+      );
+      return res.claims || [];
+    } catch (error: unknown) {
+      if (!this.enableFallback) throw error;
+      this.log('warn', 'FastAPI claims endpoint unreachable; using golden fallback claims', error);
+      return getGoldenDriftEvaluationResult().claims;
     }
   }
 
@@ -686,15 +714,18 @@ export class LienmarkApiClient {
    * Retrieves append-only audit trail / supersession log events.
    */
   async getAuditTrail(lineageKey?: string, timeoutMs?: number): Promise<AuditTrailResponse> {
-    const endpoint = lineageKey ? `/api/review/history?lineage_key=${encodeURIComponent(lineageKey)}` : '/api/review/history';
+    const endpoint = lineageKey
+      ? `/api/review/audit-trail?lineage_key=${encodeURIComponent(lineageKey)}`
+      : '/api/review/audit-trail';
     try {
       const raw = await this.request<any>(endpoint, { method: 'GET' }, timeoutMs);
       if (Array.isArray(raw)) {
+        const headEvent = raw.length > 0 ? raw[raw.length - 1] : null;
         return {
           lineage_key: lineageKey || null,
           total_events: raw.length,
-          is_ledger_tamper_free: true,
-          chain_head_hash: raw[0]?.event_hash || '',
+          is_ledger_tamper_free: raw.length > 0,
+          chain_head_hash: headEvent?.event_hash || '',
           events: raw,
         };
       }
@@ -703,11 +734,13 @@ export class LienmarkApiClient {
       if (!this.enableFallback) throw error;
       this.log('warn', 'FastAPI audit trail unreachable; compiling deterministic fallback log', error);
       const events = getGoldenAuditTrail(lineageKey);
+      const headEvent = events.length > 0 ? events[events.length - 1] : null;
+      const hasCounselAction = events.some((e) => e.actor_type === 'HUMAN_COUNSEL' || e.action === 'RE_ATTEST');
       return {
         lineage_key: lineageKey || null,
         total_events: events.length,
-        is_ledger_tamper_free: true,
-        chain_head_hash: events[0]?.event_hash || '',
+        is_ledger_tamper_free: hasCounselAction,
+        chain_head_hash: hasCounselAction && headEvent ? headEvent.event_hash : '',
         events,
       };
     }

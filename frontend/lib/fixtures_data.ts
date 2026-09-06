@@ -639,7 +639,7 @@ export function getGoldenDriftEvaluationResult(): DriftEvaluationResult {
 
 export function getGoldenExceptionsSchedule(
   reattestations: Record<string, { status: DecisionStatus; rationale: string }> = {},
-  autoReconcileDemo: boolean = true
+  autoReconcileDemo: boolean = false
 ): ExceptionsSchedule {
   const baseClaims = getGoldenDriftEvaluationResult().claims;
   let carried = 0;

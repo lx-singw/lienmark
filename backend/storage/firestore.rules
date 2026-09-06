@@ -1,61 +1,112 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Helper function to check if request is authenticated
+
+    // Helper functions for authentication and tenant isolation
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // productions collection: studio / production metadata
-    match /productions/{productionId} {
-      allow read: if true;
-      allow create, update: if isAuthenticated();
-      allow delete: if false;
+    function isTenantMember(orgId) {
+      return isAuthenticated() && (
+        request.auth.token.organization_id == orgId ||
+        request.auth.token.org_id == orgId ||
+        (request.auth.token.is_demo == true && (orgId == "org_demo" || orgId == "org_studio_alpha"))
+      );
     }
 
-    // claims collection: extracted rights claims from Intake Agent
-    match /claims/{claimId} {
-      allow read: if true;
-      allow create, update: if isAuthenticated();
-      allow delete: if false;
+    function isReviewerOrAdmin(orgId) {
+      return isTenantMember(orgId) && (
+        "Reviewer" in request.auth.token.roles ||
+        "Admin" in request.auth.token.roles ||
+        request.auth.token.is_counsel == true
+      );
     }
 
-    // research_findings collection: live Parallel Search API search results
-    match /research_findings/{findingId} {
-      allow read: if true;
-      allow create, update: if isAuthenticated();
-      allow delete: if false;
+    // ─── Sprint 1.1 Multi-Tenant Canonical Hierarchy ─────────────────────────
+    // /organizations/{orgId}
+    match /organizations/{orgId} {
+      allow read: if isTenantMember(orgId);
+      allow write: if isTenantMember(orgId);
+
+      // Productions subcollection
+      match /productions/{productionId} {
+        allow read: if isTenantMember(orgId);
+        allow create, update: if isTenantMember(orgId);
+        allow delete: if isReviewerOrAdmin(orgId);
+
+        // Production versions
+        match /versions/{versionId} {
+          allow read: if isTenantMember(orgId);
+          allow create, update: if isTenantMember(orgId);
+          allow delete: if false;
+        }
+
+        // Runs subcollection
+        match /runs/{runId} {
+          allow read: if isTenantMember(orgId);
+          allow create, update: if isTenantMember(orgId);
+          allow delete: if false;
+
+          // Claims subcollection
+          match /claims/{claimKey} {
+            allow read: if isTenantMember(orgId);
+            allow write: if isTenantMember(orgId);
+          }
+
+          // Decisions subcollection (Requires Reviewer or Admin for approval/override)
+          match /decisions/{decisionKey} {
+            allow read: if isTenantMember(orgId);
+            allow write: if isReviewerOrAdmin(orgId);
+          }
+
+          // Research findings subcollection
+          match /research_findings/{findingId} {
+            allow read: if isTenantMember(orgId);
+            allow write: if isTenantMember(orgId);
+          }
+
+          // Cryptographic Audit Trail: STRICTLY CREATE-ONLY (append-only)
+          match /audit_events/{eventId} {
+            allow read: if isTenantMember(orgId);
+            allow create: if isTenantMember(orgId);
+            allow update, delete: if false;
+          }
+
+          // Atomic sequencer counter
+          match /counters/{counterId} {
+            allow read: if isTenantMember(orgId);
+            allow write: if isTenantMember(orgId);
+          }
+
+          // Reports & Schedules
+          match /reports/{reportId} {
+            allow read: if isTenantMember(orgId);
+            allow write: if isTenantMember(orgId);
+          }
+        }
+      }
+
+      // Ingested Documents
+      match /documents/{docId} {
+        allow read: if isTenantMember(orgId);
+        allow create, update: if isTenantMember(orgId);
+        allow delete: if isReviewerOrAdmin(orgId);
+      }
     }
 
-    // ledger_entries collection: THE IMMUTABLE AUDIT LOG
-    // Strictly CREATE-ONLY. No updates or deletions allowed under any circumstances.
-    // Backward pointers (supersedes_entry_id) are used for versioning.
-    match /ledger_entries/{entryId} {
-      allow read: if true;
-      allow create: if true;
-      allow update, delete: if false;
+    // ─── Legacy Session Compatibility Pointers ───────────────────────────────
+    match /sessions/{sessionId} {
+      allow read, write: if true;
+      match /runs/{runId} {
+        allow read, write: if true;
+      }
     }
 
-    // risk_scores collection: deterministic rule engine output
-    match /risk_scores/{scoreId} {
+    // Persistent usage counters
+    match /usage_counters/{environment} {
       allow read: if true;
-      allow create, update: if isAuthenticated();
-      allow delete: if false;
-    }
-
-    // reports collection: compiled clearance reports & E&O certificates
-    match /reports/{reportId} {
-      allow read: if true;
-      allow create, update: if isAuthenticated();
-      allow delete: if false;
-    }
-
-    // agent_state_store collection: background poller checkpoints & heartbeats
-    match /agent_state_store/{stateId} {
-      allow read: if true;
-      allow create, update: if isAuthenticated();
-      allow delete: if false;
+      allow write: if isAuthenticated();
     }
   }
 }

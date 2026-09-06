@@ -63,6 +63,15 @@ from backend.core.security import (
     CounselAuthContext,
 )
 from backend.middleware.spend_guard import SpendGuardMiddleware, spend_guard_manager
+from backend.middleware.tenant import (
+    TenantContext,
+    TenantContextMiddleware,
+    get_tenant_context,
+    validate_tenant_url_match,
+    require_tenant_param,
+    get_current_tenant,
+    get_current_user,
+)
 import hashlib
 import hmac
 import uuid
@@ -179,6 +188,7 @@ app.add_middleware(
 app.add_middleware(SpendGuardMiddleware)
 app.add_middleware(IdempotencyMiddleware)
 app.add_middleware(SessionScopingMiddleware)
+app.add_middleware(TenantContextMiddleware)
 app.add_middleware(CorrelationLoggingMiddleware)
 app.add_middleware(PayloadSizeLimitMiddleware)
 
@@ -1005,7 +1015,7 @@ def get_review_queue(target_version: str = "v8", http_req: Request = None):
             item["timecode"] = "00:44:12" if key == "poster_noir_detective_magazine" else ("00:19:40" if key == "music_cue_midnight_serenade" else "")
 
         # Populate structured four_dimensions matching frontend ExplanationFourDimensions
-        if key == "poster_noir_detective_magazine" or "poster" in key or "claim_11" in key:
+        if key == "poster_noir_detective_magazine" or key == "claim_11":
             item["four_dimensions"] = {
                 "creative_change": {
                     "has_changed": True,
@@ -1054,7 +1064,7 @@ def get_review_queue(target_version: str = "v8", http_req: Request = None):
                     "explanation": "Prominence shift from 2s blur to 14s focal dialogue voids de minimis defense under Sandoval v. New Line Cinema. However, US Copyright Office registration lapsed in 1974 without Form RE renewal, placing work irrevocably in the public domain. Eligible for counsel re-attestation.",
                 },
             }
-        elif key == "music_cue_midnight_serenade" or "midnight" in key or "jazz" in key or "claim_12" in key:
+        elif key == "music_cue_midnight_serenade" or key == "claim_12":
             item["four_dimensions"] = {
                 "creative_change": {
                     "has_changed": False,
@@ -1172,7 +1182,7 @@ def submit_review_action(request: ReviewActionRequest, http_req: Request = None)
         sess_id = getattr(request, "session_id", None) or get_session_id(http_req)
         eff_run_id = getattr(request, "run_id", None) or (http_req.headers.get("X-Run-ID") if http_req else None)
 
-        key = request.stable_lineage_key
+        key = request.stable_lineage_key or getattr(request, "lineage_key", None)
         if not key and request.decision_id:
             key = request.decision_id.replace("dec_v7_", "").replace("dec_", "")
 
@@ -1293,6 +1303,7 @@ def get_review_history(
 
 
 @app.get("/api/review/audit-trail")
+@app.get("/api/audit-trail")
 def get_review_audit_trail(
     lineage_key: Optional[str] = None,
     stable_lineage_key: Optional[str] = None,
@@ -1507,6 +1518,48 @@ def get_exceptions_schedule(
         session_id=sess_id,
     )
     return schedule.model_dump()
+
+
+@app.get("/api/claims")
+def get_dashboard_claims(
+    production_id: str = "proj_blockbuster_cinema",
+    auto_reconcile_demo: bool = Query(default=False),
+    http_req: Request = None,
+):
+    """
+    Returns dashboard claims representation strictly synchronized with
+    Form E&O-2026 Exceptions Schedule (/api/reports/form-eo-2026).
+    Enforces identical counts, session isolation, and status mappings.
+    """
+    sess_id = get_session_id(http_req)
+    schedule = _get_reconciled_schedule(
+        project_id=production_id,
+        auto_reconcile_demo=auto_reconcile_demo,
+        session_id=sess_id,
+    )
+    return {
+        "total_claims": schedule.total_claims,
+        "carried_forward_count": schedule.carried_forward_count,
+        "re_attested_count": schedule.re_attested_count,
+        "unresolved_exception_count": schedule.unresolved_exception_count,
+        "reopened_count": schedule.reopened_count,
+        "claims": [
+            {
+                "stable_lineage_key": item.stable_lineage_key,
+                "asset_type": item.asset_type,
+                "description": item.description,
+                "scene": item.scene_or_timecode,
+                "state": item.v8_evaluation_state,
+                "status": "APPROVED" if item.v8_evaluation_state in ("carried_forward", "re_attested") else "REJECTED",
+                "counsel_action": item.counsel_action,
+                "evidence_citations": item.evidence_citations,
+            }
+            for item in schedule.items
+        ],
+        "policy_version": schedule.policy_version,
+        "policy_number": schedule.policy_number,
+        "session_id": sess_id,
+    }
 
 
 @app.get("/report/{production_id}", response_class=HTMLResponse)

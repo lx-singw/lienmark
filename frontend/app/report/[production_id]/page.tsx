@@ -61,10 +61,10 @@ export default async function ReportPage({
 
   let schedule: ExceptionsSchedule;
   try {
-    schedule = await apiClient.getExceptionsSchedule();
+    schedule = await apiClient.getExceptionsSchedule({ autoReconcileDemo: false });
   } catch (err: unknown) {
     console.warn('[ReportPage] Fallback to golden exceptions schedule:', err);
-    schedule = getGoldenExceptionsSchedule();
+    schedule = getGoldenExceptionsSchedule({}, false);
   }
 
   let auditTrail: AuditTrailResponse | null = null;
@@ -74,10 +74,10 @@ export default async function ReportPage({
     console.warn('[ReportPage] Fallback to golden audit trail:', err);
     auditTrail = {
       lineage_key: null,
-      total_events: 2,
-      is_ledger_tamper_free: true,
-      chain_head_hash: '7f3a9b1c2d4e80f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9',
-      events: getGoldenAuditTrail(),
+      total_events: 0,
+      is_ledger_tamper_free: false,
+      chain_head_hash: '',
+      events: [],
     };
   }
 
@@ -313,18 +313,20 @@ export default async function ReportPage({
                 </div>
               ) : (
                 exceptionItems.map((exItem, idx) => {
-                  const isMusic =
-                    exItem.stable_lineage_key === 'music_cue_midnight_serenade' ||
-                    exItem.stable_lineage_key.includes('midnight') ||
-                    exItem.stable_lineage_key.includes('jazz');
+                  const isMusic = exItem.stable_lineage_key === 'music_cue_midnight_serenade';
+                  const isPoster = exItem.stable_lineage_key === 'poster_noir_detective_magazine';
 
                   const defaultReason = isMusic
                     ? 'Worldwide exclusive synchronization and master rights assigned in August 2026 to Vanguard Media Holdings LLC (administered by Kobalt Music). Prior public domain attestation invalid under European term extension.'
-                    : 'Escalated from 2s out-of-focus background blur to 14s close-up focal dialogue shot. Invalidates prior de minimis clearance under Sandoval v. New Line Cinema without affirmative defense.';
+                    : isPoster
+                    ? 'Escalated from 2s out-of-focus background blur to 14s close-up focal dialogue shot. Invalidates prior de minimis clearance under Sandoval v. New Line Cinema without affirmative defense.'
+                    : (exItem.invalidation_reason || 'Unresolved clearance exception requiring counsel review.');
 
                   const defaultAction = isMusic
                     ? 'Execute synchronization license with Vanguard Media Holdings prior to final audio mix, or replace cue with pre-cleared production library music.'
-                    : 'Re-attest under United States Public Domain doctrine following verified copyright expiration without statutory renewal, or secure publisher quitclaim.';
+                    : isPoster
+                    ? 'Re-attest under United States Public Domain doctrine following verified copyright expiration without statutory renewal, or secure publisher quitclaim.'
+                    : (exItem.counsel_action || 'Pending counsel adjudication and underwriter schedule carve-out.');
 
                   const defaultCitation = isMusic
                     ? {
@@ -337,7 +339,8 @@ export default async function ReportPage({
                         payload_hash:
                           'c958448a39a8264582f3a677353f40f098fe5c5b525d8e752989b6574f881028',
                       }
-                    : {
+                    : isPoster
+                    ? {
                         provider: 'Parallel Search API v1',
                         provider_call_id: 'prl_call_882910_poster',
                         source_title: 'US Copyright Office Historical Catalog - Renewal Records',
@@ -347,6 +350,14 @@ export default async function ReportPage({
                           'Registration #B-1946-8821 expired 1974 without timely renewal. Cover artwork in public domain in the United States.',
                         payload_hash:
                           'a1f498bc20379d749be8b0821c4fa92b5e28329623e10d860d5b4e72fb4d0267',
+                      }
+                    : {
+                        provider: 'Clearance Registry',
+                        provider_call_id: `prl_call_${exItem.stable_lineage_key}`,
+                        source_title: 'Production Clearance Ledger',
+                        source_url: 'https://cocatalog.loc.gov',
+                        excerpt: 'Production asset flagged for clearance review.',
+                        payload_hash: '0'.repeat(64),
                       };
 
                   const citations =
@@ -813,7 +824,11 @@ export default async function ReportPage({
           {/* Document Security Digest & Ledger Reference */}
           <div className="rounded-xl bg-slate-950/90 p-4 text-center text-xs space-y-2 border border-slate-800 print:border print:border-black print:bg-stone-50 print:text-black">
             <div className="text-[11px] font-mono font-bold text-sky-400 print:text-black">
-              CRYPTOGRAPHIC AUDIT SEAL: SHA256:7f3a9b1c2d4e80f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9
+              {auditTrail && auditTrail.chain_head_hash && auditTrail.is_ledger_tamper_free && auditTrail.total_events > 0 ? (
+                `CRYPTOGRAPHIC AUDIT SEAL: SHA256:${auditTrail.chain_head_hash} [VERIFIED CHAIN HASH]`
+              ) : (
+                'CRYPTOGRAPHIC AUDIT SEAL: [UNSEALED] — PENDING COUNSEL CHECKPOINT ADJUDICATION'
+              )}
             </div>
             <div className="text-[10px] text-slate-400 font-mono print:text-slate-700">
               LIENMARK FAIL-CLOSED WARRANTY RECONCILED &middot; {items.length} TOTAL = {carriedItems.length} CARRIED FORWARD + {reattestedItems.length} RE-ATTESTED + {exceptionItems.length} EXCEPTION{exceptionItems.length === 1 ? '' : 'S'}

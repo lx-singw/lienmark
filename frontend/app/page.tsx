@@ -42,6 +42,7 @@ import {
   seedDemoAction,
   fetchReviewQueueAction,
   fetchAuditTrailAction,
+  fetchClearanceStateAction,
 } from './actions';
 import {
   getGoldenAuditTrail,
@@ -105,9 +106,10 @@ export default function ReviewerDashboardPage() {
   const [claims, setClaims] = useState<EvaluatedClaim[]>(
     () => getGoldenDriftEvaluationResult().claims
   );
-  const [traces, setTraces] = useState<WorkflowStepTrace[]>(
-    () => getGoldenDriftEvaluationResult().execution_traces
-  );
+  // Traces start unmeasured until evaluation is triggered
+  const [traces, setTraces] = useState<WorkflowStepTrace[]>([]);
+  const [lastMeasuredElapsedMs, setLastMeasuredElapsedMs] = useState<number | null>(null);
+  const [hasEvaluated, setHasEvaluated] = useState<boolean>(false);
   const [reviewQueue, setReviewQueue] = useState<ReviewQueueItem[]>(
     () => getGoldenReviewQueue()
   );
@@ -197,17 +199,21 @@ export default function ReviewerDashboardPage() {
     }
   }, []);
 
-  // Initial dashboard hydration effect: hydrate live review queue and audit trail on mount
+  // Initial dashboard hydration effect: hydrate live clearance claims, review queue, and audit trail on mount
   useEffect(() => {
     let isMounted = true;
     async function hydrateDashboardState() {
       try {
-        const [queueRes, auditRes] = await Promise.all([
+        const [clearanceRes, queueRes, auditRes] = await Promise.all([
+          fetchClearanceStateAction(),
           fetchReviewQueueAction(),
           fetchAuditTrailAction(),
         ]);
         if (isMounted) {
-          if (queueRes.success && queueRes.data && queueRes.data.length > 0) {
+          if (clearanceRes.success && clearanceRes.data) {
+            setClaims(clearanceRes.data.claims);
+          }
+          if (queueRes.success && queueRes.data) {
             setReviewQueue(queueRes.data);
           }
           if (auditRes.success && auditRes.data && auditRes.data.length > 0) {
@@ -227,7 +233,6 @@ export default function ReviewerDashboardPage() {
   // Live timer & multi-stage progress transition during evaluation
   useEffect(() => {
     if (!isRunningEvaluation) {
-      setEvalElapsedMs(0);
       setEvalStageIdx(0);
       return;
     }
@@ -418,6 +423,10 @@ export default function ReviewerDashboardPage() {
         revalidation_action: 'carry',
       }));
       setClaims(v7BaselineClaims);
+      setTraces([]);
+      setEvalElapsedMs(0);
+      setLastMeasuredElapsedMs(null);
+      setHasEvaluated(false);
       setReviewQueue([]); // Review queue empty under clean baseline
       setAuditTrail(getGoldenAuditTrail());
       setSelectedQueueKey('poster_noir_detective_magazine');
@@ -534,15 +543,17 @@ export default function ReviewerDashboardPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleResetDemo]);
 
-  // Handler: Run clearance evaluation with multi-stage progress animation
+  // Handler: Run clearance evaluation with live measured wall-clock telemetry
   const handleRunEvaluation = async () => {
     setIsRunningEvaluation(true);
+    const startWallTime = performance.now();
     startTransition(async () => {
       try {
-        const [response] = await Promise.all([
-          evaluateClearanceDeltaAction(targetVersionId),
-          new Promise((resolve) => setTimeout(resolve, 1500)), // Ensure user visualizes all 5 stages cleanly
-        ]);
+        const response = await evaluateClearanceDeltaAction(targetVersionId);
+        const measuredElapsed = performance.now() - startWallTime;
+        setEvalElapsedMs(measuredElapsed);
+        setLastMeasuredElapsedMs(measuredElapsed);
+        setHasEvaluated(true);
 
         if (targetVersionId === 'v7') {
           const v7Claims: EvaluatedClaim[] = getGoldenDriftEvaluationResult().claims.map((c) => ({
@@ -552,6 +563,7 @@ export default function ReviewerDashboardPage() {
             revalidation_action: 'carry',
           }));
           setClaims(v7Claims);
+          setTraces(response.success && response.data ? response.data.execution_traces : []);
           setToast({
             type: 'success',
             message: '✓ Zero Clearance Drift: Script cut v7 baseline is identical to compared version.',
@@ -577,6 +589,10 @@ export default function ReviewerDashboardPage() {
         const golden = getGoldenDriftEvaluationResult();
         setClaims(golden.claims);
         setTraces(golden.execution_traces);
+        const measuredElapsed = performance.now() - startWallTime;
+        setEvalElapsedMs(measuredElapsed);
+        setLastMeasuredElapsedMs(measuredElapsed);
+        setHasEvaluated(true);
         setToast({
           type: 'success',
           message: '✓ Evaluated using deterministic engine: 10 Carried, 2 Reopened.',

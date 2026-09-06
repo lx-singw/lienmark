@@ -14,7 +14,8 @@ import time
 import uuid
 import logging
 from datetime import datetime, timezone
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union, Tuple, Set
+from enum import Enum
 
 from pydantic import BaseModel, Field
 
@@ -38,6 +39,21 @@ from backend.domain.models import (
     PlannedRevalidationRequest,
     PublicEvidenceSnapshot,
     RevalidationPlan,
+    AtomicRightsClaim,
+    ClarificationRequest,
+    WorkflowReason,
+    CensusDisposition,
+    ApprovalOrigin,
+    ScopeMatchStatus,
+    ReviewAction,
+    InvestigationTask,
+    RetentionPolicy,
+    LegalHoldRecord,
+    DeletionRecord,
+    RetentionClass,
+    EvidenceAvailability,
+    CounselDecisionResult,
+    ReviewerIdentity,
 )
 from backend.orchestration.workflow import (
     WorkflowRunResult,
@@ -263,6 +279,999 @@ def build_adk_clearance_workflow(
 
 
 # =============================================================================
+# DYNAMIC 8-ACTION EVIDENCE-DRIVEN COORDINATOR
+# =============================================================================
+
+class CoordinatorAction(str, Enum):
+    """
+    The canonical 8-action decision matrix governing evidence gathering.
+    Rejects static DAGs in favor of dynamic, causal next-action determination.
+    """
+    ACT_01_RETRIEVE_PRIVATE_AGREEMENTS = "ACT_01_RETRIEVE_PRIVATE_AGREEMENTS"
+    ACT_02_SEARCH_PUBLIC_SOURCES = "ACT_02_SEARCH_PUBLIC_SOURCES"
+    ACT_03_INSPECT_SPECIFIC_SOURCE = "ACT_03_INSPECT_SPECIFIC_SOURCE"
+    ACT_04_SPLIT_INVESTIGATION = "ACT_04_SPLIT_INVESTIGATION"
+    ACT_05_ADVERSARIAL_DISCONFIRMATION = "ACT_05_ADVERSARIAL_DISCONFIRMATION"
+    ACT_06_REQUEST_INFORMATION = "ACT_06_REQUEST_INFORMATION"
+    ACT_07_PREPARE_REVIEW_BRIEF = "ACT_07_PREPARE_REVIEW_BRIEF"
+    ACT_08_STOP_UNRESOLVED = "ACT_08_STOP_UNRESOLVED"
+
+    @property
+    def code(self) -> str:
+        """Returns the canonical action prefix, e.g. 'ACT_01'."""
+        return self.value[:6]
+
+    @property
+    def action_name(self) -> str:
+        """Returns a human-readable title for the action."""
+        parts = self.value[7:].split("_")
+        return " ".join(p.capitalize() for p in parts)
+
+
+class CoordinatorBudget(BaseModel):
+    """
+    Multi-dimensional budget governor tracking API call counts, LLM tokens,
+    and USD spend across concurrent claim investigations.
+    """
+    max_calls: int = Field(default=25, description="Max external search/registry calls allowed")
+    used_calls: int = Field(default=0, description="Consumed external search/registry calls")
+    max_tokens: int = Field(default=100000, description="Max LLM inference tokens allowed")
+    used_tokens: int = Field(default=0, description="Consumed LLM inference tokens")
+    max_dollars: float = Field(default=10.0, description="Max dollar expenditure allowed in USD")
+    used_dollars: float = Field(default=0.0, description="Consumed spend in USD")
+
+    @property
+    def is_exhausted(self) -> bool:
+        """Returns True if any active budget dimension has reached or exceeded its ceiling."""
+        if self.max_calls > 0 and self.used_calls >= self.max_calls:
+            return True
+        if self.max_tokens > 0 and self.used_tokens >= self.max_tokens:
+            return True
+        if self.max_dollars > 0.0 and self.used_dollars >= self.max_dollars:
+            return True
+        return False
+
+    def can_consume(self, calls: int = 1, tokens: int = 0, dollars: float = 0.0) -> bool:
+        """Verifies if the proposed operation fits within remaining budget headroom."""
+        if self.max_calls > 0 and (self.used_calls + calls) > self.max_calls:
+            return False
+        if self.max_tokens > 0 and (self.used_tokens + tokens) > self.max_tokens:
+            return False
+        if self.max_dollars > 0.0 and (self.used_dollars + dollars) > self.max_dollars:
+            return False
+        return True
+
+    def consume(self, calls: int = 0, tokens: int = 0, dollars: float = 0.0) -> None:
+        """Records consumption across budget dimensions."""
+        self.used_calls += calls
+        self.used_tokens += tokens
+        self.used_dollars += dollars
+
+
+class CoordinatorDecision(BaseModel):
+    """
+    Decision packet emitted by EvidenceDrivenCoordinator.decide_next_action.
+    Specifies the next action, operational reason, notes, and contextual metadata.
+    """
+    action: CoordinatorAction
+    claim_id: str
+    reason: Optional[WorkflowReason] = None
+    notes: str = ""
+    suggested_query: Optional[str] = None
+    target_provider: Optional[str] = None
+    clarification_request: Optional[ClarificationRequest] = None
+    split_claims: Optional[List[AtomicRightsClaim]] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class CoordinatorCheckpoint(BaseModel):
+    """
+    Durable checkpoint store enabling full serialization and rehydration
+    of the coordinator state to simulate surviving container restarts.
+    """
+    checkpoint_id: str
+    run_id: str
+    timestamp: str
+    budget: CoordinatorBudget
+    claims: Dict[str, Dict[str, Any]]
+    claim_states: Dict[str, str]
+    claim_contexts: Dict[str, Dict[str, Any]]
+    clarification_requests: Dict[str, Dict[str, Any]]
+    action_history: Dict[str, List[Dict[str, Any]]]
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+def normalize_to_atomic_claim(
+    claim: Union[AtomicRightsClaim, CreativeUse, Dict[str, Any]],
+    default_revision_id: str = "v8",
+) -> AtomicRightsClaim:
+    """
+    Normalizes any claim representation (AtomicRightsClaim, CreativeUse, or dict)
+    into an authoritative AtomicRightsClaim. Preserves all existing attributes and
+    ensures backward compatibility with golden fixture pipelines.
+    """
+    if isinstance(claim, AtomicRightsClaim):
+        return claim
+
+    if isinstance(claim, CreativeUse):
+        a_type = (claim.asset_type or "").lower()
+        if "music" in a_type:
+            cat = "composite"
+        elif "trademark" in a_type or "brand" in a_type or "logo" in a_type:
+            cat = "trademark"
+        elif "likeness" in a_type or "actor" in a_type or "person" in a_type:
+            cat = "publicity"
+        else:
+            cat = "copyright"
+
+        return AtomicRightsClaim(
+            claim_id=f"clm_{claim.use_id}",
+            occurrence_id=claim.use_id,
+            occurrence_lineage_id=claim.stable_lineage_key,
+            asset_id=claim.stable_lineage_key,
+            right_category=cat,
+            rights_subject=claim.description or claim.stable_lineage_key,
+            intended_territory=claim.intended_territory,
+            intended_media=claim.intended_media,
+            intended_duration=claim.intended_duration,
+            distribution_window=claim.distribution_window,
+            intended_context="feature",
+            disposition=CensusDisposition.UNKNOWN,
+            approval_origin=ApprovalOrigin.NONE,
+            workflow_reason=WorkflowReason.NEWLY_DISCOVERED,
+            notes=claim.context or "",
+        )
+
+    if isinstance(claim, dict):
+        if "claim_id" in claim and "occurrence_id" in claim and "right_category" in claim:
+            return AtomicRightsClaim.model_validate(claim)
+        if "use_id" in claim:
+            cu = CreativeUse.model_validate(claim)
+            return normalize_to_atomic_claim(cu, default_revision_id=default_revision_id)
+        cid = claim.get("claim_id", claim.get("id", f"clm_{uuid.uuid4().hex[:8]}"))
+        lineage = claim.get("stable_lineage_key", claim.get("occurrence_lineage_id", cid))
+        return AtomicRightsClaim(
+            claim_id=cid,
+            occurrence_id=claim.get("occurrence_id", cid),
+            occurrence_lineage_id=lineage,
+            asset_id=lineage,
+            right_category=claim.get("right_category", "copyright"),
+            rights_subject=claim.get("rights_subject", claim.get("description", lineage)),
+            intended_territory=claim.get("intended_territory"),
+            intended_media=claim.get("intended_media"),
+            intended_duration=claim.get("intended_duration"),
+            distribution_window=claim.get("distribution_window"),
+            intended_context=claim.get("intended_context", "feature"),
+            disposition=CensusDisposition.UNKNOWN,
+            approval_origin=ApprovalOrigin.NONE,
+            workflow_reason=WorkflowReason.NEWLY_DISCOVERED,
+            notes=claim.get("notes", ""),
+        )
+
+    raise TypeError(f"Cannot normalize object of type {type(claim)} to AtomicRightsClaim")
+
+
+class EvidenceDrivenCoordinator:
+    """
+    Evidence-Driven ADK Clearance Coordinator.
+    Implements the dynamic 8-action decision matrix with claim-level concurrency,
+    isolated suspensions, superseded revision freshness checks, and durable checkpoints.
+    """
+
+    def __init__(
+        self,
+        run_id: Optional[str] = None,
+        revision_id: str = "v8",
+        budget: Optional[CoordinatorBudget] = None,
+        contracts: Optional[List[ContractAgreement]] = None,
+        gemini_service: Optional[GeminiService] = None,
+        parallel_service: Optional[ParallelSearchService] = None,
+        evidence_reconciler: Optional[EvidenceReconciler] = None,
+        config: Optional[AgentBuilderConfig] = None,
+        use_fallback: bool = False,
+    ):
+        self.run_id = run_id or f"run_{uuid.uuid4().hex[:8]}"
+        self.revision_id = revision_id
+        self.budget = budget or CoordinatorBudget()
+        self.contracts: List[ContractAgreement] = list(contracts or [])
+        self.config = config or get_agent_builder_config()
+        self.gemini = gemini_service or GeminiService(use_fallback=use_fallback)
+        self.parallel = parallel_service or ParallelSearchService(use_fallback=use_fallback)
+        self.reconciler = evidence_reconciler or EvidenceReconciler()
+        self.use_fallback = use_fallback
+
+        # Independent claim registries
+        self.claims: Dict[str, AtomicRightsClaim] = {}
+        self.claim_states: Dict[str, str] = {}  # evaluating, waiting_for_information, ready_for_review, unresolved_exception, cancelled_superseded, split
+        self.claim_contexts: Dict[str, Dict[str, Any]] = {}
+        self.clarification_requests: Dict[str, ClarificationRequest] = {}
+        self.action_history: Dict[str, List[Dict[str, Any]]] = {}
+        self._checkpoints: Dict[str, CoordinatorCheckpoint] = {}
+
+    def register_claim(
+        self,
+        claim: Union[AtomicRightsClaim, CreativeUse, Dict[str, Any]],
+    ) -> AtomicRightsClaim:
+        """Registers and normalizes a claim for coordinated investigation."""
+        norm = normalize_to_atomic_claim(claim, default_revision_id=self.revision_id)
+        cid = norm.claim_id
+        self.claims[cid] = norm
+        if cid not in self.claim_states:
+            self.claim_states[cid] = "evaluating"
+        if cid not in self.claim_contexts:
+            self.claim_contexts[cid] = {}
+        if cid not in self.action_history:
+            self.action_history[cid] = []
+        return norm
+
+    def _resolve_claim(
+        self,
+        claim: Union[AtomicRightsClaim, CreativeUse, Dict[str, Any], str],
+    ) -> AtomicRightsClaim:
+        """Resolves claim object or key into registered AtomicRightsClaim."""
+        if isinstance(claim, str):
+            if claim in self.claims:
+                return self.claims[claim]
+            for c in self.claims.values():
+                if c.occurrence_lineage_id == claim or c.occurrence_id == claim or getattr(c, "asset_id", None) == claim:
+                    return c
+            raise KeyError(f"Claim ID or lineage key '{claim}' not found in coordinator registry.")
+        return self.register_claim(claim)
+
+    def _record_action(
+        self,
+        claim_id: str,
+        action: CoordinatorAction,
+        details: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Appends action to chronological audit trail."""
+        hist = self.action_history.setdefault(claim_id, [])
+        hist.append({
+            "action": action.value,
+            "code": action.code,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "details": details or {},
+        })
+
+    def _has_matching_contracts(self, claim: AtomicRightsClaim) -> bool:
+        """Determines if the contract vault contains agreements relevant to the claim."""
+        claim_key = (claim.occurrence_lineage_id or getattr(claim, "asset_id", claim.claim_id)).lower()
+        subj = (claim.rights_subject or "").lower()
+        for c in self.contracts:
+            agr_id = getattr(c, "agreement_id", getattr(c, "contract_id", ""))
+            lin_key = getattr(c, "stable_lineage_key", "")
+            licensor = getattr(c, "licensor", "")
+            licensee = getattr(c, "licensee", "")
+            title = getattr(c, "title", "")
+            scope = getattr(c, "scope", "")
+            perm = getattr(c, "permitted_uses", [])
+            text = f"{agr_id} {lin_key} {title} {licensor} {licensee} {scope} {' '.join(perm)}".lower()
+            if claim_key in text or (subj and subj in text) or (lin_key and lin_key.lower() == claim_key):
+                return True
+        return False
+
+    def _evaluate_scope(
+        self,
+        claim: AtomicRightsClaim,
+        ctx: Dict[str, Any],
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Evaluates licensed scope coverage against intended production use.
+        Returns (is_mismatch_or_missing, missing_or_mismatched_field).
+        """
+        if ctx.get("scope_mismatch"):
+            return True, ctx.get("scope_field_missing", "licensed_scope")
+        if ctx.get("missing_crucial_scope"):
+            return True, ctx.get("scope_field_missing", "crucial_license_scope")
+
+        # If private agreements were evaluated, check coverage
+        if ctx.get("private_agreements_evaluated"):
+            if not claim.licensor_grant_confirmed:
+                return True, "licensor_grant_confirmed"
+            if claim.licensed_media is None:
+                return True, "licensed_media"
+            if claim.intended_media and claim.licensed_media:
+                lic_m = [m.lower() for m in claim.licensed_media]
+                missing_m = [
+                    m for m in claim.intended_media
+                    if m.lower() not in lic_m and "all_media" not in lic_m
+                ]
+                if missing_m:
+                    return True, f"intended_media({','.join(missing_m)})"
+            if claim.intended_territory and claim.licensed_territory:
+                lic_t = [t.upper() for t in claim.licensed_territory]
+                missing_t = [
+                    t for t in claim.intended_territory
+                    if t.upper() not in lic_t and "WORLDWIDE" not in lic_t
+                ]
+                if missing_t:
+                    return True, f"intended_territory({','.join(missing_t)})"
+
+        if claim.right_category == "master_recording" and ctx.get("private_agreements_evaluated") and not claim.licensor_grant_confirmed:
+            return True, "master_use_license"
+
+        return False, None
+
+    def decide_next_action(
+        self,
+        claim: Union[AtomicRightsClaim, CreativeUse, Dict[str, Any], str],
+    ) -> CoordinatorDecision:
+        """
+        Canonical 8-Action Dynamic Decision Loop.
+        Answers: 'Given this claim, evidence collected, missing facts, and remaining budget,
+        what useful action should happen next?'
+        """
+        norm_claim = self._resolve_claim(claim)
+        cid = norm_claim.claim_id
+        ctx = self.claim_contexts.setdefault(cid, {})
+
+        # 1. Check remaining budget (call budget, token budget, dollar budget)
+        if self.budget.is_exhausted:
+            norm_claim.workflow_reason = WorkflowReason.WAITING_FOR_BUDGET
+            norm_claim.disposition = CensusDisposition.NEEDS_REVIEW
+            self.claim_states[cid] = "unresolved_exception"
+            return CoordinatorDecision(
+                action=CoordinatorAction.ACT_08_STOP_UNRESOLVED,
+                claim_id=cid,
+                reason=WorkflowReason.WAITING_FOR_BUDGET,
+                notes="Coordinator budget exhausted: call, token, or dollar ceiling reached.",
+            )
+
+        # 2. Check if public search failed (HTTP 504 / timeout / offline)
+        if (
+            ctx.get("provider_offline")
+            or ctx.get("last_search_status") in (504, 502, 503, 408)
+            or ctx.get("last_search_error") == "provider_offline"
+        ):
+            norm_claim.workflow_reason = WorkflowReason.PROVIDER_OFFLINE
+            norm_claim.disposition = CensusDisposition.NEEDS_REVIEW
+            self.claim_states[cid] = "unresolved_exception"
+            return CoordinatorDecision(
+                action=CoordinatorAction.ACT_08_STOP_UNRESOLVED,
+                claim_id=cid,
+                reason=WorkflowReason.PROVIDER_OFFLINE,
+                notes="Public search failed: provider offline, HTTP 504 gateway timeout, or connection dropped.",
+            )
+
+        # 3. If composite music cue requires split -> ACT_04_SPLIT_INVESTIGATION
+        is_composite_music = (
+            norm_claim.right_category in ("composite", "music", "music_cue", "soundtrack")
+            or "music" in getattr(norm_claim, "asset_type", "").lower()
+            or "music" in norm_claim.occurrence_lineage_id.lower()
+        )
+        already_split = (
+            ctx.get("split_completed", False)
+            or norm_claim.right_category in ("composition", "master_recording")
+        )
+        if is_composite_music and not already_split:
+            return CoordinatorDecision(
+                action=CoordinatorAction.ACT_04_SPLIT_INVESTIGATION,
+                claim_id=cid,
+                notes="Composite music cue requires splitting into independent Composition and Master Sound Recording claims.",
+            )
+
+        # 4. If private agreements exist and un-evaluated -> ACT_01_RETRIEVE_PRIVATE_AGREEMENTS
+        contracts_exist = (
+            len(self.contracts) > 0
+            or ctx.get("private_agreements_available", False)
+            or self._has_matching_contracts(norm_claim)
+        )
+        contracts_evaluated = ctx.get("private_agreements_evaluated", False)
+        if contracts_exist and not contracts_evaluated:
+            return CoordinatorDecision(
+                action=CoordinatorAction.ACT_01_RETRIEVE_PRIVATE_AGREEMENTS,
+                claim_id=cid,
+                notes="Private contract agreements exist in studio vault and require evaluation.",
+            )
+
+        # 5. If scope evaluation shows mismatch or missing crucial license/scope -> ACT_06_REQUEST_INFORMATION
+        is_mismatch, missing_field = self._evaluate_scope(norm_claim, ctx)
+        clarification_pending = (
+            norm_claim.clarification_request_id is not None
+            and not ctx.get("clarification_resolved", False)
+        ) or ctx.get("clarification_requested", False)
+
+        if is_mismatch and not clarification_pending:
+            return CoordinatorDecision(
+                action=CoordinatorAction.ACT_06_REQUEST_INFORMATION,
+                claim_id=cid,
+                reason=WorkflowReason.WAITING_FOR_INFORMATION,
+                notes=f"Scope evaluation indicates mismatch or missing crucial license: {missing_field}",
+                metadata={"scope_field_missing": missing_field},
+            )
+
+        # 6. If public search unperformed -> ACT_02_SEARCH_PUBLIC_SOURCES (Phase 1 Identity Anchoring)
+        search_performed = (
+            ctx.get("public_search_performed", False)
+            or len(norm_claim.evidence_ids) > 0
+            or ctx.get("public_evidence") is not None
+        )
+        if not search_performed:
+            return CoordinatorDecision(
+                action=CoordinatorAction.ACT_02_SEARCH_PUBLIC_SOURCES,
+                claim_id=cid,
+                notes="Phase 1 Identity Anchoring: public registry and copyright search unperformed.",
+            )
+
+        # 7. If Phase 1 search found preliminary evidence -> ACT_05_ADVERSARIAL_DISCONFIRMATION (Phase 2)
+        preliminary_found = (
+            ctx.get("public_search_performed", False)
+            and (ctx.get("preliminary_evidence") is not None or ctx.get("public_evidence") is not None)
+        )
+        adversarial_performed = ctx.get("adversarial_disconfirmation_performed", False)
+        if preliminary_found and not adversarial_performed:
+            return CoordinatorDecision(
+                action=CoordinatorAction.ACT_05_ADVERSARIAL_DISCONFIRMATION,
+                claim_id=cid,
+                notes="Phase 2 Adversarial Disconfirmation: testing preliminary evidence for adverse claimants.",
+            )
+
+        # 8. If evidence and scope collected -> ACT_07_PREPARE_REVIEW_BRIEF
+        return CoordinatorDecision(
+            action=CoordinatorAction.ACT_07_PREPARE_REVIEW_BRIEF,
+            claim_id=cid,
+            notes="Evidence and scope collected. Ready to prepare clearance review brief.",
+        )
+
+    def suspend_claim(
+        self,
+        claim: Union[AtomicRightsClaim, CreativeUse, Dict[str, Any], str],
+        question_text: str,
+        scope_field_missing: Optional[str] = None,
+        required_document_type: Optional[str] = None,
+        suggested_options: Optional[List[str]] = None,
+        assigned_role: str = "producer",
+        revision_id: Optional[str] = None,
+    ) -> ClarificationRequest:
+        """
+        Claim-Level Suspension:
+        Suspends THAT SPECIFIC CLAIM into WAITING_FOR_INFORMATION and CensusDisposition.NEEDS_REVIEW.
+        Generates a ClarificationRequest strictly bound to claim_id and revision_id.
+        Allows all sibling claims to continue executing concurrently without run-level locking.
+        """
+        norm_claim = self._resolve_claim(claim)
+        cid = norm_claim.claim_id
+        rev_id = revision_id or self.revision_id
+
+        norm_claim.workflow_reason = WorkflowReason.WAITING_FOR_INFORMATION
+        norm_claim.disposition = CensusDisposition.NEEDS_REVIEW
+        self.claim_states[cid] = "waiting_for_information"
+
+        lineage_key = norm_claim.occurrence_lineage_id or getattr(norm_claim, "asset_id", cid)
+        req_id = f"clrf_{uuid.uuid4().hex[:8]}"
+        clarification = ClarificationRequest(
+            request_id=req_id,
+            run_id=self.run_id,
+            claim_id=cid,
+            revision_id=rev_id,
+            stable_lineage_key=lineage_key,
+            scope_field_missing=scope_field_missing,
+            question_text=question_text,
+            suggested_options=suggested_options,
+            required_document_type=required_document_type,
+            assigned_role=assigned_role,
+            status="pending",
+        )
+        norm_claim.clarification_request_id = req_id
+        self.clarification_requests[req_id] = clarification
+
+        ctx = self.claim_contexts.setdefault(cid, {})
+        ctx["clarification_requested"] = True
+        ctx["clarification_id"] = req_id
+        ctx["clarification_resolved"] = False
+
+        self._record_action(
+            claim_id=cid,
+            action=CoordinatorAction.ACT_06_REQUEST_INFORMATION,
+            details={"clarification_id": req_id, "question": question_text, "revision_id": rev_id},
+        )
+
+        return clarification
+
+    def resume_claim(
+        self,
+        claim_id: str,
+        response_text: Optional[str] = None,
+        attached_document_ref: Optional[str] = None,
+        current_revision_uses: Optional[List[Union[AtomicRightsClaim, CreativeUse, Dict[str, Any], str]]] = None,
+        current_revision_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Claim-Level Resumption:
+        Performs revision freshness check: verifies the claim's occurrence is still active in current cut revision.
+        If removed -> marks CANCELLED_SUPERSEDED and cancels resume.
+        If fresh -> attaches document/response, marks clarification resolved, and resumes 8-action loop from paused step.
+        """
+        if claim_id not in self.claims:
+            raise KeyError(f"Claim ID '{claim_id}' not found in coordinator claims registry.")
+
+        claim = self.claims[claim_id]
+        ctx = self.claim_contexts.setdefault(claim_id, {})
+        target_rev = current_revision_id or self.revision_id
+
+        # 1. Revision freshness check
+        if current_revision_uses is not None:
+            active_identifiers: Set[str] = set()
+            for item in current_revision_uses:
+                if isinstance(item, str):
+                    active_identifiers.add(item)
+                elif isinstance(item, AtomicRightsClaim):
+                    active_identifiers.add(item.claim_id)
+                    active_identifiers.add(item.occurrence_id)
+                    active_identifiers.add(item.occurrence_lineage_id)
+                    if item.asset_id:
+                        active_identifiers.add(item.asset_id)
+                elif isinstance(item, CreativeUse):
+                    active_identifiers.add(item.use_id)
+                    active_identifiers.add(item.stable_lineage_key)
+                elif isinstance(item, dict):
+                    for k in ("claim_id", "use_id", "stable_lineage_key", "occurrence_lineage_id", "occurrence_id", "asset_id"):
+                        if k in item and item[k]:
+                            active_identifiers.add(str(item[k]))
+
+            is_active = (
+                claim.claim_id in active_identifiers
+                or claim.occurrence_id in active_identifiers
+                or claim.occurrence_lineage_id in active_identifiers
+                or (claim.asset_id and claim.asset_id in active_identifiers)
+            )
+
+            if not is_active:
+                claim.workflow_reason = WorkflowReason.NORMAL_OPERATION
+                claim.notes = f"CANCELLED_SUPERSEDED: Occurrence eliminated in revision {target_rev}"
+                claim.disposition = CensusDisposition.UNKNOWN
+                self.claim_states[claim_id] = "cancelled_superseded"
+
+                if claim.clarification_request_id and claim.clarification_request_id in self.clarification_requests:
+                    clrf = self.clarification_requests[claim.clarification_request_id]
+                    clrf.status = "cancelled_superseded"
+                    clrf.resolved_at = datetime.now(timezone.utc).isoformat()
+
+                return {
+                    "status": "CANCELLED_SUPERSEDED",
+                    "claim_id": claim_id,
+                    "is_active": False,
+                    "revision_id": target_rev,
+                    "message": f"Claim {claim_id} was removed in cut revision {target_rev}; marked CANCELLED_SUPERSEDED.",
+                }
+
+        # 2. Freshness confirmed: attach document/response, resolve clarification, resume loop
+        if claim.clarification_request_id and claim.clarification_request_id in self.clarification_requests:
+            clrf = self.clarification_requests[claim.clarification_request_id]
+            if response_text is not None:
+                clrf.response_text = response_text
+            if attached_document_ref is not None:
+                clrf.attached_document_ref = attached_document_ref
+            clrf.status = "resolved"
+            clrf.resolved_at = datetime.now(timezone.utc).isoformat()
+
+        if attached_document_ref or response_text:
+            claim.licensor_grant_confirmed = True
+            if not claim.licensed_media:
+                claim.licensed_media = claim.intended_media or ["theatrical", "svod", "all_media"]
+            if not claim.licensed_territory:
+                claim.licensed_territory = claim.intended_territory or ["worldwide"]
+            if not claim.licensed_term:
+                claim.licensed_term = "perpetual"
+            ctx["scope_mismatch"] = False
+            ctx["missing_crucial_scope"] = False
+
+        ctx["clarification_resolved"] = True
+        claim.workflow_reason = WorkflowReason.NORMAL_OPERATION
+        self.claim_states[claim_id] = "evaluating"
+
+        # Resume 8-action loop from paused step
+        next_decision = self.decide_next_action(claim)
+
+        return {
+            "status": "RESUMED",
+            "claim_id": claim_id,
+            "is_active": True,
+            "revision_id": target_rev,
+            "next_action": next_decision.action,
+            "next_decision": next_decision,
+            "claim": claim,
+        }
+
+    def split_claim(
+        self,
+        parent_claim: Union[AtomicRightsClaim, CreativeUse, Dict[str, Any], str],
+    ) -> List[AtomicRightsClaim]:
+        """
+        ACT_04_SPLIT_INVESTIGATION:
+        Subdivides a composite rights claim into independent child claims
+        (e.g., Composition vs Master Sound Recording) under the shared run budget.
+        """
+        norm_parent = self._resolve_claim(parent_claim)
+        pid = norm_parent.claim_id
+
+        comp_claim = AtomicRightsClaim(
+            claim_id=f"{pid}_comp",
+            occurrence_id=norm_parent.occurrence_id,
+            occurrence_lineage_id=norm_parent.occurrence_lineage_id,
+            asset_id=norm_parent.asset_id,
+            right_category="composition",
+            rights_subject=f"Composer / Music Publisher ({norm_parent.rights_subject})",
+            intended_territory=norm_parent.intended_territory,
+            intended_media=norm_parent.intended_media,
+            intended_duration=norm_parent.intended_duration,
+            distribution_window=norm_parent.distribution_window,
+            intended_context=norm_parent.intended_context,
+            disposition=CensusDisposition.UNKNOWN,
+            approval_origin=ApprovalOrigin.NONE,
+            workflow_reason=WorkflowReason.NEWLY_DISCOVERED,
+            notes=f"Decomposed from parent {pid} (Composition / Sync)",
+        )
+
+        master_claim = AtomicRightsClaim(
+            claim_id=f"{pid}_master",
+            occurrence_id=norm_parent.occurrence_id,
+            occurrence_lineage_id=norm_parent.occurrence_lineage_id,
+            asset_id=norm_parent.asset_id,
+            right_category="master_recording",
+            rights_subject=f"Record Label / Master Rights Holder ({norm_parent.rights_subject})",
+            intended_territory=norm_parent.intended_territory,
+            intended_media=norm_parent.intended_media,
+            intended_duration=norm_parent.intended_duration,
+            distribution_window=norm_parent.distribution_window,
+            intended_context=norm_parent.intended_context,
+            disposition=CensusDisposition.UNKNOWN,
+            approval_origin=ApprovalOrigin.NONE,
+            workflow_reason=WorkflowReason.NEWLY_DISCOVERED,
+            notes=f"Decomposed from parent {pid} (Master Sound Recording)",
+        )
+
+        self.register_claim(comp_claim)
+        self.register_claim(master_claim)
+
+        parent_ctx = self.claim_contexts.setdefault(pid, {})
+        parent_ctx["split_completed"] = True
+        parent_ctx["child_claim_ids"] = [comp_claim.claim_id, master_claim.claim_id]
+        self.claim_states[pid] = "split"
+
+        self._record_action(
+            claim_id=pid,
+            action=CoordinatorAction.ACT_04_SPLIT_INVESTIGATION,
+            details={"children": [comp_claim.claim_id, master_claim.claim_id]},
+        )
+
+        return [comp_claim, master_claim]
+
+    async def execute_action(
+        self,
+        action: CoordinatorAction,
+        claim: Union[AtomicRightsClaim, CreativeUse, Dict[str, Any], str],
+        custom_query: Optional[str] = None,
+        http_status_override: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """
+        Dispatches and executes the selected CoordinatorAction.
+        Updates claim context, mutates legal status, and enforces budget constraints.
+        """
+        norm_claim = self._resolve_claim(claim)
+        cid = norm_claim.claim_id
+        ctx = self.claim_contexts.setdefault(cid, {})
+
+        if action == CoordinatorAction.ACT_01_RETRIEVE_PRIVATE_AGREEMENTS:
+            self.budget.consume(calls=1, dollars=0.01)
+            matching: List[ContractAgreement] = []
+            target_key = (norm_claim.occurrence_lineage_id or cid).lower()
+            subj_key = (norm_claim.rights_subject or "").lower()
+            for c in self.contracts:
+                agr_id = getattr(c, "agreement_id", getattr(c, "contract_id", ""))
+                lin_key = getattr(c, "stable_lineage_key", "")
+                licensor = getattr(c, "licensor", "")
+                licensee = getattr(c, "licensee", "")
+                title = getattr(c, "title", "")
+                scope = getattr(c, "scope", "")
+                perm = getattr(c, "permitted_uses", [])
+                text = f"{agr_id} {lin_key} {title} {licensor} {licensee} {scope} {' '.join(perm)}".lower()
+                if target_key in text or (subj_key and subj_key in text) or (lin_key and lin_key.lower() == target_key):
+                    matching.append(c)
+
+            ctx["private_agreements_evaluated"] = True
+            matched_ids = [getattr(c, "agreement_id", getattr(c, "contract_id", str(i))) for i, c in enumerate(matching)]
+            if matching:
+                primary = matching[0]
+                norm_claim.licensor_grant_confirmed = True
+                norm_claim.licensed_media = getattr(primary, "permitted_media", getattr(primary, "permitted_uses", ["theatrical", "svod", "linear"]))
+                norm_claim.licensed_territory = getattr(primary, "territories", ["worldwide"])
+                norm_claim.licensed_term = getattr(primary, "term", "perpetual")
+                ctx["contract_shield_applied"] = True
+                ctx["matching_contracts"] = matched_ids
+                ctx["scope_mismatch"] = False
+                ctx["missing_crucial_scope"] = False
+            else:
+                ctx["contract_shield_applied"] = False
+                ctx["missing_crucial_scope"] = True
+                ctx["scope_field_missing"] = "executed_license"
+
+            self._record_action(cid, action, {"matching_count": len(matching)})
+            return {"status": "SUCCESS", "action": action.value, "matching_contracts": matched_ids}
+
+        elif action == CoordinatorAction.ACT_02_SEARCH_PUBLIC_SOURCES:
+            self.budget.consume(calls=1, dollars=0.04)
+            if http_status_override in (504, 502, 503, 408):
+                ctx["last_search_status"] = http_status_override
+                ctx["provider_offline"] = True
+                self._record_action(cid, action, {"status": "PROVIDER_OFFLINE", "http_status": http_status_override})
+                return {"status": "PROVIDER_OFFLINE", "http_status": http_status_override}
+
+            lineage_key = norm_claim.occurrence_lineage_id or cid
+            query = custom_query or f"{norm_claim.rights_subject} copyright registry public domain"
+            tool_output = await revalidate_evidence_tool(
+                query=query,
+                asset_key=lineage_key,
+                objective="public_identity_anchoring",
+                parallel_service=self.parallel,
+            )
+
+            st_val = tool_output.get("stance", "supporting").lower()
+            ev_stance = EvidenceStance.SUPPORTING
+            for s in EvidenceStance:
+                if s.value == st_val:
+                    ev_stance = s
+                    break
+
+            snapshot = PublicEvidenceSnapshot(
+                snapshot_id=tool_output.get("snapshot_id", f"snap_{lineage_key}"),
+                use_id=norm_claim.occurrence_id,
+                stable_lineage_key=lineage_key,
+                query=query,
+                source_title=tool_output.get("source_title", ""),
+                source_url=tool_output.get("source_url", ""),
+                excerpt=tool_output.get("excerpt", ""),
+                stance=ev_stance,
+                provider="Parallel",
+                provider_call_id=tool_output.get("provider_call_id"),
+                retrieval_latency_ms=tool_output.get("retrieval_latency_ms"),
+                raw_payload_hash=tool_output.get("raw_payload_hash"),
+                http_status=tool_output.get("http_status", 200),
+            )
+
+            if snapshot.http_status in (504, 502, 503, 408):
+                ctx["last_search_status"] = snapshot.http_status
+                ctx["provider_offline"] = True
+            else:
+                ctx["public_search_performed"] = True
+                ctx["public_evidence"] = snapshot
+                ctx["preliminary_evidence"] = snapshot
+                if snapshot.snapshot_id not in norm_claim.evidence_ids:
+                    norm_claim.evidence_ids.append(snapshot.snapshot_id)
+
+            self._record_action(cid, action, {"query": query, "stance": ev_stance.value})
+            return {"status": "SUCCESS", "action": action.value, "snapshot": snapshot.model_dump()}
+
+        elif action == CoordinatorAction.ACT_03_INSPECT_SPECIFIC_SOURCE:
+            self.budget.consume(calls=1, dollars=0.02)
+            ctx["source_inspected"] = True
+            self._record_action(cid, action, {"details": "Source inspected"})
+            return {"status": "SUCCESS", "action": action.value, "claim_id": cid}
+
+        elif action == CoordinatorAction.ACT_04_SPLIT_INVESTIGATION:
+            children = self.split_claim(norm_claim)
+            return {"status": "SUCCESS", "action": action.value, "children": [c.model_dump() for c in children]}
+
+        elif action == CoordinatorAction.ACT_05_ADVERSARIAL_DISCONFIRMATION:
+            self.budget.consume(calls=1, dollars=0.04)
+            lineage_key = norm_claim.occurrence_lineage_id or cid
+            query = custom_query or f"{norm_claim.rights_subject} copyright dispute renewal contested ownership"
+            tool_output = await revalidate_evidence_tool(
+                query=query,
+                asset_key=lineage_key,
+                objective="adversarial_disconfirmation",
+                parallel_service=self.parallel,
+            )
+            ctx["adversarial_disconfirmation_performed"] = True
+            ctx["adversarial_evidence"] = tool_output
+            self._record_action(cid, action, {"query": query, "adversarial_output": tool_output})
+            return {"status": "SUCCESS", "action": action.value, "tool_output": tool_output}
+
+        elif action == CoordinatorAction.ACT_06_REQUEST_INFORMATION:
+            clrf = self.suspend_claim(
+                claim=norm_claim,
+                question_text=custom_query or f"Clarification requested for license/scope on {norm_claim.rights_subject}",
+                scope_field_missing=ctx.get("scope_field_missing", "licensed_scope"),
+            )
+            return {"status": "SUSPENDED", "action": action.value, "clarification_request": clrf.model_dump()}
+
+        elif action == CoordinatorAction.ACT_07_PREPARE_REVIEW_BRIEF:
+            self.budget.consume(tokens=500, dollars=0.02)
+            ev = ctx.get("public_evidence")
+            excerpt = ""
+            src_title = ""
+            src_url = ""
+            if isinstance(ev, PublicEvidenceSnapshot):
+                excerpt = ev.excerpt
+                src_title = ev.source_title
+                src_url = ev.source_url
+            elif isinstance(ev, dict):
+                excerpt = ev.get("excerpt", "")
+                src_title = ev.get("source_title", "")
+                src_url = ev.get("source_url", "")
+
+            briefing = await self.gemini.synthesize_counsel_briefing(
+                asset_name=norm_claim.rights_subject,
+                reason_code=norm_claim.workflow_reason.value if hasattr(norm_claim.workflow_reason, "value") else str(norm_claim.workflow_reason),
+                evidence_excerpt=excerpt or "Clearance validated via public registry and contract vault.",
+                source_title=src_title or "Clearance Register",
+                source_url=src_url or "https://copyright.gov",
+            )
+            norm_claim.disposition = CensusDisposition.APPROVED
+            norm_claim.approval_origin = ApprovalOrigin.RENEWED_APPROVAL
+            self.claim_states[cid] = "ready_for_review"
+            ctx["counsel_briefing"] = briefing.model_dump()
+            self._record_action(cid, action, {"briefing_prepared": True})
+            return {"status": "SUCCESS", "action": action.value, "briefing": briefing.model_dump()}
+
+        elif action == CoordinatorAction.ACT_08_STOP_UNRESOLVED:
+            norm_claim.disposition = CensusDisposition.NEEDS_REVIEW
+            self.claim_states[cid] = "unresolved_exception"
+            self._record_action(cid, action, {"reason": norm_claim.workflow_reason})
+            return {"status": "STOPPED", "action": action.value, "claim_id": cid, "reason": norm_claim.workflow_reason}
+
+        raise ValueError(f"Unknown coordinator action: {action}")
+
+    async def coordinate_claim(self, claim_id: str, max_steps: int = 8) -> Dict[str, Any]:
+        """Runs the 8-action dynamic decision loop for a single claim until terminal or suspended."""
+        claim = self.claims[claim_id]
+        steps_taken: List[CoordinatorAction] = []
+
+        for _ in range(max_steps):
+            decision = self.decide_next_action(claim)
+            steps_taken.append(decision.action)
+
+            if decision.action == CoordinatorAction.ACT_06_REQUEST_INFORMATION:
+                self.suspend_claim(
+                    claim=claim,
+                    question_text=decision.notes,
+                    scope_field_missing=decision.metadata.get("scope_field_missing"),
+                )
+                break
+
+            if decision.action == CoordinatorAction.ACT_08_STOP_UNRESOLVED:
+                await self.execute_action(decision.action, claim)
+                break
+
+            res = await self.execute_action(decision.action, claim)
+
+            if decision.action in (CoordinatorAction.ACT_07_PREPARE_REVIEW_BRIEF, CoordinatorAction.ACT_04_SPLIT_INVESTIGATION):
+                break
+
+        return {
+            "claim_id": claim_id,
+            "final_state": self.claim_states.get(claim_id, "unknown"),
+            "steps_taken": [a.value for a in steps_taken],
+            "disposition": claim.disposition.value if hasattr(claim.disposition, "value") else str(claim.disposition),
+            "workflow_reason": claim.workflow_reason.value if hasattr(claim.workflow_reason, "value") else str(claim.workflow_reason),
+        }
+
+    async def coordinate_all(
+        self,
+        claims: Optional[List[Union[AtomicRightsClaim, CreativeUse, Dict[str, Any]]]] = None,
+        max_steps_per_claim: int = 8,
+    ) -> Dict[str, Any]:
+        """
+        Coordinates all claims concurrently.
+        Claim-level suspension allows suspended claims to pause while sibling claims continue!
+        """
+        if claims:
+            for c in claims:
+                self.register_claim(c)
+
+        claim_ids = list(self.claims.keys())
+        results: Dict[str, Any] = {}
+        for cid in claim_ids:
+            if self.claim_states.get(cid) in ("split", "cancelled_superseded"):
+                continue
+            res = await self.coordinate_claim(cid, max_steps=max_steps_per_claim)
+            results[cid] = res
+
+        # Run any new child claims spawned from ACT_04
+        new_children = [cid for cid in self.claims if cid not in results and self.claim_states.get(cid) != "split"]
+        for ch_id in new_children:
+            ch_res = await self.coordinate_claim(ch_id, max_steps=max_steps_per_claim)
+            results[ch_id] = ch_res
+
+        return {
+            "run_id": self.run_id,
+            "total_claims": len(self.claims),
+            "active_claims": len(results),
+            "results": results,
+            "suspended_count": sum(1 for s in self.claim_states.values() if s == "waiting_for_information"),
+            "ready_for_review_count": sum(1 for s in self.claim_states.values() if s == "ready_for_review"),
+            "unresolved_count": sum(1 for s in self.claim_states.values() if s == "unresolved_exception"),
+        }
+
+    # =========================================================================
+    # DURABLE CHECKPOINT STORE (Surviving Container Restarts)
+    # =========================================================================
+
+    def save_checkpoint(self, checkpoint_id: Optional[str] = None) -> CoordinatorCheckpoint:
+        """Captures complete execution state to durable in-memory/dict checkpoint."""
+        cid = checkpoint_id or f"chk_{uuid.uuid4().hex[:8]}"
+        cp = CoordinatorCheckpoint(
+            checkpoint_id=cid,
+            run_id=self.run_id,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            budget=self.budget.model_copy(deep=True),
+            claims={k: v.model_dump() for k, v in self.claims.items()},
+            claim_states=dict(self.claim_states),
+            claim_contexts=dict(self.claim_contexts),
+            clarification_requests={k: v.model_dump() for k, v in self.clarification_requests.items()},
+            action_history=dict(self.action_history),
+            metadata={"revision_id": self.revision_id, "contracts_count": len(self.contracts)},
+        )
+        self._checkpoints[cid] = cp
+        return cp
+
+    def export_checkpoint_json(self, checkpoint_id: Optional[str] = None) -> str:
+        """Serializes coordinator checkpoint into a JSON string."""
+        cp = self.save_checkpoint(checkpoint_id)
+        return cp.model_dump_json()
+
+    def restore_checkpoint(
+        self,
+        checkpoint_data: Union[CoordinatorCheckpoint, Dict[str, Any], str],
+    ) -> None:
+        """Restores coordinator state from a checkpoint object, dict, or JSON string."""
+        if isinstance(checkpoint_data, str):
+            cp = CoordinatorCheckpoint.model_validate_json(checkpoint_data)
+        elif isinstance(checkpoint_data, dict):
+            cp = CoordinatorCheckpoint.model_validate(checkpoint_data)
+        elif isinstance(checkpoint_data, CoordinatorCheckpoint):
+            cp = checkpoint_data
+        else:
+            raise ValueError(f"Unsupported checkpoint format: {type(checkpoint_data)}")
+
+        self.run_id = cp.run_id
+        self.budget = cp.budget.model_copy(deep=True)
+        self.claims = {k: AtomicRightsClaim.model_validate(v) for k, v in cp.claims.items()}
+        self.claim_states = dict(cp.claim_states)
+        self.claim_contexts = dict(cp.claim_contexts)
+        self.clarification_requests = {k: ClarificationRequest.model_validate(v) for k, v in cp.clarification_requests.items()}
+        self.action_history = dict(cp.action_history)
+        self.revision_id = cp.metadata.get("revision_id", self.revision_id)
+        self._checkpoints[cp.checkpoint_id] = cp
+
+    @classmethod
+    def from_checkpoint(
+        cls,
+        checkpoint_data: Union[CoordinatorCheckpoint, Dict[str, Any], str],
+        gemini_service: Optional[GeminiService] = None,
+        parallel_service: Optional[ParallelSearchService] = None,
+        evidence_reconciler: Optional[EvidenceReconciler] = None,
+        contracts: Optional[List[ContractAgreement]] = None,
+        config: Optional[AgentBuilderConfig] = None,
+        use_fallback: bool = False,
+    ) -> EvidenceDrivenCoordinator:
+        """Factory creating a rehydrated coordinator instance from checkpoint to simulate surviving restart."""
+        inst = cls(
+            gemini_service=gemini_service,
+            parallel_service=parallel_service,
+            evidence_reconciler=evidence_reconciler,
+            contracts=contracts,
+            config=config,
+            use_fallback=use_fallback,
+        )
+        inst.restore_checkpoint(checkpoint_data)
+        return inst
+
+    def simulate_container_restart(self) -> EvidenceDrivenCoordinator:
+        """Simulates container restart by serializing state to checkpoint and restoring into a new instance."""
+        cp_json = self.export_checkpoint_json()
+        return self.from_checkpoint(
+            checkpoint_data=cp_json,
+            gemini_service=self.gemini,
+            parallel_service=self.parallel,
+            evidence_reconciler=self.reconciler,
+            contracts=self.contracts,
+            config=self.config,
+            use_fallback=self.use_fallback,
+        )
+
+
+# =============================================================================
 # DUAL-MODE ADK CLEARANCE PIPELINE
 # =============================================================================
 
@@ -290,6 +1299,13 @@ class ADKClearancePipeline:
         self.evidence_reconciler = evidence_reconciler or EvidenceReconciler()
         self.use_fallback = use_fallback
         self.tracer = get_tracer()
+        self.coordinator = EvidenceDrivenCoordinator(
+            config=self.config,
+            gemini_service=self.gemini,
+            parallel_service=self.parallel,
+            evidence_reconciler=self.evidence_reconciler,
+            use_fallback=use_fallback,
+        )
 
     async def execute(
         self,
@@ -297,6 +1313,7 @@ class ADKClearancePipeline:
         v7_uses: Optional[List[CreativeUse]] = None,
         v8_uses: Optional[List[CreativeUse]] = None,
         force_offline: bool = False,
+        use_dynamic_coordinator: bool = False,
     ) -> WorkflowRunResult:
         """
         Executes the ADK clearance change control workflow.
@@ -630,6 +1647,64 @@ class ADKClearancePipeline:
             reconciliation_results=reconciliation_results,
         )
 
+    @classmethod
+    def process_counsel_decision(
+        cls,
+        claim: Union[AtomicRightsClaim, Dict[str, Any], str],
+        action: Union[ReviewAction, str],
+        conditions: Optional[List[str]] = None,
+        counsel_directive: Optional[str] = None,
+        counsel_name: Optional[str] = "Sarah Jenkins, Esq.",
+        reviewer: Optional[Union[ReviewerIdentity, str, Dict[str, Any]]] = None,
+        prior_finding: Optional[Union[str, Dict[str, Any]]] = None,
+        prior_recommendation: Optional[Union[str, Dict[str, Any]]] = None,
+        task_provider: str = "parallel",
+        notes: Optional[str] = None,
+        **kwargs: Any,
+    ) -> CounselDecisionResult:
+        """
+        Orchestration pipeline entrypoint for processing counsel decisions under Counsel Rejection & Correction Loop:
+        - ReviewAction.RE_ATTEST (or APPROVE): sets claim disposition to APPROVED / CONDITIONAL with conditions.
+        - ReviewAction.REJECT (or REJECT_USE): archives previous recommendation, updates claim disposition to REJECTED.
+        - ReviewAction.REQUEST_CORRECTION:
+          * Archives prior finding/recommendation with timestamp and counsel name.
+          * Preserves counsel's directive (e.g. 'Must obtain festival sync addendum').
+          * Spawns an isolated InvestigationTask with counsel's directive as explicit search/investigation constraint.
+          * Transitions claim status to CensusDisposition.NEEDS_REVIEW and workflow_reason to REINVESTIGATION_REQUESTED.
+        """
+        return InvalidationEngine.process_counsel_decision(
+            claim=claim,
+            action=action,
+            conditions=conditions,
+            counsel_directive=counsel_directive,
+            counsel_name=counsel_name,
+            reviewer=reviewer,
+            prior_finding=prior_finding,
+            prior_recommendation=prior_recommendation,
+            task_provider=task_provider,
+            notes=notes,
+            **kwargs,
+        )
+
+    @classmethod
+    def purge_expired_materials(
+        cls,
+        retention_policy: RetentionPolicy,
+        legal_holds: List[LegalHoldRecord],
+        files: List[Dict[str, Any]],
+    ) -> DeletionRecord:
+        """
+        Orchestration pipeline entrypoint for statutory retention policy and legal hold non-spoliation controls.
+        - If an active legal hold covers the production or asset: BLOCKS purge, logs caution, sets status="BLOCKED_BY_LEGAL_HOLD".
+        - If no legal hold covers the asset and retention period has elapsed: marks files as deleted, records SHA-256 digest,
+          sets evidence_availability=EvidenceAvailability.SOURCE_PURGED_PER_POLICY while preserving cryptographic event hash and metadata.
+        """
+        return InvalidationEngine.purge_expired_materials(
+            retention_policy=retention_policy,
+            legal_holds=legal_holds,
+            files=files,
+        )
+
 
 async def run_adk_clearance_workflow(
     use_fallback: bool = False,
@@ -639,3 +1714,52 @@ async def run_adk_clearance_workflow(
     """Convenience helper to dispatch the complete ADK clearance pipeline."""
     pipeline = ADKClearancePipeline(config=config, use_fallback=use_fallback)
     return await pipeline.execute(contracts=contracts)
+
+
+def process_counsel_decision(
+    claim: Union[AtomicRightsClaim, Dict[str, Any], str],
+    action: Union[ReviewAction, str],
+    conditions: Optional[List[str]] = None,
+    counsel_directive: Optional[str] = None,
+    counsel_name: Optional[str] = "Sarah Jenkins, Esq.",
+    reviewer: Optional[Union[ReviewerIdentity, str, Dict[str, Any]]] = None,
+    prior_finding: Optional[Union[str, Dict[str, Any]]] = None,
+    prior_recommendation: Optional[Union[str, Dict[str, Any]]] = None,
+    task_provider: str = "parallel",
+    notes: Optional[str] = None,
+    **kwargs: Any,
+) -> CounselDecisionResult:
+    """
+    Module-level function for processing counsel decisions under Counsel Rejection & Correction Loop.
+    Delegates to InvalidationEngine.process_counsel_decision.
+    """
+    return InvalidationEngine.process_counsel_decision(
+        claim=claim,
+        action=action,
+        conditions=conditions,
+        counsel_directive=counsel_directive,
+        counsel_name=counsel_name,
+        reviewer=reviewer,
+        prior_finding=prior_finding,
+        prior_recommendation=prior_recommendation,
+        task_provider=task_provider,
+        notes=notes,
+        **kwargs,
+    )
+
+
+def purge_expired_materials(
+    retention_policy: RetentionPolicy,
+    legal_holds: List[LegalHoldRecord],
+    files: List[Dict[str, Any]],
+) -> DeletionRecord:
+    """
+    Module-level function for statutory retention policy and legal hold non-spoliation controls.
+    Delegates to InvalidationEngine.purge_expired_materials.
+    """
+    return InvalidationEngine.purge_expired_materials(
+        retention_policy=retention_policy,
+        legal_holds=legal_holds,
+        files=files,
+    )
+
