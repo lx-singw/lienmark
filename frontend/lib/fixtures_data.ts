@@ -1007,3 +1007,7 @@ export function recordGoldenSupersessionEvent(event: SupersessionEvent): void {
   _fallbackAuditTrail.push(event);
 }
 
+export function resetGoldenAuditTrail(): void {
+  _fallbackAuditTrail = [...GOLDEN_AUDIT_TRAIL];
+}
+

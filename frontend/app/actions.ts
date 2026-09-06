@@ -52,7 +52,7 @@ export async function evaluateClearanceDeltaAction(
   console.log(`[Action:evaluateClearanceDeltaAction] Evaluating clearance delta for ${targetVersionId}`);
 
   try {
-    const result: DriftEvaluationResult = await apiClient.runDriftAnalysis();
+    const result: DriftEvaluationResult = await apiClient.runDriftAnalysis(targetVersionId);
     return {
       success: true,
       data: result,

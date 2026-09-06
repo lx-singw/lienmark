@@ -124,10 +124,10 @@ export const AuditTrailDrawer: React.FC<AuditTrailDrawerProps> = ({
                       )}
                       <div>
                         <div className="text-xs font-bold text-white">
-                          {event.reviewer_name}
+                          {event.reviewer_name || (typeof event.reviewer === 'object' ? event.reviewer?.name : event.reviewer) || 'Sarah Jenkins, Esq.'}
                         </div>
                         <div className="text-[10px] text-slate-400 font-mono">
-                          {isAI ? 'AI Invalidation Agent' : 'Human Clearance Counsel'}
+                          {isAI ? 'AI Invalidation Agent' : (event.reviewer_title || (typeof event.reviewer === 'object' ? event.reviewer?.title : null) || 'Lead Production Clearance Counsel')}
                         </div>
                       </div>
                     </div>
@@ -152,7 +152,7 @@ export const AuditTrailDrawer: React.FC<AuditTrailDrawerProps> = ({
                   </div>
 
                   <blockquote className="text-xs text-slate-300 bg-slate-900/70 p-2.5 rounded border border-slate-800/80 leading-relaxed font-serif italic">
-                    &ldquo;{event.counsel_rationale}&rdquo;
+                    &ldquo;{event.counsel_rationale || event.rationale}&rdquo;
                   </blockquote>
 
                   <div className="space-y-1 pt-1.5 text-[10px] font-mono text-slate-400 border-t border-slate-800/80">
@@ -165,11 +165,13 @@ export const AuditTrailDrawer: React.FC<AuditTrailDrawerProps> = ({
                       <span>SHA-256 Event Hash:</span>{' '}
                       <span className="text-slate-300 font-mono">{event.event_hash}</span>
                     </div>
-                    {event.parent_hash && (
+                    {(event.parent_hash || event.parent_event_hash) && (
                       <div className="text-slate-500 truncate flex items-center gap-1">
                         <Hash className="h-2.5 w-2.5 text-slate-600 flex-shrink-0" aria-hidden="true" />
                         <span>Chained Parent Hash:</span>{' '}
-                        <span className="text-slate-300 font-mono">{event.parent_hash}</span>
+                        <span className="text-slate-300 font-mono">
+                          {event.parent_hash || event.parent_event_hash}
+                        </span>
                       </div>
                     )}
                   </div>

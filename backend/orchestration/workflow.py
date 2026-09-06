@@ -99,7 +99,13 @@ class LienmarkWorkflow:
         t0 = time.perf_counter()
         v7_uses_fix, v8_uses_fix, v7_decisions_fix, initial_evidence_fix = get_golden_fixtures()
         eff_base_uses = base_uses if base_uses is not None else v7_uses_fix
-        eff_target_uses = target_uses if target_uses is not None else v8_uses_fix
+        if target_uses is not None:
+            eff_target_uses = target_uses
+        elif target_version_id == "v7" or target_version_id == base_version_id:
+            eff_target_uses = v7_uses_fix
+        else:
+            eff_target_uses = v8_uses_fix
+
         eff_prior_decisions = prior_decisions if prior_decisions is not None else v7_decisions_fix
         eff_evidence = evidence_snapshots if evidence_snapshots is not None else initial_evidence_fix
 
@@ -121,24 +127,27 @@ class LienmarkWorkflow:
         # Step 2: Gemini Semantic Delta Analysis
         t1 = time.perf_counter()
         base_map = {u.stable_lineage_key: u for u in eff_base_uses}
+        is_zero_drift = (eff_target_uses == eff_base_uses or target_version_id == base_version_id)
         modified_pairs = []
-        for u_target in eff_target_uses:
-            u_base = base_map.get(u_target.stable_lineage_key)
-            if u_base and (
-                getattr(u_base, "context_hash", None) != getattr(u_target, "context_hash", None)
-                or getattr(u_base, "duration_or_prominence", None) != getattr(u_target, "duration_or_prominence", None)
-                or getattr(u_base, "context", None) != getattr(u_target, "context", None)
-            ):
-                modified_pairs.append((u_base, u_target))
+        if not is_zero_drift:
+            for u_target in eff_target_uses:
+                u_base = base_map.get(u_target.stable_lineage_key)
+                if u_base and (
+                    getattr(u_base, "context_hash", None) != getattr(u_target, "context_hash", None)
+                    or getattr(u_base, "duration_or_prominence", None) != getattr(u_target, "duration_or_prominence", None)
+                    or getattr(u_base, "context", None) != getattr(u_target, "context", None)
+                ):
+                    modified_pairs.append((u_base, u_target))
 
         chosen_pair = None
-        if modified_pairs:
-            poster_pair = next((p for p in modified_pairs if p[1].stable_lineage_key == "poster_noir_detective_magazine"), None)
-            chosen_pair = poster_pair or modified_pairs[0]
-        elif "poster_noir_detective_magazine" in base_map and any(u.stable_lineage_key == "poster_noir_detective_magazine" for u in eff_target_uses):
-            chosen_pair = (base_map["poster_noir_detective_magazine"], next(u for u in eff_target_uses if u.stable_lineage_key == "poster_noir_detective_magazine"))
-        elif eff_target_uses and eff_base_uses:
-            chosen_pair = (eff_base_uses[0], eff_target_uses[0])
+        if not is_zero_drift:
+            if modified_pairs:
+                poster_pair = next((p for p in modified_pairs if p[1].stable_lineage_key == "poster_noir_detective_magazine"), None)
+                chosen_pair = poster_pair or modified_pairs[0]
+            elif "poster_noir_detective_magazine" in base_map and any(u.stable_lineage_key == "poster_noir_detective_magazine" for u in eff_target_uses):
+                chosen_pair = (base_map["poster_noir_detective_magazine"], next(u for u in eff_target_uses if u.stable_lineage_key == "poster_noir_detective_magazine"))
+            elif eff_target_uses and eff_base_uses:
+                chosen_pair = (eff_base_uses[0], eff_target_uses[0])
 
         if chosen_pair:
             u_b, u_t = chosen_pair

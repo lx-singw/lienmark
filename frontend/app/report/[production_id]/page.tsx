@@ -57,28 +57,8 @@ export default async function ReportPage({
     schedule = getGoldenExceptionsSchedule();
   }
 
-  // Ensure deterministic representation of Item 11 & Item 12 for the demo report
-  // Even if user hasn't toggled them yet, synthesize the reconciled underwriter schedule state
-  const items: ExceptionsScheduleItem[] = schedule.items.map((item) => {
-    if (item.stable_lineage_key === 'poster_noir_detective_magazine') {
-      return {
-        ...item,
-        v8_evaluation_state: DecisionState.RE_ATTESTED,
-        counsel_action:
-          'Re-attested by Clearance Counsel: Cover artwork is in the public domain in the US; 1946 registration lapsed without renewal in 1974 (US Copyright Office #B-1946-8821).',
-      };
-    }
-    if (item.stable_lineage_key === 'music_cue_midnight_serenade') {
-      return {
-        ...item,
-        v8_evaluation_state: DecisionState.EXCEPTION,
-        invalidation_reason: 'EXTERNAL_EVIDENCE_SHIFT',
-        counsel_action:
-          'Marked as UNRESOLVED EXCEPTION by Clearance Counsel: Worldwide exclusive synchronization rights assigned August 2026 to Vanguard Media Holdings LLC.',
-      };
-    }
-    return item;
-  });
+  // Consume the authentic recorded schedule items directly (zero client synthesis)
+  const items: ExceptionsScheduleItem[] = schedule.items;
 
   const carriedItems = items.filter((it) => it.v8_evaluation_state === DecisionState.CARRIED_FORWARD);
   const reattestedItems = items.filter((it) => it.v8_evaluation_state === DecisionState.RE_ATTESTED);

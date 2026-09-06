@@ -37,6 +37,7 @@ import {
   getGoldenHealthResponse,
   getGoldenReviewQueue,
   recordGoldenSupersessionEvent,
+  resetGoldenAuditTrail,
 } from './fixtures_data';
 
 // ============================================================================
@@ -98,16 +99,37 @@ export interface ApiClientConfig {
   defaultTimeoutMs?: number;
   enableFallback?: boolean;
   verboseLogging?: boolean;
+  counselToken?: string;
 }
 
-const DEFAULT_CONFIG: Required<ApiClientConfig> = {
-  baseUrl:
-    process.env.NEXT_PUBLIC_API_URL ||
+const resolveDefaultBaseUrl = (): string => {
+  if (typeof window !== 'undefined') {
+    // Browser runtime: use public base URL if configured, or empty string to use Next.js /api rewrite proxy
+    return (
+      process.env.NEXT_PUBLIC_API_BASE_URL ||
+      process.env.NEXT_PUBLIC_BACKEND_URL ||
+      process.env.NEXT_PUBLIC_API_URL ||
+      ''
+    );
+  }
+  // Server / SSR runtime: prioritize container internal network address
+  return (
+    process.env.INTERNAL_API_URL ||
+    process.env.BACKEND_INTERNAL_URL ||
     process.env.BACKEND_URL ||
-    'http://127.0.0.1:8000',
+    process.env.NEXT_PUBLIC_API_BASE_URL ||
+    process.env.NEXT_PUBLIC_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    'http://127.0.0.1:8000'
+  );
+};
+
+const DEFAULT_CONFIG: Required<ApiClientConfig> = {
+  baseUrl: resolveDefaultBaseUrl(),
   defaultTimeoutMs: 15000,
   enableFallback: true,
   verboseLogging: process.env.NODE_ENV !== 'production',
+  counselToken: process.env.NEXT_PUBLIC_COUNSEL_TOKEN || 'sarah_jenkins_token_2026',
 };
 
 // ============================================================================
@@ -119,6 +141,7 @@ export class LienmarkApiClient {
   public defaultTimeoutMs: number;
   public enableFallback: boolean;
   public verboseLogging: boolean;
+  public counselToken: string;
 
   // Local fallback session state for counsel re-attestations
   private fallbackReattestations: Record<
@@ -131,6 +154,11 @@ export class LienmarkApiClient {
     this.defaultTimeoutMs = config.defaultTimeoutMs ?? DEFAULT_CONFIG.defaultTimeoutMs;
     this.enableFallback = config.enableFallback ?? DEFAULT_CONFIG.enableFallback;
     this.verboseLogging = config.verboseLogging ?? DEFAULT_CONFIG.verboseLogging;
+    this.counselToken = config.counselToken || DEFAULT_CONFIG.counselToken;
+  }
+
+  setCounselToken(token: string): void {
+    this.counselToken = token;
   }
 
   private log(level: 'info' | 'warn' | 'error', message: string, meta?: unknown): void {
@@ -166,8 +194,8 @@ export class LienmarkApiClient {
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
-          Authorization: 'Bearer sarah_jenkins_token_2026',
-          'X-Counsel-Token': 'sarah_jenkins_token_2026',
+          Authorization: `Bearer ${this.counselToken}`,
+          'X-Counsel-Token': this.counselToken,
           ...(options.headers || {}),
         },
       });
@@ -238,13 +266,22 @@ export class LienmarkApiClient {
 
   /**
    * POST /api/drift/compare
-   * Executes the agentic clearance drift detection workflow across V7 and V8.
+   * Executes the agentic clearance drift detection workflow across script revisions.
    */
-  async runDriftAnalysis(timeoutMs: number = 30000): Promise<DriftEvaluationResult> {
+  async runDriftAnalysis(
+    targetVersionId: string = 'v8',
+    timeoutMs: number = 30000
+  ): Promise<DriftEvaluationResult> {
     try {
       const result = await this.request<DriftEvaluationResult>(
         '/api/drift/compare',
-        { method: 'POST' },
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            target_version_id: targetVersionId,
+            base_version_id: 'v7',
+          }),
+        },
         timeoutMs
       );
       // Reset fallback reattestations on live run
@@ -254,6 +291,25 @@ export class LienmarkApiClient {
       if (!this.enableFallback) throw error;
       this.log('warn', 'FastAPI drift analysis unreachable; executing deterministic fallback workflow', error);
       this.fallbackReattestations = {};
+      if (targetVersionId === 'v7') {
+        const v8res = getGoldenDriftEvaluationResult();
+        const v7Claims = v8res.claims.map((c) => ({
+          ...c,
+          state: DecisionState.CARRIED_FORWARD,
+          status: DecisionStatus.APPROVED,
+          counsel_action: 'CARRIED_FORWARD: Baseline clearance affirmed; zero creative delta.',
+          invalidation_reason: null,
+          revalidation_action: 'carry',
+        }));
+        return {
+          ...v8res,
+          run_id: `run_v7_zero_drift_${Date.now()}`,
+          claims: v7Claims,
+          reopened_count: 0,
+          carried_forward_count: v7Claims.length,
+          total_claims: v7Claims.length,
+        };
+      }
       return getGoldenDriftEvaluationResult();
     }
   }
@@ -276,7 +332,28 @@ export class LienmarkApiClient {
         timeoutMs
       );
     } catch (error: unknown) {
+      // Fail closed on backend rejection: HTTP 401/403 auth errors and HTTP 4xx/5xx must never fall back to mock recording
+      if (
+        error instanceof ApiClientError &&
+        (error.status === 401 || error.status === 403 || (typeof error.status === 'number' && error.status >= 400)) &&
+        !(error instanceof ApiNetworkError)
+      ) {
+        this.log(
+          'error',
+          `FastAPI reattestation rejected with HTTP ${error.status}; failing closed without fallback`,
+          error
+        );
+        throw error;
+      }
       if (!this.enableFallback) throw error;
+
+      const rationaleText = (request.counsel_rationale || '').trim();
+      if (!rationaleText) {
+        throw new ApiValidationError(
+          '/api/review/attest',
+          'Counsel rationale is mandatory for re-attestation and cannot be empty or whitespace only.'
+        );
+      }
       this.log(
         'warn',
         `FastAPI review endpoint unreachable; capturing counsel re-attestation locally for ${request.stable_lineage_key}`,
@@ -361,12 +438,151 @@ export class LienmarkApiClient {
    * POST /api/review/action
    * Submits clearance counsel adjudication ('re_attest', 'reject', 'exception') and records supersession event.
    */
+  /**
+   * Normalizes raw API review action envelope or event payload into a complete SupersessionEvent conforming to types.ts.
+   */
+  private normalizeSupersessionEvent(
+    raw: any,
+    payload: ReviewActionRequest
+  ): SupersessionEvent {
+    // Backend returns envelope: { status, action, event, supersession_event, decision, ... }
+    const eventObj = raw?.supersession_event || raw?.event || raw || {};
+    const lineageKey =
+      raw?.stable_lineage_key ||
+      raw?.lineage_key ||
+      eventObj?.stable_lineage_key ||
+      payload.stable_lineage_key ||
+      payload.lineage_key ||
+      'unknown_claim';
+
+    const rationaleText =
+      eventObj?.counsel_rationale ||
+      eventObj?.rationale ||
+      raw?.counsel_rationale ||
+      raw?.rationale ||
+      payload.counsel_rationale ||
+      payload.rationale ||
+      '';
+
+    const reviewerObj = eventObj?.reviewer || raw?.reviewer;
+    const reviewerName =
+      (typeof reviewerObj === 'object' && reviewerObj?.name) ||
+      eventObj?.reviewer_name ||
+      raw?.reviewer_name ||
+      payload.reviewer_name ||
+      'Sarah Jenkins, Esq.';
+
+    const reviewerTitle =
+      (typeof reviewerObj === 'object' && reviewerObj?.title) ||
+      eventObj?.reviewer_title ||
+      raw?.reviewer_title ||
+      'Lead Production Clearance Counsel';
+
+    const isApproved =
+      raw?.action === ReviewActionType.RE_ATTEST ||
+      eventObj?.action === ReviewActionType.RE_ATTEST ||
+      payload.action === ReviewActionType.RE_ATTEST ||
+      String(raw?.new_status || '').toLowerCase() === 'approved';
+
+    const resultingState =
+      raw?.new_state ||
+      eventObj?.new_state ||
+      eventObj?.resulting_state ||
+      (isApproved ? DecisionState.RE_ATTESTED : DecisionState.EXCEPTION);
+
+    const resultingStatus =
+      raw?.new_status ||
+      eventObj?.new_status ||
+      eventObj?.resulting_status ||
+      (isApproved ? DecisionStatus.APPROVED : DecisionStatus.REJECTED);
+
+    const parentEventHash =
+      eventObj?.parent_event_hash ||
+      raw?.parent_event_hash ||
+      eventObj?.parent_hash ||
+      raw?.parent_hash ||
+      '0'.repeat(64);
+
+    const timestamp =
+      eventObj?.timestamp ||
+      raw?.timestamp ||
+      new Date().toISOString();
+
+    const eventHash =
+      raw?.event_hash ||
+      raw?.audit_event_hash ||
+      eventObj?.event_hash ||
+      '';
+
+    const normalized: SupersessionEvent = {
+      event_id: raw?.event_id || eventObj?.event_id || `evt_${lineageKey}_${Date.now()}`,
+      stable_lineage_key: lineageKey,
+      action: raw?.action || eventObj?.action || payload.action,
+      prior_decision_id:
+        raw?.prior_decision_id ||
+        eventObj?.prior_decision_id ||
+        payload.decision_id ||
+        `dec_v7_${lineageKey}`,
+      new_decision_id:
+        raw?.new_decision?.decision_id ||
+        eventObj?.new_decision_id ||
+        raw?.new_decision_id ||
+        eventObj?.superseding_decision_id ||
+        `dec_v8_${lineageKey}_counsel`,
+      superseding_decision_id:
+        raw?.new_decision?.decision_id ||
+        eventObj?.new_decision_id ||
+        raw?.new_decision_id ||
+        eventObj?.superseding_decision_id ||
+        `dec_v8_${lineageKey}_counsel`,
+      actor_type: eventObj?.actor_type || ActorType.HUMAN_COUNSEL,
+      reviewer: reviewerObj || { name: reviewerName, title: reviewerTitle },
+      reviewer_name: reviewerName,
+      reviewer_title: reviewerTitle,
+      is_fictional_demo_reviewer:
+        eventObj?.is_fictional_demo_reviewer ??
+        (typeof reviewerObj === 'object' ? reviewerObj?.is_fictional_demo : undefined) ??
+        true,
+      counsel_rationale: rationaleText,
+      rationale: rationaleText,
+      resulting_state: resultingState,
+      resulting_status: resultingStatus,
+      new_state: resultingState as DecisionState,
+      new_status: resultingStatus as DecisionStatus,
+      prior_state: eventObj?.prior_state || raw?.prior_state || DecisionState.STALE,
+      prior_status: eventObj?.prior_status || raw?.prior_status || DecisionStatus.APPROVED,
+      timestamp,
+      event_hash: eventHash,
+      parent_event_hash: parentEventHash,
+      parent_hash: parentEventHash,
+      system_recommendation:
+        raw?.system_recommendation || eventObj?.system_recommendation || 'REVALIDATE',
+      target_version_id:
+        eventObj?.target_version_id ||
+        raw?.run_id ||
+        payload.target_version_id ||
+        payload.version_id ||
+        'v8',
+      changed_dependencies: eventObj?.changed_dependencies || raw?.changed_dependencies || [],
+      evidence_citations: eventObj?.evidence_citations || raw?.evidence_citations || [],
+      prior_decision: eventObj?.prior_decision || raw?.prior_decision || null,
+      new_decision: eventObj?.new_decision || raw?.new_decision || raw?.decision || null,
+      metadata: eventObj?.metadata || raw?.metadata || {},
+    };
+
+    return normalized;
+  }
+
+  /**
+   * POST /api/review/action
+   * Submits clearance counsel adjudication ('re_attest', 'reject', 'exception') and records supersession event.
+   */
   async submitReviewAction(
     payload: ReviewActionRequest,
     timeoutMs?: number
   ): Promise<SupersessionEvent> {
     try {
-      return await this.request<SupersessionEvent>(
+      const raw = await this.request<any>(
         '/api/review/action',
         {
           method: 'POST',
@@ -374,10 +590,34 @@ export class LienmarkApiClient {
         },
         timeoutMs
       );
+      const normalizedEvent = this.normalizeSupersessionEvent(raw, payload);
+      recordGoldenSupersessionEvent(normalizedEvent);
+      return normalizedEvent;
     } catch (error: unknown) {
+      // Security invariant: Re-throw HTTP 401/403 auth errors and HTTP 4xx/5xx backend rejection errors without creating mock_sha256_ fallback events
+      if (
+        error instanceof ApiClientError &&
+        (error.status === 401 || error.status === 403 || (typeof error.status === 'number' && error.status >= 400)) &&
+        !(error instanceof ApiNetworkError)
+      ) {
+        this.log(
+          'error',
+          `FastAPI review action rejected with HTTP ${error.status}; failing closed without fallback`,
+          error
+        );
+        throw error;
+      }
       if (!this.enableFallback) throw error;
       const lineageKey = payload.lineage_key || payload.stable_lineage_key || 'unknown_claim';
-      const rationaleText = payload.rationale || payload.counsel_rationale || '';
+      const rationaleText = (payload.rationale || payload.counsel_rationale || '').trim();
+
+      // Enforce fail-closed validation in offline fallback: empty rationale on re_attest must throw ApiValidationError
+      if (payload.action === ReviewActionType.RE_ATTEST && !rationaleText) {
+        throw new ApiValidationError(
+          '/api/review/action',
+          'Counsel rationale is mandatory when re-attesting a claim and cannot be empty or whitespace only.'
+        );
+      }
 
       this.log(
         'warn',
@@ -412,16 +652,22 @@ export class LienmarkApiClient {
         target_version_id: payload.target_version_id || payload.version_id || 'v8',
         prior_decision_id: payload.decision_id || `dec_v7_${lineageKey}`,
         superseding_decision_id: `dec_v8_${lineageKey}_counsel`,
+        new_decision_id: `dec_v8_${lineageKey}_counsel`,
         actor_type: ActorType.HUMAN_COUNSEL,
         action: payload.action,
         resulting_state: newState,
         resulting_status: newStatus,
+        new_state: newState,
+        new_status: newStatus,
         counsel_rationale: rationaleText,
+        rationale: rationaleText,
         reviewer_name: reviewerName,
         reviewer_title: 'Lead Clearance Counsel (Fictional Demo Reviewer)',
         is_fictional_demo_reviewer: true,
         timestamp,
         event_hash: eventHash,
+        parent_event_hash: '0'.repeat(64),
+        parent_hash: '0'.repeat(64),
       };
 
       recordGoldenSupersessionEvent(supersessionEvent);
@@ -474,6 +720,7 @@ export class LienmarkApiClient {
         timeoutMs
       );
       this.fallbackReattestations = {};
+      resetGoldenAuditTrail();
       return resp;
     } catch (error: unknown) {
       this.log('error', 'FastAPI demo reset failed upstream; propagating error to caller', error);
@@ -497,12 +744,26 @@ export class LienmarkApiClient {
       );
       if (mode === 'baseline') {
         this.fallbackReattestations = {};
+        resetGoldenAuditTrail();
       }
       return resp;
     } catch (error: unknown) {
+      if (
+        error instanceof ApiClientError &&
+        typeof error.status === 'number' &&
+        error.status >= 400 &&
+        !(error instanceof ApiNetworkError)
+      ) {
+        this.log('error', `FastAPI demo seed rejected with HTTP ${error.status}; failing closed without fallback`, error);
+        throw error;
+      }
       if (!this.enableFallback) throw error;
       this.log('warn', `FastAPI demo seed unreachable; seeding fallback mode ${mode}`, error);
       const isBaseline = mode === 'baseline';
+      if (isBaseline) {
+        this.fallbackReattestations = {};
+        resetGoldenAuditTrail();
+      }
       const isResolved = mode === 'resolved';
       const isDrifted = mode === 'drifted';
 

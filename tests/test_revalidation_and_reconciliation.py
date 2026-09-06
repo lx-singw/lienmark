@@ -733,3 +733,37 @@ class TestWorkflowWiring:
         assert music_recon.decision_state == DecisionState.CARRIED_FORWARD
         assert music_recon.revalidation_action == "carry"
         assert music_recon.reason_code == "PRIVATE_CONTRACT_SHIELD_APPLIED"
+
+    @pytest.mark.asyncio
+    async def test_workflow_zero_drift_v7_evaluates_twelve_carried_zero_queries(self):
+        """
+        Cluster 4 verification:
+        When execute_drift_detection is invoked with target_version_id="v7":
+        - eff_target_uses defaults to v7_uses_fix
+        - modified_pairs is empty, chosen_pair is None
+        - semantic_delta_analysis is SKIPPED with reason 'No candidate creative uses for semantic delta comparison'
+        - total_claims == 12, carried_forward_count == 12, reopened_count == 0
+        - revalidation_plan has 0 planned_requests (0 queries)
+        - 0 search calls are executed
+        """
+        workflow = LienmarkWorkflow()
+        result = await workflow.execute_drift_detection(target_version_id="v7")
+
+        assert result.total_claims == 12
+        assert result.carried_forward_count == 12
+        assert result.reopened_count == 0
+
+        # Step trace verification
+        delta_trace = next(t for t in result.execution_traces if t.step_name == "semantic_delta_analysis")
+        assert delta_trace.status == "SKIPPED"
+        assert delta_trace.details.get("reason") == "No candidate creative uses for semantic delta comparison"
+
+        # Revalidation plan verification
+        assert result.revalidation_plan is not None
+        assert len(result.revalidation_plan.planned_requests) == 0
+        assert result.revalidation_plan.planned_count == 0
+        assert result.revalidation_plan.skipped_count == 12
+
+        # Verify zero search queries were executed
+        search_traces = [t for t in result.execution_traces if "parallel_targeted_search" in t.step_name]
+        assert len(search_traces) == 0

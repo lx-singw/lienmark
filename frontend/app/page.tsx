@@ -37,6 +37,8 @@ import {
   submitReviewAction,
   resetDemoAction,
   seedDemoAction,
+  fetchReviewQueueAction,
+  fetchAuditTrailAction,
 } from './actions';
 import {
   getGoldenAuditTrail,
@@ -121,6 +123,33 @@ export default function ReviewerDashboardPage() {
   const [counselRationale, setCounselRationale] = useState<string>(
     'Cover art is public domain: US Copyright Office records confirm 1946 registration lapsed without renewal in 1974. Corroborated via LOC catalog.'
   );
+
+  // Initial dashboard hydration effect: hydrate live review queue and audit trail on mount
+  useEffect(() => {
+    let isMounted = true;
+    async function hydrateDashboardState() {
+      try {
+        const [queueRes, auditRes] = await Promise.all([
+          fetchReviewQueueAction(),
+          fetchAuditTrailAction(),
+        ]);
+        if (isMounted) {
+          if (queueRes.success && queueRes.data && queueRes.data.length > 0) {
+            setReviewQueue(queueRes.data);
+          }
+          if (auditRes.success && auditRes.data && auditRes.data.length > 0) {
+            setAuditTrail(auditRes.data);
+          }
+        }
+      } catch (err) {
+        console.warn('[ReviewerDashboardPage] Hydration from live server failed; using SSR golden baseline', err);
+      }
+    }
+    hydrateDashboardState();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Live timer & multi-stage progress transition during evaluation
   useEffect(() => {
