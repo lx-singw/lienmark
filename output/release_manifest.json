@@ -1,26 +1,26 @@
 {
     "schema_version":  "1.0.0",
-    "timestamp":  "2026-09-06T12:32:27Z",
+    "timestamp":  "2026-09-06T12:45:17Z",
     "environment":  "dev",
     "project_id":  "lienmark-dev-lx-2026",
     "region":  "us-central1",
     "repository":  "lienmark-repo",
-    "git_commit":  "dece3f16f79366780aa31e31ab8fde9d3ab751c1",
-    "git_commit_short":  "dece3f1",
+    "git_commit":  "4d04017bcc6e04c25365e14e25beef15f48200fb",
+    "git_commit_short":  "4d04017",
     "images":  {
                    "lienmark-api":  {
                                         "service":  "lienmark-api",
-                                        "tag":  "us-central1-docker.pkg.dev/lienmark-dev-lx-2026/lienmark-repo/lienmark-api:dece3f1",
-                                        "digest":  "us-central1-docker.pkg.dev/lienmark-dev-lx-2026/lienmark-repo/lienmark-api@sha256:6caae8935b24373f255dbb48062b43e33d4436d72b548696e3f4dd1507f2034a",
-                                        "sha256":  "sha256:6caae8935b24373f255dbb48062b43e33d4436d72b548696e3f4dd1507f2034a",
-                                        "url":  "https://lienmark-api-dryrun.a.run.app"
+                                        "tag":  "us-central1-docker.pkg.dev/lienmark-dev-lx-2026/lienmark-repo/lienmark-api:4d04017",
+                                        "digest":  "us-central1-docker.pkg.dev/lienmark-dev-lx-2026/lienmark-repo/lienmark-api@sha256:6c3f70cc07ca42ab9268f7008687691decdb1a1beda3634b9db66e7b8dbb5580",
+                                        "sha256":  "sha256:6c3f70cc07ca42ab9268f7008687691decdb1a1beda3634b9db66e7b8dbb5580",
+                                        "url":  "https://lienmark-api-urhpgzrwvq-uc.a.run.app"
                                     },
                    "lienmark-web":  {
                                         "service":  "lienmark-web",
-                                        "tag":  "us-central1-docker.pkg.dev/lienmark-dev-lx-2026/lienmark-repo/lienmark-web:dece3f1",
-                                        "digest":  "us-central1-docker.pkg.dev/lienmark-dev-lx-2026/lienmark-repo/lienmark-web@sha256:e799ce38951a2c6070dc56b9423252fd7abdb913cfea68fa13e8701742ccd5dc",
-                                        "sha256":  "sha256:e799ce38951a2c6070dc56b9423252fd7abdb913cfea68fa13e8701742ccd5dc",
-                                        "url":  "https://lienmark-web-dryrun.a.run.app"
+                                        "tag":  "us-central1-docker.pkg.dev/lienmark-dev-lx-2026/lienmark-repo/lienmark-web:4d04017",
+                                        "digest":  "us-central1-docker.pkg.dev/lienmark-dev-lx-2026/lienmark-repo/lienmark-web@sha256:2d5f3025f8948a3aca3587a6c218afcf8086d9093acfd5650d8c846b5dc76272",
+                                        "sha256":  "sha256:2d5f3025f8948a3aca3587a6c218afcf8086d9093acfd5650d8c846b5dc76272",
+                                        "url":  "https://lienmark-web-urhpgzrwvq-uc.a.run.app"
                                     }
                }
 }
