@@ -58,6 +58,20 @@ if (-not $gcloudCmd) {
     $gcloudCmd = "gcloud.cmd"
 }
 
+function Test-GCloudResourceExists {
+    param([scriptblock]$Probe)
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "SilentlyContinue"
+    try {
+        & $Probe 2>$null | Out-Null
+        return ($LASTEXITCODE -eq 0)
+    } catch {
+        return $false
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+}
+
 Write-Host "======================================================================" -ForegroundColor Cyan
 Write-Host ">> 🛠️  LIENMARK MULTI-PROJECT GCP PROVISIONING (PowerShell)" -ForegroundColor Cyan
 Write-Host "   Target Environment: $TargetEnvironment"
@@ -143,8 +157,8 @@ foreach ($envDef in $Environments) {
 
     # 1. Project Creation
     Write-Host "--> [1/7] Ensuring Google Cloud Project '$projId'..." -ForegroundColor Cyan
-    $projCheck = (& $gcloudCmd projects describe $projId 2>&1)
-    if ($LASTEXITCODE -ne 0) {
+    $projExists = Test-GCloudResourceExists { & $gcloudCmd projects describe $projId }
+    if (-not $projExists) {
         Write-Host "    Project not found. Creating project '$projId'..." -ForegroundColor Yellow
         & $gcloudCmd projects create $projId --name=$displayName
         if ($LASTEXITCODE -ne 0) {
@@ -158,7 +172,15 @@ foreach ($envDef in $Environments) {
 
     # 2. Link Billing Account
     Write-Host "--> [2/7] Linking Project to Billing Account '$BillingAccount'..." -ForegroundColor Cyan
-    $currentBilling = (& $gcloudCmd billing projects describe $projId --format="value(billingAccountName)" 2>&1)
+    $currentBilling = ""
+    try {
+        $prevEA = $ErrorActionPreference
+        $ErrorActionPreference = "SilentlyContinue"
+        $currentBilling = (& $gcloudCmd billing projects describe $projId --format="value(billingAccountName)" 2>$null)
+        $ErrorActionPreference = $prevEA
+    } catch {
+        $currentBilling = ""
+    }
     if ($currentBilling -notlike "*$BillingAccount*") {
         Write-Host "    Linking billing account '$BillingAccount' to '$projId'..." -ForegroundColor Yellow
         & $gcloudCmd billing projects link $projId --billing-account=$BillingAccount
@@ -182,8 +204,8 @@ foreach ($envDef in $Environments) {
 
     # 4. Provision Firestore Native Mode
     Write-Host "--> [4/7] Ensuring Cloud Firestore in Native Mode (database: '(default)')..." -ForegroundColor Cyan
-    $fsCheck = (& $gcloudCmd firestore databases describe --database="(default)" --project=$projId 2>&1)
-    if ($LASTEXITCODE -ne 0) {
+    $fsExists = Test-GCloudResourceExists { & $gcloudCmd firestore databases describe --database="(default)" --project=$projId }
+    if (-not $fsExists) {
         Write-Host "    Creating Firestore (default) in Native Mode in region '$Region'..." -ForegroundColor Yellow
         & $gcloudCmd firestore databases create `
             --database="(default)" `
@@ -201,8 +223,8 @@ foreach ($envDef in $Environments) {
 
     # 5. Provision Artifact Registry Docker Repository
     Write-Host "--> [5/7] Ensuring Artifact Registry Docker Repository 'lienmark-repo'..." -ForegroundColor Cyan
-    $repoCheck = (& $gcloudCmd artifacts repositories describe "lienmark-repo" --location=$Region --project=$projId 2>&1)
-    if ($LASTEXITCODE -ne 0) {
+    $repoExists = Test-GCloudResourceExists { & $gcloudCmd artifacts repositories describe "lienmark-repo" --location=$Region --project=$projId }
+    if (-not $repoExists) {
         Write-Host "    Creating Artifact Registry Docker repository 'lienmark-repo'..." -ForegroundColor Yellow
         & $gcloudCmd artifacts repositories create "lienmark-repo" `
             --repository-format=docker `
@@ -220,8 +242,8 @@ foreach ($envDef in $Environments) {
 
     # 6. Service Account & Least-Privilege IAM Roles
     Write-Host "--> [6/7] Configuring Dedicated Service Account '$saEmail'..." -ForegroundColor Cyan
-    $saCheck = (& $gcloudCmd iam service-accounts describe $saEmail --project=$projId 2>&1)
-    if ($LASTEXITCODE -ne 0) {
+    $saExists = Test-GCloudResourceExists { & $gcloudCmd iam service-accounts describe $saEmail --project=$projId }
+    if (-not $saExists) {
         Write-Host "    Creating Service Account '$($envDef.SAName)'..." -ForegroundColor Yellow
         & $gcloudCmd iam service-accounts create $envDef.SAName `
             --display-name="Lienmark $($envDef.Key.ToUpper()) Service Account" `
@@ -248,7 +270,15 @@ foreach ($envDef in $Environments) {
     # 7. Configure Granular Budget Alerts
     if (-not $SkipBudget) {
         Write-Host "--> [7/7] Configuring Budget Alert '$($envDef.BudgetDisplay)' ($($envDef.BudgetAmount))..." -ForegroundColor Cyan
-        $existingBudgets = (& $gcloudCmd billing budgets list --billing-account=$BillingAccount --format="value(displayName)" 2>&1)
+        $existingBudgets = ""
+        try {
+            $prevEA = $ErrorActionPreference
+            $ErrorActionPreference = "SilentlyContinue"
+            $existingBudgets = (& $gcloudCmd billing budgets list --billing-account=$BillingAccount --format="value(displayName)" 2>$null)
+            $ErrorActionPreference = $prevEA
+        } catch {
+            $existingBudgets = ""
+        }
         if ($existingBudgets -notcontains $envDef.BudgetDisplay) {
             Write-Host "    Creating budget with thresholds: $($envDef.Thresholds -join ', ')..." -ForegroundColor Yellow
             $budgetArgs = @(
