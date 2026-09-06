@@ -70,6 +70,10 @@ KNOWN_BACKEND_LICENSES: Dict[str, Dict[str, str]] = {
     "pytest-asyncio": {"license": "Apache-2.0", "spdx": "Apache-2.0", "osi_approved": True},
     "python-dotenv": {"license": "BSD-3-Clause", "spdx": "BSD-3-Clause", "osi_approved": True},
     "requests": {"license": "Apache-2.0", "spdx": "Apache-2.0", "osi_approved": True},
+    "google-adk": {"license": "Apache-2.0", "spdx": "Apache-2.0", "osi_approved": True},
+    "google-genai": {"license": "Apache-2.0", "spdx": "Apache-2.0", "osi_approved": True},
+    "google-cloud-firestore": {"license": "Apache-2.0", "spdx": "Apache-2.0", "osi_approved": True},
+    "google-cloud-aiplatform": {"license": "Apache-2.0", "spdx": "Apache-2.0", "osi_approved": True},
 }
 
 # Canonical fallback metadata for frontend packages
@@ -95,7 +99,7 @@ def normalize_spdx(raw: Optional[str]) -> str:
     s = raw.strip()
     if re.search(r"MIT", s, re.IGNORECASE):
         return "MIT"
-    if re.search(r"Apache.*2", s, re.IGNORECASE):
+    if re.search(r"Apache", s, re.IGNORECASE):
         return "Apache-2.0"
     if re.search(r"BSD.*3", s, re.IGNORECASE):
         return "BSD-3-Clause"

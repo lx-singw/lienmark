@@ -1,0 +1,37 @@
+{
+  "mode": "baseline",
+  "status": "RESET_SUCCESS",
+  "message": "Demo state reset to clean V7 baseline (offline direct in-memory)",
+  "total_claims": 12,
+  "approved_claims": 12,
+  "carried_forward_count": 12,
+  "carried_count": 12,
+  "reopened_count": 0,
+  "stale_count": 0,
+  "reattested_count": 0,
+  "re_attested_count": 0,
+  "exception_count": 0,
+  "exceptions_count": 0,
+  "completed_claims": 12,
+  "claims_breakdown": {
+    "total": 12,
+    "carried_forward": 12,
+    "reopened": 0,
+    "reattested": 0,
+    "exception": 0
+  },
+  "reviewer_identity": {
+    "reviewer_id": "counsel_sjenkins_001",
+    "name": "Sarah Jenkins, Esq.",
+    "title": "Lead Production Clearance Counsel",
+    "organization": "Lienmark Legal Partners LLP",
+    "is_fictional_demo": true,
+    "disclaimer": "DEMO / FICTIONAL COUNSEL ONLY - NOT LEGAL ADVICE"
+  },
+  "reviewer_name": "Sarah Jenkins, Esq. (Lead Production Clearance Counsel)",
+  "policy_version": "E&O-2026.1-DEVPOST",
+  "audit_events_count": 0,
+  "ledger_integrity": true,
+  "transport": "OFFLINE_DIRECT",
+  "timestamp": "2026-09-05T12:23:31.300566+00:00"
+}

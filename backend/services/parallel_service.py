@@ -11,7 +11,7 @@ import random
 import hashlib
 import logging
 import asyncio
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from urllib.parse import urlsplit
 import httpx
 
@@ -24,9 +24,12 @@ logger = logging.getLogger("lienmark.parallel")
 
 class ParallelSearchService:
     """
-    Client for Parallel Search API.
+    Client for Parallel Search API conforming to the official Parallel Search API v1 specification.
+    (https://docs.parallel.ai/api-reference/search/search)
+
     Captures live citations, excerpts, source URLs, retrieval latency, and SHA-256 payload hashes.
     Supports fallback mode, simulated latency, call metric auditing, and structured metadata.
+    Enforces strict fail-closed stance on rate-limit (429), 5xx, or network timeouts.
     """
 
     PARALLEL_API_URL = os.getenv("PARALLEL_API_URL", "https://api.parallel.ai/v1/search")
@@ -45,8 +48,10 @@ class ParallelSearchService:
         max_retries: int = 3,
         retry_backoff_base: float = 0.25,
         timeout: Optional[float] = None,
+        auth_scheme: str = "x-api-key",
     ):
         self.api_key = api_key or os.getenv("PARALLEL_API_KEY", "")
+        self.auth_scheme = auth_scheme or os.getenv("PARALLEL_AUTH_SCHEME", "x-api-key")
         self.use_fallback = use_fallback or force_fallback or use_mock
         self.force_fallback = force_fallback or use_fallback or use_mock
         self.use_mock = use_mock
@@ -66,6 +71,46 @@ class ParallelSearchService:
     def timeout(self, value: float) -> None:
         self.client_timeout = value
 
+    def build_headers(self, auth_scheme: Optional[str] = None) -> Dict[str, str]:
+        """
+        Constructs authentication and content headers conforming to Parallel v1 API.
+        Default authentication uses 'x-api-key: <api_key>' with graceful fallback
+        to 'Authorization: Bearer <api_key>' if specified.
+        """
+        scheme = (auth_scheme or self.auth_scheme or "x-api-key").strip().lower()
+        headers: Dict[str, str] = {
+            "Content-Type": "application/json",
+        }
+        if self.api_key:
+            if "bearer" in scheme or "authorization" in scheme:
+                headers["Authorization"] = f"Bearer {self.api_key}"
+            else:
+                headers["x-api-key"] = self.api_key
+        return headers
+
+    @staticmethod
+    def build_request_payload(
+        query: str,
+        stable_lineage_key: str,
+        objective: Optional[str] = None,
+        search_queries: Optional[List[str]] = None,
+        mode: str = "fast",
+        max_chars_total: int = 4000,
+    ) -> Dict[str, Any]:
+        """
+        Constructs request body strictly conforming to V1SearchRequest schema:
+        - objective: Natural language description of evidence verification goal
+        - search_queries: List of concise keyword queries
+        - mode: Search preset ("fast", "turbo", "basic", "advanced")
+        - max_chars_total: Maximum character limit for returned excerpts
+        """
+        return {
+            "objective": objective or f"Clearance and intellectual property evidence verification for production asset '{stable_lineage_key}': {query}",
+            "search_queries": search_queries or [query],
+            "mode": mode or "fast",
+            "max_chars_total": max_chars_total if max_chars_total is not None else 4000,
+        }
+
     @staticmethod
     def compute_payload_hash(payload: Dict[str, Any]) -> str:
         """
@@ -79,6 +124,109 @@ class ParallelSearchService:
         """Returns the call metrics captured from the most recent search execution."""
         return dict(self.last_metrics)
 
+    def _parse_v1_search_response(
+        self,
+        data: Dict[str, Any],
+        query: str,
+        use_id: str,
+        stable_lineage_key: str,
+        raw_payload_hash: str,
+        elapsed_ms: float,
+        http_status: int,
+        expected_stance: Optional[EvidenceStance] = None,
+        attempt: int = 1,
+        is_fallback: bool = False,
+        publisher_override: Optional[str] = None,
+        stance_override: Optional[EvidenceStance] = None,
+    ) -> PublicEvidenceSnapshot:
+        """
+        Parses a response dictionary conforming to V1SearchResponse:
+        - results: List[V1WebSearchResult] with url, title, publish_date, excerpts (List[str])
+        - search_id / session_id: Extracted as provider call tracking ID
+        - excerpt parsed as " ".join(top_hit.get("excerpts", [])) or top_hit.get("excerpt", "")
+        """
+        results = data.get("results", [])
+        search_id = data.get("search_id")
+        session_id = data.get("session_id")
+        provider_call_id = search_id or session_id or data.get("request_id") or f"prl_{int(time.time())}"
+        top_hit = results[0] if results else {}
+
+        source_url = top_hit.get("url") or "https://search.parallel.ai/evidence"
+        source_title = top_hit.get("title") or "Parallel Attributable Evidence"
+        publish_date = top_hit.get("publish_date")
+
+        # Excerpt parsing in accordance with Parallel v1 specification:
+        # excerpts: List[str] -> " ".join(top_hit.get("excerpts", [])) or top_hit.get("excerpt", "")
+        raw_excerpts = top_hit.get("excerpts")
+        if isinstance(raw_excerpts, list) and raw_excerpts:
+            excerpt = " ".join(raw_excerpts).strip()
+        else:
+            excerpt = ""
+        if not excerpt:
+            excerpt = top_hit.get("excerpt") or top_hit.get("snippet") or "Attributable excerpt"
+
+        publisher = publisher_override or top_hit.get("source") or top_hit.get("publisher") or "Parallel Search Index"
+        domain = urlsplit(source_url).netloc or "search.parallel.ai"
+        citation = f"{source_title} ({publisher})" if publisher and publisher not in source_title else source_title
+        stance = stance_override or expected_stance or EvidenceStance.SUPPORTING
+
+        metadata = {
+            "raw_payload_hash": raw_payload_hash,
+            "payload_hash": raw_payload_hash,
+            "domain": domain,
+            "citation": citation,
+            "request_latency_ms": elapsed_ms,
+            "call_count": self.call_count,
+            "provider_call_id": provider_call_id,
+            "search_id": search_id,
+            "session_id": session_id,
+            "publish_date": publish_date,
+            "excerpts": raw_excerpts if isinstance(raw_excerpts, list) else [excerpt],
+            "http_status_code": http_status,
+            "use_fallback": is_fallback,
+            "query": redact_secrets(query),
+            "use_id": use_id,
+            "stable_lineage_key": stable_lineage_key,
+            "attempt": attempt,
+        }
+
+        self.last_metrics = {
+            "request_latency_ms": elapsed_ms,
+            "call_count": self.call_count,
+            "provider_call_id": provider_call_id,
+            "search_id": search_id,
+            "session_id": session_id,
+            "http_status_code": http_status,
+            "raw_payload_hash": raw_payload_hash,
+            "payload_hash": raw_payload_hash,
+            "domain": domain,
+            "citation": citation,
+        }
+
+        return PublicEvidenceSnapshot(
+            snapshot_id=f"ev_{stable_lineage_key}_{int(time.time())}",
+            use_id=use_id,
+            stable_lineage_key=stable_lineage_key,
+            query=query,
+            provider="Parallel",
+            source_url=source_url,
+            source_title=source_title,
+            excerpt=excerpt,
+            snippet=excerpt,
+            publisher=publisher,
+            stance=stance,
+            cached_or_live="live_simulated" if is_fallback else "live",
+            provider_call_id=provider_call_id,
+            retrieval_latency_ms=elapsed_ms,
+            domain=domain,
+            citation=citation,
+            raw_payload_hash=raw_payload_hash,
+            payload_hash=raw_payload_hash,
+            http_status=http_status,
+            call_count=self.call_count,
+            metadata=metadata,
+        )
+
     async def search(
         self,
         query: str,
@@ -91,14 +239,21 @@ class ParallelSearchService:
         use_mock: Optional[bool] = None,
         simulate_failure: Optional[str] = None,  # "timeout", "5xx", "rate_limit"
         fail_closed_on_error: bool = True,
+        auth_scheme: Optional[str] = None,
+        objective: Optional[str] = None,
+        search_queries: Optional[List[str]] = None,
+        mode: str = "fast",
+        max_chars_total: int = 4000,
     ) -> PublicEvidenceSnapshot:
         """
-        Executes a targeted search query against Parallel Search API.
-        Captures call metrics (latency, call count, provider call ID, HTTP status code),
-        computes SHA-256 raw_payload_hash, and returns PublicEvidenceSnapshot with
-        complete citation, domain, excerpt, stance, and metadata.
-        Falls back to deterministic offline evidence when requested or when live API is unavailable.
-        Strictly enforces fail-closed policy on timeout, 5xx, or rate-limit failures.
+        Executes a targeted search query against Parallel Search API v1.
+        Conforms strictly to V1SearchRequest specification with:
+        - objective, search_queries, mode="fast", max_chars_total=4000
+        - authentication header: 'x-api-key: <api_key>' (with graceful fallback to Bearer)
+        - response handling conforming to V1SearchResponse with 'excerpts: List[str]'
+        - extract search_id / session_id as provider call tracking ID
+        - computes SHA-256 raw_payload_hash
+        - enforces strict fail-closed policy on timeout, 5xx, or rate-limit failures.
         """
         start_time = time.perf_counter()
         effective_fallback = (
@@ -111,11 +266,14 @@ class ParallelSearchService:
         )
         effective_latency_ms = self.mock_latency_ms if mock_latency_ms is None else mock_latency_ms
 
-        payload = {
-            "query": query,
-            "max_results": 3,
-            "include_metadata": True,
-        }
+        payload = self.build_request_payload(
+            query=query,
+            stable_lineage_key=stable_lineage_key,
+            objective=objective,
+            search_queries=search_queries,
+            mode=mode,
+            max_chars_total=max_chars_total,
+        )
         raw_payload_hash = self.compute_payload_hash(payload)
 
         # -------------------------------------------------------------
@@ -142,13 +300,16 @@ class ParallelSearchService:
                 error_msg = f"Parallel Search API upstream server error (HTTP 500) for query '{query}'."
 
             logger.warning(f"Simulated failure engaged: {error_msg} Marking stance as INSUFFICIENT.")
+            err_call_id = f"prl_err_{int(time.time())}"
             metadata = {
                 "raw_payload_hash": raw_payload_hash,
+                "payload_hash": raw_payload_hash,
                 "domain": "search.parallel.ai",
                 "citation": "Parallel Search Gateway Error",
                 "request_latency_ms": elapsed_ms,
                 "call_count": self.call_count,
-                "provider_call_id": f"prl_err_{int(time.time())}",
+                "provider_call_id": err_call_id,
+                "search_id": err_call_id,
                 "http_status_code": http_status,
                 "use_fallback": False,
                 "query": query,
@@ -160,7 +321,8 @@ class ParallelSearchService:
             self.last_metrics = {
                 "request_latency_ms": elapsed_ms,
                 "call_count": self.call_count,
-                "provider_call_id": metadata["provider_call_id"],
+                "provider_call_id": err_call_id,
+                "search_id": err_call_id,
                 "http_status_code": http_status,
                 "raw_payload_hash": raw_payload_hash,
                 "payload_hash": raw_payload_hash,
@@ -180,7 +342,7 @@ class ParallelSearchService:
                 publisher="Parallel Search System",
                 stance=EvidenceStance.INSUFFICIENT,
                 cached_or_live="live",
-                provider_call_id=metadata["provider_call_id"],
+                provider_call_id=err_call_id,
                 retrieval_latency_ms=elapsed_ms,
                 domain="search.parallel.ai",
                 citation="Parallel Search System Error",
@@ -193,10 +355,7 @@ class ParallelSearchService:
 
         # Attempt live API call if not forced into fallback and a valid key exists
         if not effective_fallback and self.api_key and not self.api_key.startswith("mock_") and self.api_key != "mock":
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            }
+            headers = self.build_headers(auth_scheme=auth_scheme)
             max_retries = self.max_retries
             for attempt in range(1, max_retries + 1):
                 try:
@@ -210,66 +369,28 @@ class ParallelSearchService:
 
                         if resp.status_code == 200:
                             data = resp.json()
-                            results = data.get("results", [])
-                            provider_call_id = data.get("request_id", f"prl_{int(time.time())}")
-                            top_hit = results[0] if results else {}
-
-                            source_url = top_hit.get("url", "https://search.parallel.ai/evidence")
-                            source_title = top_hit.get("title", "Parallel Attributable Evidence")
-                            excerpt = top_hit.get("snippet", top_hit.get("excerpt", "Attributable excerpt"))
-                            publisher = top_hit.get("source", "Parallel Search Index")
-                            domain = urlsplit(source_url).netloc or "search.parallel.ai"
-                            citation = f"{source_title} ({publisher})" if publisher else source_title
-                            stance = expected_stance or EvidenceStance.SUPPORTING
-
-                            metadata = {
-                                "raw_payload_hash": raw_payload_hash,
-                                "domain": domain,
-                                "citation": citation,
-                                "request_latency_ms": elapsed_ms,
-                                "call_count": self.call_count,
-                                "provider_call_id": provider_call_id,
-                                "http_status_code": http_status,
-                                "use_fallback": False,
-                                "query": redact_secrets(query),
-                                "use_id": use_id,
-                                "stable_lineage_key": stable_lineage_key,
-                                "attempt": attempt,
-                            }
-
-                            self.last_metrics = {
-                                "request_latency_ms": elapsed_ms,
-                                "call_count": self.call_count,
-                                "provider_call_id": provider_call_id,
-                                "http_status_code": http_status,
-                                "raw_payload_hash": raw_payload_hash,
-                                "domain": domain,
-                                "citation": citation,
-                            }
-
-                            return PublicEvidenceSnapshot(
-                                snapshot_id=f"ev_{stable_lineage_key}_{int(time.time())}",
+                            return self._parse_v1_search_response(
+                                data=data,
+                                query=query,
                                 use_id=use_id,
                                 stable_lineage_key=stable_lineage_key,
-                                query=query,
-                                provider="Parallel",
-                                source_url=source_url,
-                                source_title=source_title,
-                                excerpt=excerpt,
-                                snippet=excerpt,
-                                publisher=publisher,
-                                stance=stance,
-                                cached_or_live="live",
-                                provider_call_id=provider_call_id,
-                                retrieval_latency_ms=elapsed_ms,
-                                domain=domain,
-                                citation=citation,
                                 raw_payload_hash=raw_payload_hash,
-                                payload_hash=raw_payload_hash,
+                                elapsed_ms=elapsed_ms,
                                 http_status=http_status,
-                                call_count=self.call_count,
-                                metadata=metadata,
+                                expected_stance=expected_stance,
+                                attempt=attempt,
+                                is_fallback=False,
                             )
+
+                        elif resp.status_code in (401, 403) and "x-api-key" in headers:
+                            # Graceful fallback to Authorization: Bearer if specified/unauthorized
+                            logger.warning(
+                                f"Parallel Search API returned status {resp.status_code} with x-api-key on attempt {attempt}/{max_retries}. "
+                                "Gracefully attempting fallback to Authorization: Bearer."
+                            )
+                            headers = self.build_headers(auth_scheme="bearer")
+                            if attempt < max_retries:
+                                continue
 
                         elif resp.status_code == 429:
                             # 429 rate limit backoff handling with jitter
@@ -291,6 +412,7 @@ class ParallelSearchService:
                                     f"Parallel API rate limit retries ({max_retries}) exhausted. "
                                     "Falling back to fail-closed INSUFFICIENT stance without crashing."
                                 )
+                                err_id = f"prl_err_{int(time.time())}"
                                 return PublicEvidenceSnapshot(
                                     snapshot_id=f"ev_err_ratelimit_{stable_lineage_key}_{int(time.time())}",
                                     use_id=use_id,
@@ -304,7 +426,7 @@ class ParallelSearchService:
                                     publisher="Parallel Search Index",
                                     stance=EvidenceStance.INSUFFICIENT,
                                     cached_or_live="live",
-                                    provider_call_id=f"prl_err_{int(time.time())}",
+                                    provider_call_id=err_id,
                                     retrieval_latency_ms=elapsed_ms,
                                     domain="search.parallel.ai",
                                     citation="Parallel Search Rate Limit Error",
@@ -312,7 +434,7 @@ class ParallelSearchService:
                                     payload_hash=raw_payload_hash,
                                     http_status=429,
                                     call_count=self.call_count,
-                                    metadata={"error_status": 429, "fail_closed": True, "retries_exhausted": True},
+                                    metadata={"error_status": 429, "fail_closed": True, "retries_exhausted": True, "raw_payload_hash": raw_payload_hash},
                                 )
 
                         elif resp.status_code in (500, 502, 503, 504):
@@ -328,6 +450,7 @@ class ParallelSearchService:
                                     f"Parallel API returned status {resp.status_code} after {max_retries} retries. "
                                     "Applying strict fail-closed policy (marking stance as INSUFFICIENT)."
                                 )
+                                err_id = f"prl_err_{int(time.time())}"
                                 return PublicEvidenceSnapshot(
                                     snapshot_id=f"ev_err_{stable_lineage_key}_{int(time.time())}",
                                     use_id=use_id,
@@ -341,7 +464,7 @@ class ParallelSearchService:
                                     publisher="Parallel Search Index",
                                     stance=EvidenceStance.INSUFFICIENT,
                                     cached_or_live="live",
-                                    provider_call_id=f"prl_err_{int(time.time())}",
+                                    provider_call_id=err_id,
                                     retrieval_latency_ms=elapsed_ms,
                                     domain="search.parallel.ai",
                                     citation="Parallel Search Error",
@@ -349,7 +472,7 @@ class ParallelSearchService:
                                     payload_hash=raw_payload_hash,
                                     http_status=resp.status_code,
                                     call_count=self.call_count,
-                                    metadata={"error_status": resp.status_code, "fail_closed": True},
+                                    metadata={"error_status": resp.status_code, "fail_closed": True, "raw_payload_hash": raw_payload_hash},
                                 )
                         else:
                             logger.warning(
@@ -380,6 +503,7 @@ class ParallelSearchService:
                             publisher="Parallel Search Index",
                             stance=EvidenceStance.INSUFFICIENT,
                             cached_or_live="live",
+                            provider_call_id=f"prl_timeout_{int(time.time())}",
                             raw_payload_hash=raw_payload_hash,
                             payload_hash=raw_payload_hash,
                             http_status=504,
@@ -421,7 +545,10 @@ class ParallelSearchService:
                         )
                 logger.warning(f"Parallel API call failed: {e}. Utilizing verified fallback.")
 
-        # Fallback / Deterministic Fixture Mode (for offline test reproducibility or forced fallback)
+        # -------------------------------------------------------------
+        # Fallback / Deterministic Fixture Mode conforming to v1 schema
+        # Emits mock V1SearchResponse with search_id, session_id, and excerpts: List[str]
+        # -------------------------------------------------------------
         self.call_count += 1
         if effective_latency_ms > 0:
             await asyncio.sleep(min(effective_latency_ms / 1000.0, 0.15))
@@ -440,15 +567,15 @@ class ParallelSearchService:
             source_url = "https://ascap.com/ace-title-search/midnight-serenade-9921"
             source_title = "ASCAP ACE Repertory & Billboard Rights Bulletin"
             publisher = "ASCAP / Billboard Licensing Bulletin"
-            domain = urlsplit(source_url).netloc
-            citation = f"{source_title} ({publisher})"
-            excerpt = (
+            publish_date = "2026-08-15"
+            excerpts = [
                 "Worldwide exclusive synchronization rights assigned August 2026 to "
-                "Vanguard Media Holdings LLC (Kobalt Music admin). Prior public domain "
-                "assertions disputed under European term extension."
-            )
+                "Vanguard Media Holdings LLC (Kobalt Music admin).",
+                "Prior public domain assertions disputed under European term extension.",
+            ]
             stance = EvidenceStance.CONTRADICTORY
-            provider_call_id = f"prl_call_{int(time.time())}_serenade"
+            search_id = f"search_call_{int(time.time())}_serenade"
+            session_id = f"session_call_{int(time.time())}_serenade"
         elif (
             "poster" in key_lower
             or "shadows of manhattan" in query_lower
@@ -459,80 +586,62 @@ class ParallelSearchService:
                 source_url = "https://cocatalog.loc.gov/cgi-bin/Pwebrecon.cgi?v1=1946-crime-detective"
                 source_title = "US Copyright Office Historical Catalog - Renewal Records"
                 publisher = "Library of Congress Copyright Office"
-                domain = urlsplit(source_url).netloc
-                citation = f"{source_title} ({publisher})"
-                excerpt = (
-                    "Registration #B-1946-8821 expired 1974 without timely renewal. "
-                    "Cover artwork in public domain."
-                )
+                publish_date = "1974-01-01"
+                excerpts = [
+                    "Registration #B-1946-8821 expired 1974 without timely renewal.",
+                    "Cover artwork in public domain.",
+                ]
             else:
                 source_url = "https://cocatalog.loc.gov/cgi-bin/Pwebrecon.cgi?v1=1944-shadows-manhattan"
                 source_title = "US Copyright Office Historical Catalog - Renewal Records (LOC)"
                 publisher = "Library of Congress Copyright Office"
-                domain = urlsplit(source_url).netloc
-                citation = f"{source_title} ({publisher})"
-                excerpt = (
+                publish_date = "1972-01-01"
+                excerpts = [
                     "Shadows of Manhattan Detective Magazine (1944): Registration #B-1944-7712 expired 1972 "
-                    "without timely copyright renewal. Cover artwork in public domain in the United States."
-                )
+                    "without timely copyright renewal.",
+                    "Cover artwork in public domain in the United States.",
+                ]
             stance = EvidenceStance.SUPPORTING
-            provider_call_id = f"prl_call_{int(time.time())}_poster"
+            search_id = f"search_call_{int(time.time())}_poster"
+            session_id = f"session_call_{int(time.time())}_poster"
         else:
             source_url = f"https://records.publicdomain.org/{stable_lineage_key}"
             source_title = f"Public Clearance Database: {stable_lineage_key}"
             publisher = "Public Clearance Registry"
-            domain = urlsplit(source_url).netloc
-            citation = f"{source_title} ({publisher})"
-            excerpt = "No adverse copyright or trademark notices found in registry records."
+            publish_date = "2024-01-01"
+            excerpts = [
+                "No adverse copyright or trademark notices found in registry records."
+            ]
             stance = expected_stance or EvidenceStance.SUPPORTING
-            provider_call_id = f"prl_call_{int(time.time())}_generic"
+            search_id = f"search_call_{int(time.time())}_generic"
+            session_id = f"session_call_{int(time.time())}_generic"
 
-        metadata = {
-            "raw_payload_hash": raw_payload_hash,
-            "domain": domain,
-            "citation": citation,
-            "request_latency_ms": elapsed_ms,
-            "call_count": self.call_count,
-            "provider_call_id": provider_call_id,
-            "http_status_code": http_status,
-            "use_fallback": True,
-            "query": query,
-            "use_id": use_id,
-            "stable_lineage_key": stable_lineage_key,
+        # Construct deterministic V1SearchResponse fixture
+        mock_response_data = {
+            "search_id": search_id,
+            "session_id": session_id,
+            "results": [
+                {
+                    "url": source_url,
+                    "title": source_title,
+                    "publish_date": publish_date,
+                    "excerpts": excerpts,
+                }
+            ],
         }
 
-        self.last_metrics = {
-            "request_latency_ms": elapsed_ms,
-            "call_count": self.call_count,
-            "provider_call_id": provider_call_id,
-            "http_status_code": http_status,
-            "raw_payload_hash": raw_payload_hash,
-            "payload_hash": raw_payload_hash,
-            "domain": domain,
-            "citation": citation,
-        }
-
-        return PublicEvidenceSnapshot(
-            snapshot_id=f"ev_{stable_lineage_key}_{int(time.time())}",
+        return self._parse_v1_search_response(
+            data=mock_response_data,
+            query=query,
             use_id=use_id,
             stable_lineage_key=stable_lineage_key,
-            query=query,
-            provider="Parallel",
-            source_url=source_url,
-            source_title=source_title,
-            excerpt=excerpt,
-            snippet=excerpt,
-            publisher=publisher,
-            stance=stance,
-            cached_or_live="live_simulated" if (effective_fallback or not self.api_key) else "live",
-            provider_call_id=provider_call_id,
-            retrieval_latency_ms=elapsed_ms,
-            domain=domain,
-            citation=citation,
             raw_payload_hash=raw_payload_hash,
-            payload_hash=raw_payload_hash,
+            elapsed_ms=elapsed_ms,
             http_status=http_status,
-            call_count=self.call_count,
-            metadata=metadata,
+            expected_stance=expected_stance,
+            is_fallback=True,
+            publisher_override=publisher,
+            stance_override=stance,
         )
+
 

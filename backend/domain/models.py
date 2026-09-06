@@ -123,7 +123,12 @@ class PublicEvidenceSnapshot(BaseModel):
         elif not self.payload_hash and self.raw_payload_hash:
             self.payload_hash = self.raw_payload_hash
         elif not self.raw_payload_hash and not self.payload_hash:
-            payload = {"query": self.query, "max_results": 3, "include_metadata": True}
+            payload = {
+                "objective": f"Clearance and intellectual property evidence verification for production asset '{self.stable_lineage_key}': {self.query}",
+                "search_queries": [self.query],
+                "mode": "fast",
+                "max_chars_total": 4000,
+            }
             serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
             h = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
             self.raw_payload_hash = h

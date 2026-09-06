@@ -155,12 +155,11 @@ async def test_parallel_evidence_snapshot_payload_hash_attachment():
 
     assert snap.payload_hash is not None
     assert len(snap.payload_hash) == 64
-    # Recompute to verify match
-    payload = {
-        "query": "Midnight Serenade jazz sync rights copyright owner 2026",
-        "max_results": 3,
-        "include_metadata": True,
-    }
+    # Recompute to verify match with Parallel API v1 V1SearchRequest
+    payload = service.build_request_payload(
+        query="Midnight Serenade jazz sync rights copyright owner 2026",
+        stable_lineage_key="music_cue_midnight_serenade",
+    )
     assert snap.payload_hash == service.compute_payload_hash(payload)
 
 

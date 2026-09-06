@@ -1,6 +1,26 @@
 # .gitignore
 output/*
 !output/.gitkeep
+!output/feature_freeze_manifest.json
+!output/cold_judge_report.json
+!output/submission_consistency_report.json
+!output/submission_freeze_manifest.json
+!output/submission_freeze_report.json
+!output/feature_freeze_report.json
+!output/dependency_license_audit.json
+!output/release_manifest.json
+!output/video_takes_log.json
+!output/rehearsal_report.json
+!output/recording_preflight_report.json
+!output/live_smoke_result.json
+!output/quality_gate_report.json
+!output/lienmark_pitch_subtitles.vtt
+!output/lienmark_pitch_subtitles.srt
+!output/lienmark_demo_en.vtt
+!output/lienmark_demo_en.srt
+!output/demo_promotion_log.json
+!output/demo_state.json
+!output/form_eo_2026_rehearsal.html
 backend/secrets/*
 !backend/secrets/.gitkeep
 node_modules/

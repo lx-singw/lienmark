@@ -1,0 +1,33 @@
+{
+    "status":  "SUCCESS",
+    "promoted_at":  "2026-09-06T07:40:42Z",
+    "source_environment":  "dev",
+    "source_project":  "lienmark-dev-lx-2026",
+    "target_environment":  "demo",
+    "target_project":  "lienmark-demo-lx-2026",
+    "region":  "us-central1",
+    "git_commit":  "46b3e6684eaa91b10afb2e53ec39f855e697377c",
+    "git_commit_short":  "46b3e66",
+    "services":  {
+                     "lienmark-api":  {
+                                          "source_digest":  "us-central1-docker.pkg.dev/lienmark-dev-lx-2026/lienmark-repo/lienmark-api@sha256:54261aa9e6b3bb1a006ce09a3dd5cd1cbbc154497afde9176594b1ee0d112c68",
+                                          "target_digest":  "us-central1-docker.pkg.dev/lienmark-demo-lx-2026/lienmark-repo/lienmark-api@sha256:54261aa9e6b3bb1a006ce09a3dd5cd1cbbc154497afde9176594b1ee0d112c68",
+                                          "sha256":  "sha256:54261aa9e6b3bb1a006ce09a3dd5cd1cbbc154497afde9176594b1ee0d112c68",
+                                          "digest_match":  true,
+                                          "candidate_revision":  "lienmark-api-candidate-dryrun",
+                                          "candidate_url":  "https://candidate---lienmark-api-dryrun.a.run.app",
+                                          "health_check":  "PASSED",
+                                          "traffic_percent":  100
+                                      },
+                     "lienmark-web":  {
+                                          "source_digest":  "us-central1-docker.pkg.dev/lienmark-dev-lx-2026/lienmark-repo/lienmark-web@sha256:4b40d1e84c86e8bd821e5b98ec70cd7725c2550007ddc964c4c8936c90d96c16",
+                                          "target_digest":  "us-central1-docker.pkg.dev/lienmark-demo-lx-2026/lienmark-repo/lienmark-web@sha256:4b40d1e84c86e8bd821e5b98ec70cd7725c2550007ddc964c4c8936c90d96c16",
+                                          "sha256":  "sha256:4b40d1e84c86e8bd821e5b98ec70cd7725c2550007ddc964c4c8936c90d96c16",
+                                          "digest_match":  true,
+                                          "candidate_revision":  "lienmark-web-candidate-dryrun",
+                                          "candidate_url":  "https://candidate---lienmark-web-dryrun.a.run.app",
+                                          "health_check":  "PASSED",
+                                          "traffic_percent":  100
+                                      }
+                 }
+}

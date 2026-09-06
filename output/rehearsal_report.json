@@ -1,0 +1,45 @@
+{
+  "rehearsal_id": "rehearsal_1788686286",
+  "status": "SUCCESS",
+  "timestamp": "2026-09-06T09:18:06.090606+00:00",
+  "policy_version": "E&O-2026.1-DEVPOST",
+  "project_id": "proj_blockbuster_cinema",
+  "base_version": "v7",
+  "target_version": "v8",
+  "cut_content_hash": "f9e8d7c6b5a43210fedcba9876543210",
+  "mathematical_reconciliation": {
+    "total_claims": 12,
+    "carried_forward_count": 10,
+    "reopened_count": 2,
+    "re_attested_count": 1,
+    "unresolved_exception_count": 1,
+    "conservation_equation_satisfied": true
+  },
+  "parallel_search_metrics": {
+    "budget_calls_executed": 2,
+    "carried_forward_calls_executed": 0,
+    "budget_reduction_percentage": 83.3
+  },
+  "counsel_audit_trail": {
+    "event_count": 2,
+    "is_ledger_valid": true,
+    "head_event_hash": "4adb0b9cef829b5c37a5e166832b8bc710ead16258490ee11648610f8aa15bc9"
+  },
+  "phase_timings_microsecond": {
+    "phase_1": 811.7000106722116,
+    "phase_2": 183.90000332146883,
+    "phase_3": 1310.399966314435,
+    "phase_4": 1829.999964684248,
+    "phase_5": 1915.7000351697206,
+    "phase_6": 452.1000082604587
+  },
+  "disclaimer_audit": {
+    "prohibited_phrases_checked": 10,
+    "prohibited_phrases_detected": 0,
+    "underwriting_status": "PENDING_REVIEW"
+  },
+  "artifacts": {
+    "html_schedule": "output\\form_eo_2026_rehearsal.html",
+    "report_json": "output\\rehearsal_report.json"
+  }
+}

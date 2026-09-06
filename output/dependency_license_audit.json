@@ -1,0 +1,282 @@
+{
+  "audit_name": "Lienmark Dependency & Open Source License Compliance Audit",
+  "sprint": "Sprint 5B",
+  "timestamp_utc": "2026-09-06T09:21:12.885701+00:00",
+  "compliance_status": "PASSED",
+  "verdict": "100% OSI-approved permissive licenses (MIT, Apache-2.0, BSD, ISC, PSF). Zero copyleft or non-commercial restrictions verified.",
+  "allowed_licenses": [
+    "Apache 2.0",
+    "Apache-2.0",
+    "BSD",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "MIT",
+    "PSF",
+    "PSF-2.0",
+    "Python-2.0"
+  ],
+  "summary": {
+    "total_packages": 24,
+    "permissive_count": 24,
+    "copyleft_count": 0,
+    "non_compliant_count": 0,
+    "compliance_percentage": 100.0,
+    "duration_seconds": 0.342
+  },
+  "backend_dependencies": [
+    {
+      "package": "fastapi",
+      "version_spec": "fastapi>=0.115.0",
+      "tier": "backend",
+      "detected_license": "MIT",
+      "spdx_identifier": "MIT",
+      "osi_approved": true,
+      "is_copyleft": false,
+      "status": "COMPLIANT"
+    },
+    {
+      "package": "uvicorn",
+      "version_spec": "uvicorn[standard]>=0.30.0",
+      "tier": "backend",
+      "detected_license": "BSD-3-Clause",
+      "spdx_identifier": "BSD-3-Clause",
+      "osi_approved": true,
+      "is_copyleft": false,
+      "status": "COMPLIANT"
+    },
+    {
+      "package": "pydantic",
+      "version_spec": "pydantic>=2.8.0",
+      "tier": "backend",
+      "detected_license": "MIT",
+      "spdx_identifier": "MIT",
+      "osi_approved": true,
+      "is_copyleft": false,
+      "status": "COMPLIANT"
+    },
+    {
+      "package": "pydantic-settings",
+      "version_spec": "pydantic-settings>=2.4.0",
+      "tier": "backend",
+      "detected_license": "MIT License",
+      "spdx_identifier": "MIT",
+      "osi_approved": true,
+      "is_copyleft": false,
+      "status": "COMPLIANT"
+    },
+    {
+      "package": "httpx",
+      "version_spec": "httpx>=0.27.0",
+      "tier": "backend",
+      "detected_license": "BSD-3-Clause",
+      "spdx_identifier": "BSD-3-Clause",
+      "osi_approved": true,
+      "is_copyleft": false,
+      "status": "COMPLIANT"
+    },
+    {
+      "package": "pytest",
+      "version_spec": "pytest>=8.0.0",
+      "tier": "backend",
+      "detected_license": "MIT",
+      "spdx_identifier": "MIT",
+      "osi_approved": true,
+      "is_copyleft": false,
+      "status": "COMPLIANT"
+    },
+    {
+      "package": "pytest-asyncio",
+      "version_spec": "pytest-asyncio>=0.23.0",
+      "tier": "backend",
+      "detected_license": "Apache-2.0",
+      "spdx_identifier": "Apache-2.0",
+      "osi_approved": true,
+      "is_copyleft": false,
+      "status": "COMPLIANT"
+    },
+    {
+      "package": "python-dotenv",
+      "version_spec": "python-dotenv>=1.0.1",
+      "tier": "backend",
+      "detected_license": "BSD-3-Clause",
+      "spdx_identifier": "BSD-3-Clause",
+      "osi_approved": true,
+      "is_copyleft": false,
+      "status": "COMPLIANT"
+    },
+    {
+      "package": "requests",
+      "version_spec": "requests>=2.32.0",
+      "tier": "backend",
+      "detected_license": "Apache-2.0",
+      "spdx_identifier": "Apache-2.0",
+      "osi_approved": true,
+      "is_copyleft": false,
+      "status": "COMPLIANT"
+    },
+    {
+      "package": "google-adk",
+      "version_spec": "google-adk>=2.8.0",
+      "tier": "backend",
+      "detected_license": "Apache Software License",
+      "spdx_identifier": "Apache-2.0",
+      "osi_approved": true,
+      "is_copyleft": false,
+      "status": "COMPLIANT"
+    },
+    {
+      "package": "google-genai",
+      "version_spec": "google-genai>=2.22.0",
+      "tier": "backend",
+      "detected_license": "Apache-2.0",
+      "spdx_identifier": "Apache-2.0",
+      "osi_approved": true,
+      "is_copyleft": false,
+      "status": "COMPLIANT"
+    },
+    {
+      "package": "google-cloud-firestore",
+      "version_spec": "google-cloud-firestore>=2.30.0",
+      "tier": "backend",
+      "detected_license": "Apache-2.0",
+      "spdx_identifier": "Apache-2.0",
+      "osi_approved": true,
+      "is_copyleft": false,
+      "status": "COMPLIANT"
+    },
+    {
+      "package": "google-cloud-aiplatform",
+      "version_spec": "google-cloud-aiplatform>=1.70.0",
+      "tier": "backend",
+      "detected_license": "Apache-2.0",
+      "spdx_identifier": "Apache-2.0",
+      "osi_approved": true,
+      "is_copyleft": false,
+      "status": "COMPLIANT"
+    }
+  ],
+  "frontend_dependencies": [
+    {
+      "package": "lucide-react",
+      "version_spec": "^0.475.0",
+      "dep_type": "production",
+      "tier": "frontend",
+      "detected_license": "ISC",
+      "spdx_identifier": "ISC",
+      "osi_approved": true,
+      "is_copyleft": false,
+      "status": "COMPLIANT"
+    },
+    {
+      "package": "next",
+      "version_spec": "^15.1.4",
+      "dep_type": "production",
+      "tier": "frontend",
+      "detected_license": "MIT",
+      "spdx_identifier": "MIT",
+      "osi_approved": true,
+      "is_copyleft": false,
+      "status": "COMPLIANT"
+    },
+    {
+      "package": "react",
+      "version_spec": "^19.0.0",
+      "dep_type": "production",
+      "tier": "frontend",
+      "detected_license": "MIT",
+      "spdx_identifier": "MIT",
+      "osi_approved": true,
+      "is_copyleft": false,
+      "status": "COMPLIANT"
+    },
+    {
+      "package": "react-dom",
+      "version_spec": "^19.0.0",
+      "dep_type": "production",
+      "tier": "frontend",
+      "detected_license": "MIT",
+      "spdx_identifier": "MIT",
+      "osi_approved": true,
+      "is_copyleft": false,
+      "status": "COMPLIANT"
+    },
+    {
+      "package": "@types/node",
+      "version_spec": "^20.17.0",
+      "dep_type": "dev",
+      "tier": "frontend",
+      "detected_license": "MIT",
+      "spdx_identifier": "MIT",
+      "osi_approved": true,
+      "is_copyleft": false,
+      "status": "COMPLIANT"
+    },
+    {
+      "package": "@types/react",
+      "version_spec": "^19.0.0",
+      "dep_type": "dev",
+      "tier": "frontend",
+      "detected_license": "MIT",
+      "spdx_identifier": "MIT",
+      "osi_approved": true,
+      "is_copyleft": false,
+      "status": "COMPLIANT"
+    },
+    {
+      "package": "@types/react-dom",
+      "version_spec": "^19.0.0",
+      "dep_type": "dev",
+      "tier": "frontend",
+      "detected_license": "MIT",
+      "spdx_identifier": "MIT",
+      "osi_approved": true,
+      "is_copyleft": false,
+      "status": "COMPLIANT"
+    },
+    {
+      "package": "autoprefixer",
+      "version_spec": "^10.4.20",
+      "dep_type": "dev",
+      "tier": "frontend",
+      "detected_license": "MIT",
+      "spdx_identifier": "MIT",
+      "osi_approved": true,
+      "is_copyleft": false,
+      "status": "COMPLIANT"
+    },
+    {
+      "package": "postcss",
+      "version_spec": "^8.4.49",
+      "dep_type": "dev",
+      "tier": "frontend",
+      "detected_license": "MIT",
+      "spdx_identifier": "MIT",
+      "osi_approved": true,
+      "is_copyleft": false,
+      "status": "COMPLIANT"
+    },
+    {
+      "package": "tailwindcss",
+      "version_spec": "^3.4.17",
+      "dep_type": "dev",
+      "tier": "frontend",
+      "detected_license": "MIT",
+      "spdx_identifier": "MIT",
+      "osi_approved": true,
+      "is_copyleft": false,
+      "status": "COMPLIANT"
+    },
+    {
+      "package": "typescript",
+      "version_spec": "^5.7.0",
+      "dep_type": "dev",
+      "tier": "frontend",
+      "detected_license": "Apache-2.0",
+      "spdx_identifier": "Apache-2.0",
+      "osi_approved": true,
+      "is_copyleft": false,
+      "status": "COMPLIANT"
+    }
+  ]
+}

@@ -713,8 +713,13 @@ class TestAttributionAndCitations:
             assert len(snapshot.raw_payload_hash) == 64
             assert sha256_regex.match(snapshot.raw_payload_hash) is not None
 
-            # Verify cryptographic hash of payload
-            expected_payload = {"query": q, "max_results": 3, "include_metadata": True}
+            # Verify cryptographic hash of payload conforming to Parallel API v1 V1SearchRequest
+            expected_payload = {
+                "objective": f"Clearance and intellectual property evidence verification for production asset '{key}': {q}",
+                "search_queries": [q],
+                "mode": "fast",
+                "max_chars_total": 4000,
+            }
             expected_serialized = json.dumps(expected_payload, sort_keys=True, separators=(",", ":"))
             expected_hash = hashlib.sha256(expected_serialized.encode("utf-8")).hexdigest()
             assert snapshot.raw_payload_hash == expected_hash

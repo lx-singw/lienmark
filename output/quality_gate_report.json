@@ -1,0 +1,97 @@
+{
+  "report_id": "qgate_1788613825",
+  "timestamp": "2026-09-05T13:10:25.882780+00:00",
+  "overall_status": "PASSED",
+  "overall_exit_code": 0,
+  "policy_version": "E&O-2026.1-DEVPOST",
+  "summary": {
+    "total_gates": 5,
+    "passed_gates": 5,
+    "failed_gates": 0,
+    "pass_rate_percentage": 100.0,
+    "total_duration_seconds": 88.641
+  },
+  "gates": {
+    "deterministic_ci": {
+      "name": "Deterministic Pytest Suite (Policy, Graph, Contracts, Export Reconciliation)",
+      "command": "pytest tests/ -m 'not live_smoke' -v",
+      "status": "PASSED",
+      "exit_code": 0,
+      "duration_seconds": 36.326,
+      "tests_total": 482,
+      "tests_passed": 482,
+      "tests_failed": 0,
+      "tests_skipped": 0,
+      "zero_skipped_core_path_verified": true,
+      "details": "482 passed, 0 failed, 0 skipped"
+    },
+    "rehearsal_verification": {
+      "name": "First Complete Rehearsal Harness (7 Phases, 6 Invariants)",
+      "command": "python scripts/run_rehearsal.py",
+      "status": "PASSED",
+      "exit_code": 0,
+      "duration_seconds": 2.852,
+      "conservation_equation_satisfied": true,
+      "claims_reconciliation": {
+        "total": 12,
+        "carried_forward": 10,
+        "reopened": 2,
+        "re_attested": 1,
+        "unresolved_exception": 1
+      },
+      "parallel_search_budget_calls": 2,
+      "counsel_audit_ledger_intact": true,
+      "prohibited_phrases_detected": 0,
+      "artifacts": [
+        "output\\rehearsal_report.json",
+        "output\\form_eo_2026_rehearsal.html"
+      ]
+    },
+    "live_smoke": {
+      "name": "Live Integration Smoke Runner (Roadmap \u00a710 Separation & Timestamp)",
+      "command": "python scripts/run_live_smoke.py",
+      "status": "PASSED",
+      "exit_code": 0,
+      "duration_seconds": 2.841,
+      "last_success_timestamp": "2026-09-05T13:09:39.164616Z",
+      "explicit_timestamp_verified": true,
+      "credentials_audit": {
+        "gemini": "CONFIGURED_MASKED",
+        "parallel": "CONFIGURED_MASKED",
+        "zero_leakage_verified": true
+      },
+      "benchmarks": {},
+      "artifacts": [
+        "output\\live_smoke_result.json"
+      ]
+    },
+    "frontend_build": {
+      "name": "Next.js 15 App Router Production Build Compilation",
+      "command": "wsl bash -c cd /home/lx_singw/projects/lienmark/frontend && npm run build",
+      "status": "PASSED",
+      "exit_code": 0,
+      "duration_seconds": 44.809,
+      "runner_mode": "WSL_UBUNTU",
+      "next_artifacts_verified": true,
+      "details": "Compiled successfully (Static & Dynamic SSR pages generated)"
+    },
+    "static_containment_audit": {
+      "name": "Static Model Containment & Python Syntax Compilation Audit",
+      "command": "compileall.compile_dir (backend, scripts)",
+      "status": "PASSED",
+      "exit_code": 0,
+      "duration_seconds": 1.74,
+      "python_syntax_clean": true,
+      "model_containment_verified": true
+    }
+  },
+  "invariants_certified": [
+    "All deterministic tests green with zero skipped core-path tests",
+    "Mathematical conservation: 12 = 10 carried + 1 re-attested + 1 unresolved exception",
+    "Parallel search budget <= 2 calls for 12 claims (83.3% savings)",
+    "Cryptographic SHA-256 event ledger chaining intact",
+    "Statutory non-binding disclaimer verified; zero prohibited certainty phrases",
+    "Next.js App Router compiles with 0 production build errors",
+    "Live smoke test verified with explicit last-success timestamp"
+  ]
+}

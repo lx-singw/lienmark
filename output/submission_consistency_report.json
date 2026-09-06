@@ -1,0 +1,128 @@
+{
+  "status": "CONSISTENT",
+  "discrepancies_count": 0,
+  "discrepancies": [],
+  "canonical_invariants": {
+    "title": "Lienmark \u2014 Clearance Change Control for E&O",
+    "tagline": "Detect clearance drift, selectively revalidate affected evidence, and keep sign-offs aligned with every production version.",
+    "track": "Parallel Track ($15,000 Prize Pool)",
+    "policy_version": "E&O-2026.1-DEVPOST",
+    "conservation_law": "12 = 10 + 1 + 1",
+    "query_reduction_ratio": "83.3%",
+    "pinned_rc_commit": "e022a4c8042c9552a307357cc138acfdd8552522"
+  },
+  "gates": [
+    {
+      "gate_id": "GATE_1_METADATA_PARITY",
+      "name": "Cross-Artifact Narrative & Metadata Parity",
+      "status": "PASSED",
+      "discrepancies": [],
+      "details": [
+        "Title verified in README.md",
+        "Title verified in docs/submission/devpost_submission.md",
+        "Title verified in docs/pitch_script.md",
+        "Title verified in frontend/app/layout.tsx",
+        "Tagline verified in README.md",
+        "Tagline verified in docs/submission/devpost_submission.md",
+        "Tagline verified in frontend/app/components/DashboardHeader.tsx",
+        "Tagline verified in backend/main.py (dashboard header)",
+        "Prize track verified in README.md",
+        "Prize track verified in docs/submission/devpost_submission.md",
+        "Prize track verified in docs/compliance/01_stage1_eligibility_gate.md",
+        "Prize track verified in docs/compliance/24_sprint_6c_feature_freeze_and_manifest.md"
+      ]
+    },
+    {
+      "gate_id": "GATE_2_MATHEMATICAL_INVARIANTS",
+      "name": "Mathematical Invariant Parity Across All 7 Surfaces",
+      "status": "PASSED",
+      "discrepancies": [],
+      "details": [
+        "Conservation law '12 = 10 + 1 + 1' verified in Surface 1: README.md",
+        "Conservation law '12 = 10 + 1 + 1' verified in Surface 2: Devpost Submission",
+        "Conservation law '12 = 10 + 1 + 1' verified in Surface 3: Pitch Script",
+        "Conservation law '12 = 10 + 1 + 1' verified in Surface 4: Public Media Manifest",
+        "Conservation law '12 = 10 + 1 + 1' verified in Surface 5: Rehearsal Harness",
+        "Conservation law '12 = 10 + 1 + 1' verified in Surface 6: Domain Fixtures",
+        "Conservation law '12 = 10 + 1 + 1' verified in Surface 7: Story Lock",
+        "Query reduction '83.3%' verified in README.md",
+        "Query reduction '83.3%' verified in Devpost Submission",
+        "Query reduction '83.3%' verified in Pitch Script",
+        "Query reduction '83.3%' verified in Rehearsal Harness",
+        "Drifted claims (Item 11 & Item 12) accurately identified in README.md",
+        "Drifted claims (Item 11 & Item 12) accurately identified in Devpost Submission",
+        "Drifted claims (Item 11 & Item 12) accurately identified in Pitch Script",
+        "Drifted claims (Item 11 & Item 12) accurately identified in Domain Fixtures"
+      ]
+    },
+    {
+      "gate_id": "GATE_3_POLICY_AND_RELEASE_LOCK",
+      "name": "Pinned Release Candidate & Policy Lock Parity",
+      "status": "PASSED",
+      "discrepancies": [],
+      "details": [
+        "Feature freeze manifest status is 'FROZEN'",
+        "Pinned commit SHA verified in manifest: e022a4c8042c9552a307357cc138acfdd8552522",
+        "Pinned commit SHA in devpost submission matches manifest exactly (e022a4c8042c9552a307357cc138acfdd8552522)",
+        "Policy version 'E&O-2026.1-DEVPOST' verified in backend/domain/models.py",
+        "Policy version 'E&O-2026.1-DEVPOST' verified in backend/core/invalidation_engine.py",
+        "Policy version 'E&O-2026.1-DEVPOST' verified in frontend/app/components/DashboardHeader.tsx",
+        "Policy version 'E&O-2026.1-DEVPOST' verified in frontend/app/layout.tsx",
+        "Policy version 'E&O-2026.1-DEVPOST' verified in README.md",
+        "Policy version 'E&O-2026.1-DEVPOST' verified in docs/submission/devpost_submission.md",
+        "Policy version 'E&O-2026.1-DEVPOST' verified in docs/compliance/24_sprint_6c_feature_freeze_and_manifest.md"
+      ]
+    },
+    {
+      "gate_id": "GATE_4_DOCUMENTATION_POINTERS",
+      "name": "Documentation Pointers & Reproduction Command Truth",
+      "status": "PASSED",
+      "discrepancies": [],
+      "details": [
+        "Verified executable script exists: scripts/run_quality_gate.py",
+        "Verified executable script exists: scripts/run_rehearsal.py",
+        "Verified executable script exists: scripts/run_live_smoke.py",
+        "Verified executable script exists: scripts/verify_feature_freeze.py",
+        "Verified executable script exists: scripts/record_take_harness.py",
+        "Verified executable script exists: scripts/verify_submission_consistency.py",
+        "Referenced path exists: LICENSE",
+        "Referenced path exists: backend/core/invalidation_engine.py",
+        "Referenced path exists: backend/core/security.py",
+        "Referenced path exists: backend/domain/models.py",
+        "Referenced path exists: backend/fixtures/golden_dataset.py",
+        "Referenced path exists: backend/main.py",
+        "Referenced path exists: backend/orchestration/workflow.py",
+        "Referenced path exists: backend/services/gemini_service.py",
+        "Referenced path exists: backend/services/parallel_service.py",
+        "Referenced path exists: scripts/record_take_harness.py",
+        "Referenced path exists: scripts/run_license_audit.py",
+        "Referenced path exists: scripts/run_live_smoke.py",
+        "Referenced path exists: scripts/run_quality_gate.py",
+        "Referenced path exists: scripts/run_rehearsal.py",
+        "Referenced path exists: scripts/verify_feature_freeze.py",
+        "Referenced path exists: scripts/verify_integrations.py",
+        "Referenced path exists: scripts/verify_submission_consistency.py",
+        "Referenced path exists: tests/"
+      ],
+      "total_paths_verified": 18
+    },
+    {
+      "gate_id": "GATE_5_STATUTORY_DISCLAIMERS",
+      "name": "Statutory Disclaimers & Prohibited Legal Certainty Audit",
+      "status": "PASSED",
+      "discrepancies": [],
+      "details": [
+        "Zero prohibited phrases detected in docs/submission/devpost_submission.md (0/23 matched)",
+        "Mandatory statutory underwriting disclaimer confirmed present in docs/submission/devpost_submission.md",
+        "Zero prohibited phrases detected in README.md (0/23 matched)",
+        "Mandatory statutory underwriting disclaimer confirmed present in README.md",
+        "Zero prohibited phrases detected in docs/pitch_script.md (0/23 matched)",
+        "Mandatory statutory underwriting disclaimer confirmed present in docs/pitch_script.md"
+      ],
+      "prohibited_phrases_checked": 23
+    }
+  ],
+  "elapsed_seconds": 1.299,
+  "timestamp": "2026-09-06T09:18:07.798782+00:00",
+  "verified_by": "Linda Singwane (lx-singw), Lead Systems Architect & Verification Suite"
+}

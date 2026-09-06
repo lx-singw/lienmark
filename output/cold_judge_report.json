@@ -1,0 +1,117 @@
+{
+  "status": "COLD_JUDGE_PASSED",
+  "timestamp": "2026-09-05T17:44:23.784143+00:00",
+  "gates_evaluated": 7,
+  "discrepancies": 0,
+  "auditor_persona": "Cold Judge / Unfamiliar Hackathon Evaluator",
+  "summary": {
+    "all_gates_passed": true,
+    "total_execution_seconds": 11.381,
+    "evaluated_gates": [
+      "GATE_1_PUBLIC_ACCESSIBILITY",
+      "GATE_2_SETUP_QUICKSTART",
+      "GATE_3_SECRET_SUPPRESSION",
+      "GATE_4_BROKEN_LINKS",
+      "GATE_5_VIDEO_SUBTITLES",
+      "GATE_6_LICENSE_VISIBILITY",
+      "GATE_7_STATUTORY_DISCLAIMERS"
+    ]
+  },
+  "gates": [
+    {
+      "gate_id": "GATE_1_PUBLIC_ACCESSIBILITY",
+      "name": "Hosted & Public Endpoint Accessibility",
+      "status": "PASSED",
+      "discrepancies": [],
+      "details": [
+        "Unauthenticated GET '/' -> HTTP 200 (Responsive Reviewer/Judge Dashboard HTML)",
+        "Unauthenticated GET '/api/health' -> HTTP 200 (status: healthy)",
+        "Verified 0 raw credentials in health check telemetry (100% masked/redacted)",
+        "Unauthenticated GET '/api/fixtures' -> HTTP 200 (Golden fixtures accessible without auth)",
+        "Unauthenticated GET '/report/proj_blockbuster_cinema' -> HTTP 200 (Form E&O-2026 SSR Printable Schedule)",
+        "Unauthenticated GET '/api/reports/form-eo-2026/html' -> HTTP 200 (Form E&O-2026 HTML Report)",
+        "Zero authentication barriers detected: incognito cold judge can review all reports and fixtures"
+      ],
+      "duration_seconds": 1.533
+    },
+    {
+      "gate_id": "GATE_2_SETUP_QUICKSTART",
+      "name": "Setup Instructions & Quickstart Reproduction",
+      "status": "PASSED",
+      "discrepancies": [],
+      "details": [
+        "python scripts/run_rehearsal.py succeeded (exit 0, 1.694s)",
+        "python scripts/verify_submission_consistency.py succeeded (exit 0, 1.38s, status: CONSISTENT)"
+      ],
+      "duration_seconds": 3.1
+    },
+    {
+      "gate_id": "GATE_3_SECRET_SUPPRESSION",
+      "name": "Secret Suppression & PII Redaction Audit",
+      "status": "PASSED",
+      "discrepancies": [],
+      "details": [
+        "Scanned 243 tracked repository files across backend, frontend, docs, and config",
+        "Confirms 0 leaked Google/Gemini API keys, 0 OpenAI/Parallel keys, 0 private keys, 0 unmasked secrets"
+      ],
+      "files_scanned": 243,
+      "duration_seconds": 5.882
+    },
+    {
+      "gate_id": "GATE_4_BROKEN_LINKS",
+      "name": "Broken Link & Phantom File Audit",
+      "status": "PASSED",
+      "discrepancies": [],
+      "details": [
+        "Parsed and validated 30 local links and media references across 4 core documents",
+        "100% of referenced local files, scripts, diagrams, and assets verified to exist on disk (0 broken links)"
+      ],
+      "total_links_checked": 30,
+      "duration_seconds": 0.217
+    },
+    {
+      "gate_id": "GATE_5_VIDEO_SUBTITLES",
+      "name": "Video Timing & Subtitle Track Validation",
+      "status": "PASSED",
+      "discrepancies": [],
+      "details": [
+        "Pitch script target runtime is 165s (2:45) with a 15s safety buffer before the 180s (3:00) Devpost hard cutoff",
+        "Verified WebVTT track docs/subtitles/lienmark_demo_en.vtt (valid header, 17 cues)",
+        "Verified WebVTT track output/lienmark_pitch_subtitles.vtt (valid header, 17 cues)",
+        "Verified SRT track docs/subtitles/lienmark_demo_en.srt (17 cues, standard SRT format)",
+        "Verified SRT track output/lienmark_pitch_subtitles.srt (17 cues, standard SRT format)",
+        "output/video_takes_log.json confirms 3/3 clean nominal pitch takes completed within 165s"
+      ],
+      "duration_seconds": 0.11
+    },
+    {
+      "gate_id": "GATE_6_LICENSE_VISIBILITY",
+      "name": "OSI-Approved License Visibility Audit",
+      "status": "PASSED",
+      "discrepancies": [],
+      "details": [
+        "Root LICENSE verified on disk: approved OSI permissive license (MIT)",
+        "README.md references OSI-approved MIT license (badge, section, and file link)",
+        "Verified package.json (frontend\\package.json) specifies license 'MIT'",
+        "dependency_license_audit verified: 100% permissive (20/20 packages, 0 copyleft/GPL)"
+      ],
+      "duration_seconds": 0.098
+    },
+    {
+      "gate_id": "GATE_7_STATUTORY_DISCLAIMERS",
+      "name": "Statutory Non-Binding Disclaimer & Prohibited Certainty Audit",
+      "status": "PASSED",
+      "discrepancies": [],
+      "details": [
+        "Zero affirmative prohibited certainty occurrences across 7 core artifacts (0/23 matched)",
+        "Statutory underwriter decision-support disclaimer confirmed in README.md",
+        "Statutory underwriter decision-support disclaimer confirmed in Devpost Submission",
+        "Statutory underwriter decision-support disclaimer confirmed in Invalidation & Schedule SSR Engine"
+      ],
+      "prohibited_phrases_checked": 23,
+      "duration_seconds": 0.439
+    }
+  ],
+  "verified_by": "Linda Singwane (lx-singw), Lead Systems Architect & Cold Judge Suite",
+  "repo_root": "\\\\wsl$\\Ubuntu\\home\\lx_singw\\projects\\lienmark"
+}

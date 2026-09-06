@@ -1,0 +1,137 @@
+{
+  "status": "THREE_CLEAN_RUNS_VERIFIED",
+  "timestamp": "2026-09-05T12:50:11.409790+00:00",
+  "milestone": "Phase 6 Story, Video, and Freeze — Sprint 6C",
+  "roadmap_reference": "docs/winning/04-build-roadmap.md §11 Phase 6 Sprint 6C",
+  "policy_version": "E&O-2026.1-DEVPOST",
+  "overall_verdict": "THREE_CLEAN_RUNS_VERIFIED",
+  "total_takes_executed": 3,
+  "successful_takes_count": 3,
+  "failed_takes_count": 0,
+  "total_harness_compute_seconds": 0.0755,
+  "audio_video_specifications": {
+    "video": {
+      "resolution": "1920x1080",
+      "framerate": "60fps",
+      "aspect_ratio": "16:9",
+      "color_space": "Rec.709",
+      "video_codec": "H.264 / AVC",
+      "container": "MP4",
+      "ui_zoom": "110%",
+      "theme": "High-Contrast Studio"
+    },
+    "audio": {
+      "integrated_loudness": "-14 LUFS",
+      "target_standard": "EBU R128 / ITU-R BS.1770-4",
+      "true_peak": "-1.0 dBFS",
+      "loudness_range": "6 LU",
+      "channels": "Stereo (2.0)",
+      "sample_rate": "48000 Hz",
+      "audio_codec": "AAC-LC / 320 kbps"
+    }
+  },
+  "demonstration_invariants": {
+    "mathematical_conservation_law": "12 = 10 + 1 + 1",
+    "parallel_search_calls": 2,
+    "parallel_search_reduction_percentage": 83.3,
+    "sub_second_local_compute_guaranteed": true,
+    "target_video_duration_seconds": 165,
+    "target_word_count": 348,
+    "clearance_counsel": "Sarah Jenkins, Esq.",
+    "zero_state_leakage": true
+  },
+  "takes": [
+    {
+      "take_id": "take_01_nominal",
+      "name": "Take 1 (Nominal Pitch Take)",
+      "status": "PASS",
+      "narrative_flow": "Pristine V7 Baseline -> V8 Dual Drift -> Parallel Search -> Sarah Jenkins Review -> Form E&O-2026",
+      "target_video_duration_seconds": 165,
+      "execution_compute_seconds": 0.0031,
+      "execution_compute_ms": 3.14,
+      "sub_second_compute": true,
+      "conservation_law": "12 = 10 + 1 + 1",
+      "conservation_metrics": {
+        "total_claims": 12,
+        "carried_forward": 10,
+        "reopened": 2,
+        "re_attested": 1,
+        "unresolved_exceptions": 1
+      },
+      "parallel_search_telemetry": {
+        "planned_queries": 2,
+        "skipped_queries": 10,
+        "query_reduction_percentage": 83.3,
+        "attributable_sources": [
+          "cocatalog.loc.gov (US Copyright Historical Catalog)",
+          "ascap.com (ASCAP ACE Repertory)"
+        ]
+      },
+      "counsel_adjudication": {
+        "reviewer": "Sarah Jenkins, Esq.",
+        "item_11_action": "RE_ATTEST (Public Domain)",
+        "item_12_action": "REJECT (Warranty Exception)"
+      }
+    },
+    {
+      "take_id": "take_02_rehearsal",
+      "name": "Take 2 (Dynamic Rehearsal Take)",
+      "status": "PASS",
+      "narrative_flow": "Take Reset -> Simulated Presenter Pause -> Fast Review -> SSR HTML Export Parity Check",
+      "target_video_duration_seconds": 165,
+      "execution_compute_seconds": 0.068,
+      "execution_compute_ms": 68.0,
+      "sub_second_compute": true,
+      "simulated_pause_ms": 50,
+      "state_leakage_detected": false,
+      "conservation_law": "12 = 10 + 1 + 1",
+      "conservation_metrics": {
+        "total_claims": 12,
+        "carried_forward": 10,
+        "reopened": 2,
+        "re_attested": 1,
+        "unresolved_exceptions": 1
+      },
+      "export_parity": {
+        "ssr_html_rendered": true,
+        "prohibited_phrases_count": 0,
+        "carrier_status": "PENDING_REVIEW",
+        "policy_version": "E&O-2026.1-DEVPOST"
+      }
+    },
+    {
+      "take_id": "take_03_gold",
+      "name": "Take 3 (Release Candidate Gold Take)",
+      "status": "PASS",
+      "narrative_flow": "Fresh Session -> E2E Execution -> SHA-256 Cryptographic Audit Ledger Proof -> Runtime Envelope Validation",
+      "target_video_duration_seconds": 165,
+      "execution_compute_seconds": 0.0041,
+      "execution_compute_ms": 4.1,
+      "sub_second_compute": true,
+      "sha256_ledger_integrity": {
+        "is_valid": true,
+        "tampered_event_id": null,
+        "chained_event_count": 2,
+        "root_event_hash": "59046006be354813fc79b8d8fc996bf1edfd099398e68f94486a3cd87b281ca5",
+        "head_event_hash": "3265796f079ca7e547fc236da020ed447f847ea9d2a307decf93108265acb911",
+        "cryptographic_algorithm": "SHA-256"
+      },
+      "conservation_law": "12 = 10 + 1 + 1",
+      "conservation_metrics": {
+        "total_claims": 12,
+        "carried_forward": 10,
+        "reopened": 2,
+        "re_attested": 1,
+        "unresolved_exceptions": 1
+      },
+      "timing_envelope": {
+        "runtime_seconds": 165,
+        "formatted_runtime": "2:45",
+        "max_threshold_seconds": 170,
+        "min_threshold_seconds": 150,
+        "safety_buffer_seconds": 15,
+        "words_per_minute": 126.5
+      }
+    }
+  ]
+}

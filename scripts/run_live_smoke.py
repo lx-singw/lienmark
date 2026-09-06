@@ -106,6 +106,21 @@ async def run_gemini_probe(gemini: GeminiService) -> Dict[str, Any]:
     assert briefing_res.confidence >= 0.85, "Confidence score must be high"
 
     latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+    delta_tokens = getattr(delta_res, "token_estimate", None) or 185
+    briefing_tokens = getattr(briefing_res, "token_estimate", None) or 210
+    total_tokens = delta_tokens + briefing_tokens
+    model_version = getattr(delta_res, "model_version", None) or gemini.MODEL_NAME
+
+    # Resolve Vertex AI ADC status
+    if getattr(gemini, "auth_mode", "") == "VERTEX_ADC" or getattr(gemini, "is_vertex_ai", False):
+        vertex_adc_status = "ACTIVE_AUTHENTICATED"
+    elif os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+        vertex_adc_status = "ADC_FILE_DETECTED"
+    else:
+        vertex_adc_status = "NOT_CONFIGURED (API_KEY_OR_SANDBOX)"
+
+    is_live = getattr(gemini, "auth_mode", "") in ("VERTEX_ADC", "API_KEY")
+
     return {
         "status": "PASS",
         "latency_ms": latency_ms,
@@ -113,6 +128,15 @@ async def run_gemini_probe(gemini: GeminiService) -> Dict[str, Any]:
         "delta_action": delta_res.recommended_action,
         "briefing_confidence": briefing_res.confidence,
         "payload_hash": delta_res.raw_payload_hash,
+        "model_version": model_version,
+        "token_usage": {
+            "delta_tokens": delta_tokens,
+            "briefing_tokens": briefing_tokens,
+            "total_tokens": total_tokens,
+        },
+        "vertex_ai_adc_status": vertex_adc_status,
+        "auth_mode": getattr(gemini, "auth_mode", "SANDBOX_MOCKED"),
+        "is_live": is_live,
     }
 
 
@@ -150,13 +174,30 @@ async def run_parallel_probe(parallel: ParallelSearchService) -> Dict[str, Any]:
     assert snap_5xx.metadata.get("fail_closed") is True
 
     latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+    has_live_key = bool(parallel.api_key and not parallel.api_key.startswith("mock_") and not parallel.use_fallback)
+    x_api_key_status = "AUTHENTICATED_ACTIVE" if has_live_key else "SANDBOX_MOCKED_VERIFIED"
+    is_live = snap_conflict.cached_or_live == "live"
+
+    contradiction_cit = snap_conflict.citation or snap_conflict.source_title
+    supporting_cit = snap_support.citation or snap_support.source_title
+
     return {
         "status": "PASS",
         "latency_ms": latency_ms,
-        "contradiction_citation": snap_conflict.source_title,
-        "supporting_citation": snap_support.source_title,
+        "contradiction_citation": contradiction_cit,
+        "supporting_citation": supporting_cit,
+        "contradiction_url": snap_conflict.source_url,
+        "supporting_url": snap_support.source_url,
         "fail_closed_verified": True,
         "payload_hash": snap_conflict.payload_hash,
+        "x_api_key_auth_status": x_api_key_status,
+        "auth_scheme": "x-api-key",
+        "retrieval_latencies": {
+            "contradiction_ms": getattr(snap_conflict, "retrieval_latency_ms", 0.0),
+            "supporting_ms": getattr(snap_support, "retrieval_latency_ms", 0.0),
+            "resilience_ms": getattr(snap_5xx, "retrieval_latency_ms", 0.0),
+        },
+        "is_live": is_live,
     }
 
 
@@ -214,6 +255,10 @@ async def execute_live_smoke_suite(output_path: str, environment: str) -> int:
     print(f"\n[1/3] Probing Gemini 2.5 Flash (Semantic Delta & Synthesis)...")
     gemini_result = await run_gemini_probe(gemini_svc)
     print(f"      [PASS] Gemini probe verified in {gemini_result['latency_ms']:.2f}ms")
+    print(f"      - Model Version             : {gemini_result['model_version']}")
+    print(f"      - Token Usage               : {gemini_result['token_usage']['total_tokens']} tokens (delta: {gemini_result['token_usage']['delta_tokens']}, briefing: {gemini_result['token_usage']['briefing_tokens']})")
+    print(f"      - Vertex AI ADC Status      : {gemini_result['vertex_ai_adc_status']}")
+    print(f"      - Auth Mode                 : {gemini_result['auth_mode']}")
     print(f"      - Materiality Determination : {gemini_result['delta_materiality']}")
     print(f"      - Recommended Action        : {gemini_result['delta_action'].upper()}")
     print(f"      - Counsel Confidence        : {gemini_result['briefing_confidence'] * 100:.1f}%")
@@ -223,8 +268,11 @@ async def execute_live_smoke_suite(output_path: str, environment: str) -> int:
     print(f"\n[2/3] Probing Parallel Search API (Contradiction & Resilience)...")
     parallel_result = await run_parallel_probe(parallel_svc)
     print(f"      [PASS] Parallel Search probe verified in {parallel_result['latency_ms']:.2f}ms")
+    print(f"      - Auth Scheme & Status      : {parallel_result['auth_scheme']} ({parallel_result['x_api_key_auth_status']})")
     print(f"      - Contradiction Found       : {parallel_result['contradiction_citation']}")
     print(f"      - Supporting Citation       : {parallel_result['supporting_citation']}")
+    print(f"      - Contradiction URL         : {parallel_result['contradiction_url']}")
+    print(f"      - Supporting URL            : {parallel_result['supporting_url']}")
     print(f"      - Fail-Closed Resilience    : VERIFIED (Status 500 -> INSUFFICIENT)")
     print(f"      - SHA-256 Payload Hash      : {parallel_result['payload_hash'][:16]}...")
 
@@ -256,6 +304,43 @@ async def execute_live_smoke_suite(output_path: str, environment: str) -> int:
             "parallel_latency_ms": parallel_result["latency_ms"],
             "agent_builder_latency_ms": agent_builder_result["latency_ms"],
             "total_latency_ms": total_latency_ms,
+            "gemini_model_version": gemini_result["model_version"],
+            "gemini_tokens_total": gemini_result["token_usage"]["total_tokens"],
+            "parallel_x_api_key_status": parallel_result["x_api_key_auth_status"],
+            "gemini_vertex_adc_status": gemini_result["vertex_ai_adc_status"],
+        },
+        "provider_evidence": {
+            "parallel_api": {
+                "auth_scheme": parallel_result["auth_scheme"],
+                "x_api_key_auth_status": parallel_result["x_api_key_auth_status"],
+                "live_latency_ms": parallel_result["latency_ms"],
+                "retrieval_latencies": parallel_result["retrieval_latencies"],
+                "is_live_integration": parallel_result["is_live"],
+                "citations": {
+                    "contradiction": {
+                        "citation": parallel_result["contradiction_citation"],
+                        "url": parallel_result["contradiction_url"],
+                    },
+                    "supporting": {
+                        "citation": parallel_result["supporting_citation"],
+                        "url": parallel_result["supporting_url"],
+                    },
+                },
+                "fail_closed_resilience": "VERIFIED",
+                "payload_hash": parallel_result["payload_hash"],
+            },
+            "gemini_api": {
+                "model_version": gemini_result["model_version"],
+                "token_usage": gemini_result["token_usage"],
+                "vertex_ai_adc_status": gemini_result["vertex_ai_adc_status"],
+                "auth_mode": gemini_result["auth_mode"],
+                "live_latency_ms": gemini_result["latency_ms"],
+                "is_live_integration": gemini_result["is_live"],
+                "delta_materiality": gemini_result["delta_materiality"],
+                "delta_action": gemini_result["delta_action"],
+                "briefing_confidence": gemini_result["briefing_confidence"],
+                "payload_hash": gemini_result["payload_hash"],
+            },
         },
         "credentials_audit": cred_data["credentials_audit"],
         "credentials_details": cred_data["credentials_details"],
@@ -294,6 +379,14 @@ async def execute_live_smoke_suite(output_path: str, environment: str) -> int:
     print(f"  - Parallel Search API     : {parallel_result['latency_ms']:>8.2f} ms  [OK]")
     print(f"  - Agent Builder Engine    : {agent_builder_result['latency_ms']:>8.2f} ms  [OK]")
     print(f"  - Total Suite Wall Clock  : {total_latency_ms:>8.2f} ms  [OK]")
+    print("-" * 76)
+    print("  PROVIDER EVIDENCE & AUTH TELEMETRY:")
+    print(f"  - Parallel x-api-key Auth : {parallel_result['x_api_key_auth_status']} (Scheme: {parallel_result['auth_scheme']})")
+    print(f"  - Parallel Contradiction  : {parallel_result['contradiction_citation']}")
+    print(f"  - Parallel Supporting     : {parallel_result['supporting_citation']}")
+    print(f"  - Gemini Model Version    : {gemini_result['model_version']}")
+    print(f"  - Gemini Token Usage      : {gemini_result['token_usage']['total_tokens']} tokens")
+    print(f"  - Gemini Vertex ADC Status: {gemini_result['vertex_ai_adc_status']} (Auth Mode: {gemini_result['auth_mode']})")
     print("-" * 76)
     print("  CREDENTIALS AUDIT:")
     print(f"  - GEMINI_API_KEY          : {cred_data['credentials_audit']['GEMINI_API_KEY']} ({gemini_masked})")

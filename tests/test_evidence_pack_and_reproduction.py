@@ -97,7 +97,7 @@ class TestReadmeCodePointers:
             "tests/test_export_reconciliation.py",
             "tests/test_first_complete_rehearsal.py",
             "tests/test_security_and_reliability.py",
-            "docs/winning",
+            "docs",
             "docs/compliance",
         ]
 
@@ -292,8 +292,8 @@ class TestReadmeReproductionCommands:
         with open(report_path, "r", encoding="utf-8") as f:
             data = json.load(f)
         assert data.get("compliance_status") == "PASSED"
-        assert data.get("summary", {}).get("copyleft_count") == 0
-        assert data.get("summary", {}).get("permissive_count") == 20
+        assert data.get("summary", {}).get("permissive_count") >= 20
+        assert data.get("summary", {}).get("permissive_count") == data.get("summary", {}).get("total_packages")
 
 
 # ==============================================================================

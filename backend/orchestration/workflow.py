@@ -72,11 +72,13 @@ class LienmarkWorkflow:
         parallel_service: Optional[ParallelSearchService] = None,
         revalidation_planner: Optional[RevalidationPlanner] = None,
         evidence_reconciler: Optional[EvidenceReconciler] = None,
+        adk_pipeline: Optional[Any] = None,
     ):
         self.gemini = gemini_service or GeminiService()
         self.parallel = parallel_service or ParallelSearchService()
         self.revalidation_planner = revalidation_planner or RevalidationPlanner()
         self.evidence_reconciler = evidence_reconciler or EvidenceReconciler()
+        self._adk_pipeline = adk_pipeline
 
 
     async def execute_drift_detection(
@@ -295,5 +297,27 @@ class LienmarkWorkflow:
             total_duration_ms=total_duration,
             revalidation_plan=revalidation_plan,
             reconciliation_results=reconciliation_results,
+        )
+
+    async def execute_adk_workflow(
+        self,
+        contracts: Optional[List[ContractAgreement]] = None,
+        force_offline: bool = False,
+    ) -> WorkflowRunResult:
+        """
+        Executes the clearance change control workflow via Google ADK & Agent Builder pipeline.
+        Provides dual-mode execution (live Runner when credentials exist, resilient offline fallback).
+        """
+        if self._adk_pipeline is None:
+            from backend.orchestration.adk_pipeline import ADKClearancePipeline
+            self._adk_pipeline = ADKClearancePipeline(
+                gemini_service=self.gemini,
+                parallel_service=self.parallel,
+                revalidation_planner=self.revalidation_planner,
+                evidence_reconciler=self.evidence_reconciler,
+            )
+        return await self._adk_pipeline.execute(
+            contracts=contracts,
+            force_offline=force_offline,
         )
 

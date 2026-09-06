@@ -13,7 +13,9 @@ Tests:
 Authored strictly under Google AntiGravity for Agentic Cinema compliance.
 """
 
+import json
 import pytest
+import httpx
 from backend.domain.models import (
     ChangeKind,
     ContractAgreement,
@@ -556,6 +558,118 @@ class TestParallelSearchServiceEnhancements:
         )
         assert snap_429.stance == EvidenceStance.INSUFFICIENT
         assert snap_429.http_status == 429
+
+    @pytest.mark.asyncio
+    async def test_parallel_search_v1_specification_headers_and_payload_schema(self, monkeypatch):
+        """
+        Targeted test verifying conformance with official Parallel Search API v1 specification:
+        1. Authentication Header: 'x-api-key: <api_key>' (with graceful fallback to Bearer if specified).
+        2. Request Body: Conforms strictly to V1SearchRequest schema:
+           {
+               "objective": f"Clearance and intellectual property evidence verification for production asset '{stable_lineage_key}': {query}",
+               "search_queries": [query],
+               "mode": "fast",
+               "max_chars_total": 4000
+           }
+        3. Response Handling: Conforms to V1SearchResponse (url, title, publish_date, excerpts: List[str]).
+        4. Excerpt parsing: " ".join(top_hit.get("excerpts", [])) or top_hit.get("excerpt", "").
+        5. Extraction of search_id / session_id as provider call tracking ID.
+        6. Mock fixture generator emits excerpts list matching this exact schema.
+        """
+        service = ParallelSearchService(api_key="live_parallel_api_key_443")
+
+        # 1. Verify default authentication header uses x-api-key and NOT Authorization
+        default_headers = service.build_headers()
+        assert default_headers["x-api-key"] == "live_parallel_api_key_443"
+        assert "Authorization" not in default_headers
+        assert default_headers["Content-Type"] == "application/json"
+
+        # 2. Verify graceful fallback to Authorization: Bearer if specified
+        bearer_headers = service.build_headers(auth_scheme="bearer")
+        assert bearer_headers["Authorization"] == "Bearer live_parallel_api_key_443"
+        assert "x-api-key" not in bearer_headers
+        assert bearer_headers["Content-Type"] == "application/json"
+
+        # 3. Verify V1SearchRequest payload structure
+        query = "Midnight Serenade jazz sync rights copyright owner 2026"
+        key = "music_cue_midnight_serenade"
+        payload = service.build_request_payload(query=query, stable_lineage_key=key)
+        assert payload == {
+            "objective": f"Clearance and intellectual property evidence verification for production asset '{key}': {query}",
+            "search_queries": [query],
+            "mode": "fast",
+            "max_chars_total": 4000,
+        }
+
+        # 4. Mock live httpx client post to verify wire-level dispatch
+        captured_requests = []
+
+        async def mock_post(client_self, url, *args, **kwargs):
+            captured_requests.append({
+                "url": str(url),
+                "headers": kwargs.get("headers", {}),
+                "json": kwargs.get("json", {}),
+            })
+            mock_resp_data = {
+                "search_id": "search_live_v1_001",
+                "session_id": "session_live_v1_001",
+                "results": [
+                    {
+                        "url": "https://ascap.com/ace-title-search/midnight-serenade-9921",
+                        "title": "ASCAP ACE Repertory & Billboard Rights Bulletin",
+                        "publish_date": "2026-08-25",
+                        "excerpts": [
+                            "Worldwide exclusive synchronization rights assigned August 2026 to Vanguard Media Holdings LLC.",
+                            "European copyright extension currently disputed by publisher.",
+                        ],
+                    }
+                ],
+            }
+            return httpx.Response(200, json=mock_resp_data, request=httpx.Request("POST", url))
+
+        monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
+
+        snapshot = await service.search(
+            query=query,
+            use_id="use_v8_music_midnight",
+            stable_lineage_key=key,
+            use_fallback=False,
+        )
+
+        assert len(captured_requests) == 1
+        req = captured_requests[0]
+        assert req["url"] == "https://api.parallel.ai/v1/search"
+        assert req["headers"]["x-api-key"] == "live_parallel_api_key_443"
+        assert "Authorization" not in req["headers"]
+        assert req["json"]["search_queries"] == [query]
+        assert req["json"]["mode"] == "fast"
+        assert req["json"]["max_chars_total"] == 4000
+        assert req["json"]["objective"] == payload["objective"]
+
+        # 5. Verify response handling and excerpt parsing
+        assert snapshot.provider == "Parallel"
+        assert snapshot.provider_call_id in ("search_live_v1_001", "session_live_v1_001")
+        assert snapshot.metadata["search_id"] == "search_live_v1_001"
+        assert snapshot.metadata["session_id"] == "session_live_v1_001"
+        assert snapshot.metadata["publish_date"] == "2026-08-25"
+        assert isinstance(snapshot.metadata["excerpts"], list)
+        assert len(snapshot.metadata["excerpts"]) == 2
+        assert snapshot.excerpt == (
+            "Worldwide exclusive synchronization rights assigned August 2026 to Vanguard Media Holdings LLC. "
+            "European copyright extension currently disputed by publisher."
+        )
+
+        # 6. Verify fallback fixture generator emits excerpts list matching v1 schema
+        fb_service = ParallelSearchService(use_fallback=True)
+        fb_snapshot = await fb_service.search(
+            query=query,
+            use_id="use_v8_music_midnight",
+            stable_lineage_key=key,
+        )
+        assert isinstance(fb_snapshot.metadata.get("excerpts"), list)
+        assert len(fb_snapshot.metadata["excerpts"]) == 2
+        assert fb_snapshot.excerpt == " ".join(fb_snapshot.metadata["excerpts"])
+        assert fb_snapshot.provider_call_id.startswith("search_")
 
 
 # =====================================================================

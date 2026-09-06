@@ -821,6 +821,66 @@ async def run_drift_analysis(
     return data
 
 
+class ADKWorkflowRequest(BaseModel):
+    base_version: str = "v7"
+    target_version: str = "v8"
+    use_fallback: bool = False
+    force_offline: bool = False
+
+
+@app.post("/api/adk/clearance-workflow")
+async def run_adk_clearance_workflow_endpoint(
+    http_req: Request = None,
+    payload: Optional[ADKWorkflowRequest] = Body(None),
+):
+    """
+    Executes the clearance change control workflow via Google Cloud Agent Builder & ADK pipeline.
+    Preserves session scoping, enforces spend guard limits, and outputs standard WorkflowRunResult schema.
+    """
+    global _latest_run_result, _counsel_reattestations
+    session_id = get_session_id(http_req)
+
+    # Increment environment-wide API call counter
+    env = (os.getenv("ENVIRONMENT") or "development").lower().strip()
+    try:
+        counsel_checkpoint_manager.storage.increment_usage_counter(env, "api_calls")
+    except Exception as e:
+        logger.warning(f"Failed to increment usage counter: {e}")
+
+    req = payload or ADKWorkflowRequest()
+    force_offline = req.force_offline or req.use_fallback
+
+    spend_guard_status = None
+    spend_guard_message = None
+    if session_id and spend_guard_manager.is_limit_exceeded(session_id):
+        force_offline = True
+        spend_guard_status = "LIMIT_EXCEEDED"
+        spend_guard_message = "Spend allowance reached for current period. Running in verified sandbox mode."
+
+    from backend.orchestration.adk_pipeline import run_adk_clearance_workflow
+
+    result = await run_adk_clearance_workflow(
+        use_fallback=force_offline,
+    )
+    _latest_run_result = result
+    if session_id in (counsel_checkpoint_manager.DEFAULT_SESSION_ID, "default_session"):
+        _counsel_reattestations.clear()
+    if session_id in _session_reattestations:
+        _session_reattestations[session_id].clear()
+
+    data: Dict[str, Any] = {
+        "status": "success",
+        "orchestrator": "Google Cloud Agent Builder / ADK",
+        "workflow_result": result.model_dump(),
+        "session_id": session_id,
+    }
+    if spend_guard_status:
+        data["spend_guard_status"] = spend_guard_status
+        data["spend_guard_message"] = spend_guard_message
+
+    return data
+
+
 @app.get("/api/review/queue")
 def get_review_queue(target_version: str = "v8", http_req: Request = None):
     """

@@ -425,11 +425,12 @@ class TestParallelSearchLiveSmoke:
         # Cryptographic payload hash verification
         assert snapshot.payload_hash is not None
         assert len(snapshot.payload_hash) == 64
-        expected_hash = service.compute_payload_hash({
-            "query": "Midnight Serenade jazz sync rights copyright owner 2026",
-            "max_results": 3,
-            "include_metadata": True,
-        })
+        expected_hash = service.compute_payload_hash(
+            service.build_request_payload(
+                query="Midnight Serenade jazz sync rights copyright owner 2026",
+                stable_lineage_key="music_cue_midnight_serenade",
+            )
+        )
         assert snapshot.payload_hash == expected_hash
 
     @pytest.mark.live_smoke
@@ -457,11 +458,12 @@ class TestParallelSearchLiveSmoke:
         # Cryptographic payload hash verification
         assert snapshot.payload_hash is not None
         assert len(snapshot.payload_hash) == 64
-        expected_hash = service.compute_payload_hash({
-            "query": "1946 Crime Detective Magazine Shadows Over Broadway copyright renewal",
-            "max_results": 3,
-            "include_metadata": True,
-        })
+        expected_hash = service.compute_payload_hash(
+            service.build_request_payload(
+                query="1946 Crime Detective Magazine Shadows Over Broadway copyright renewal",
+                stable_lineage_key="poster_noir_detective_magazine",
+            )
+        )
         assert snapshot.payload_hash == expected_hash
 
     @pytest.mark.live_smoke

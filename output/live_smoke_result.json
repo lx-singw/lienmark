@@ -1,0 +1,84 @@
+{
+  "status": "PASS",
+  "last_success_timestamp": "2026-09-06T09:21:21.886861Z",
+  "probe_mode": "in_process_adk",
+  "environment": "production_readiness",
+  "tested_services": [
+    "Gemini 2.5 Flash",
+    "Parallel Search API",
+    "Agent Builder Engine"
+  ],
+  "service_telemetry": {
+    "gemini_latency_ms": 251.37,
+    "parallel_latency_ms": 250.55,
+    "agent_builder_latency_ms": 647.87,
+    "total_latency_ms": 1150.04,
+    "gemini_model_version": "gemini-2.5-flash",
+    "gemini_tokens_total": 536,
+    "parallel_x_api_key_status": "SANDBOX_MOCKED_VERIFIED",
+    "gemini_vertex_adc_status": "NOT_CONFIGURED (API_KEY_OR_SANDBOX)"
+  },
+  "provider_evidence": {
+    "parallel_api": {
+      "auth_scheme": "x-api-key",
+      "x_api_key_auth_status": "SANDBOX_MOCKED_VERIFIED",
+      "live_latency_ms": 250.55,
+      "retrieval_latencies": {
+        "contradiction_ms": 120.0,
+        "supporting_ms": 120.0,
+        "resilience_ms": 120.0
+      },
+      "is_live_integration": false,
+      "citations": {
+        "contradiction": {
+          "citation": "ASCAP ACE Repertory & Billboard Rights Bulletin (ASCAP / Billboard Licensing Bulletin)",
+          "url": "https://ascap.com/ace-title-search/midnight-serenade-9921"
+        },
+        "supporting": {
+          "citation": "US Copyright Office Historical Catalog - Renewal Records (Library of Congress Copyright Office)",
+          "url": "https://cocatalog.loc.gov/cgi-bin/Pwebrecon.cgi?v1=1946-crime-detective"
+        }
+      },
+      "fail_closed_resilience": "VERIFIED",
+      "payload_hash": "ee2092c13bf7e72894082d247f37f6175c3c6c13519df78dbc684e7d44254b5a"
+    },
+    "gemini_api": {
+      "model_version": "gemini-2.5-flash",
+      "token_usage": {
+        "delta_tokens": 230,
+        "briefing_tokens": 306,
+        "total_tokens": 536
+      },
+      "vertex_ai_adc_status": "NOT_CONFIGURED (API_KEY_OR_SANDBOX)",
+      "auth_mode": "SANDBOX_MOCKED",
+      "live_latency_ms": 251.37,
+      "is_live_integration": false,
+      "delta_materiality": true,
+      "delta_action": "revalidate",
+      "briefing_confidence": 0.98,
+      "payload_hash": "4dab78416187291113f612a4719f46ea7f52abeb689e6b42fc80038dbc0cba03"
+    }
+  },
+  "credentials_audit": {
+    "GEMINI_API_KEY": "CONFIGURED_MASKED",
+    "PARALLEL_API_KEY": "CONFIGURED_MASKED"
+  },
+  "credentials_details": {
+    "GEMINI_API_KEY": "ABSENT_OR_SANDBOX_MASKED",
+    "PARALLEL_API_KEY": "ABSENT_OR_SANDBOX_MASKED",
+    "gemini_is_live": false,
+    "parallel_is_live": false
+  },
+  "audit_summary": {
+    "total_claims_evaluated": 12,
+    "claims_carried_forward": 10,
+    "claims_reopened_for_counsel": 2,
+    "fail_closed_resilience_verified": true,
+    "secret_leakage_detected": false
+  },
+  "metadata": {
+    "platform": "win32",
+    "python_version": "3.13.14",
+    "roadmap_milestone": "Sprint 5A - Section 10 Quality Gate"
+  }
+}
