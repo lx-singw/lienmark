@@ -22,10 +22,13 @@ import {
   AlertTriangle,
   Info,
   GitCompare,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 
 import {
   DecisionState,
+  DecisionStatus,
   EvaluatedClaim,
   EvidenceStance,
   ReviewQueueItem,
@@ -45,6 +48,13 @@ import {
   getGoldenDriftEvaluationResult,
   getGoldenReviewQueue,
 } from '@/lib/fixtures_data';
+import {
+  isSoundMuted,
+  setSoundMuted,
+  toggleSoundMuted,
+  playVerifiedAttestationSound,
+  playVerifiedExceptionSound,
+} from '@/lib/sound_effects';
 
 interface EvaluationStageInfo {
   stage: number;
@@ -67,6 +77,7 @@ interface ToastAlertState {
 }
 
 // Modular Component Imports
+import DirectorsPresentationHud from './components/DirectorsPresentationHud';
 import DashboardHeader from './components/DashboardHeader';
 import ClearanceSummaryCards from './components/ClearanceSummaryCards';
 import DeltaListComponent from './components/DeltaListComponent';
@@ -123,6 +134,68 @@ export default function ReviewerDashboardPage() {
   const [counselRationale, setCounselRationale] = useState<string>(
     'Cover art is public domain: US Copyright Office records confirm 1946 registration lapsed without renewal in 1974. Corroborated via LOC catalog.'
   );
+  const [lastConfirmedEvent, setLastConfirmedEvent] = useState<SupersessionEvent | null>(null);
+
+  // Director's HUD & Studio Audio states
+  const [currentBeat, setCurrentBeat] = useState<number>(1);
+  const [soundMuted, setSoundMutedState] = useState<boolean>(false);
+
+  // Hydrate sound mute state from localStorage safely in browser
+  useEffect(() => {
+    setSoundMutedState(isSoundMuted());
+  }, []);
+
+  // Global keyboard shortcut listener: 'm' / 'M' for studio audio mute toggle
+  useEffect(() => {
+    const handleAudioKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault();
+        const nextMuted = toggleSoundMuted();
+        setSoundMutedState(nextMuted);
+        setToast({
+          type: 'info',
+          message: nextMuted ? '🔇 Studio audio muted' : '🔊 Studio sound effects enabled',
+        });
+      }
+    };
+    window.addEventListener('keydown', handleAudioKey);
+    return () => window.removeEventListener('keydown', handleAudioKey);
+  }, []);
+
+  // Handler: Non-mutating beat navigation & spotlight
+  const handleSelectBeat = useCallback((beatId: number) => {
+    setCurrentBeat(beatId);
+    const targetId = `pitch-beat-${beatId}`;
+    const el = document.getElementById(targetId);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add(
+        'ring-4',
+        'ring-sky-400/80',
+        'ring-offset-4',
+        'ring-offset-slate-950',
+        'transition-all',
+        'duration-500'
+      );
+      setTimeout(() => {
+        el.classList.remove(
+          'ring-4',
+          'ring-sky-400/80',
+          'ring-offset-4',
+          'ring-offset-slate-950'
+        );
+      }, 2400);
+    }
+  }, []);
 
   // Initial dashboard hydration effect: hydrate live review queue and audit trail on mount
   useEffect(() => {
@@ -214,6 +287,81 @@ export default function ReviewerDashboardPage() {
   // Active claim in lineage table
   const selectedClaim =
     claims.find((c) => c.stable_lineage_key === selectedClaimKey) || claims[0];
+
+  // Dynamically resolve full 4D Queue Item for whichever claim is selected in split-screen
+  const lineageInspectorItem: ReviewQueueItem = React.useMemo(() => {
+    const queueMatch = reviewQueue.find((q) => q.stable_lineage_key === selectedClaimKey);
+    if (queueMatch) return queueMatch;
+
+    return {
+      queue_item_id: `qitem_${selectedClaim?.stable_lineage_key || 'asset'}`,
+      stable_lineage_key: selectedClaim?.stable_lineage_key || 'asset',
+      asset_name: selectedClaim?.description || 'Production Asset',
+      description: selectedClaim?.description || 'Production Asset',
+      asset_type: selectedClaim?.asset_type || 'prop',
+      scene: selectedClaim?.scene || 'Scene 01',
+      scene_or_timecode: selectedClaim?.scene || 'Scene 01',
+      current_state: selectedClaim?.state || DecisionState.CARRIED_FORWARD,
+      status: selectedClaim?.state === DecisionState.STALE ? 'pending' : 'resolved',
+      prior_decision: {
+        decision_id: `dec_v7_${selectedClaim?.stable_lineage_key}`,
+        version_id: 'v7',
+        status: DecisionStatus.APPROVED,
+        rationale: 'Approved in Locked Script Cut v7: Bit-for-bit unchanged, verified via public records.',
+        reviewer_display_name: 'Sarah Jenkins, Esq. (Lead Clearance Counsel)',
+        reviewed_at: '2026-09-01T11:00:00.000Z',
+        context_hash: 'a1b2c3d4e5f60718293a4b5c6d7e8f90abcdef1234567890abcdef12345678',
+        scope_or_conditions: 'Standard clearance.',
+      },
+      four_dimensions: {
+        creative_change: {
+          has_changed: false,
+          materiality: 'none',
+          scene: selectedClaim?.scene || 'Scene 01',
+          before_prominence: selectedClaim?.prominence || 'Incidental blur',
+          after_prominence: selectedClaim?.prominence || 'Incidental blur',
+          before_context: selectedClaim?.description || 'Incidental decor.',
+          after_context: selectedClaim?.description || 'Incidental decor.',
+          context_description: 'Bit-for-bit identical usage across cuts. Autonomous pass.',
+          reason_codes: [selectedClaim?.reason_code || 'DEPENDENCIES_SATISFIED_UNCHANGED'],
+        },
+        external_evidence_change: {
+          has_changed: false,
+          stance: selectedClaim?.evidence?.stance || EvidenceStance.SUPPORTING,
+          source_title: selectedClaim?.evidence?.source_title || 'Public Records Archive',
+          source_url: selectedClaim?.evidence?.source_url || 'https://cocatalog.loc.gov',
+          excerpt: selectedClaim?.evidence?.excerpt || 'Public records verified unchanged.',
+          query_issued: `Registry query for ${selectedClaim?.stable_lineage_key}`,
+          provider: 'Parallel Search API v1',
+          retrieval_latency_ms: selectedClaim?.evidence?.latency_ms || 95.0,
+          retrieved_at: '2026-09-03T14:31:00.000Z',
+        },
+        private_agreement_facts: {
+          has_contract: false,
+          licensor: 'Standard Studio Clearance',
+          grant_scope: 'Full production rights',
+          section_205_e_status: '17 U.S.C. § 205(e) evaluated: Inapplicable.',
+          contract_shield_applied: false,
+          status_note: 'Standard production clearance on file.',
+        },
+        statutory_policy_reason: {
+          reason_code: selectedClaim?.reason_code || 'DEPENDENCIES_SATISFIED_UNCHANGED',
+          policy_rule: 'E&O-2026.1-DEVPOST',
+          statutory_reference: '17 U.S.C. § 101, 107',
+          doctrine: 'Public Domain / Property Release',
+          eo_risk_rating: 'LOW',
+          statutory_exposure: '$0.00 (Statutory damages excluded)',
+          explanation: 'Lineage parity verified unchanged.',
+        },
+      },
+      system_recommendation: {
+        suggested_action: 'carry',
+        suggested_status: DecisionStatus.APPROVED,
+        confidence: 0.99,
+        rationale: 'Autonomous carry forward: dependencies satisfied and unchanged.',
+      },
+    };
+  }, [reviewQueue, selectedClaimKey, selectedClaim]);
 
   // Handler: Toggle target comparison version (v8 vs v7)
   const handleToggleVersion = (version: 'v8' | 'v7') => {
@@ -511,7 +659,16 @@ export default function ReviewerDashboardPage() {
         }
 
         // Success path: Append SupersessionEvent to append-only immutable ledger
-        setAuditTrail((prev) => [result.data as SupersessionEvent, ...prev]);
+        const confirmedEvent = result.data as SupersessionEvent;
+        setLastConfirmedEvent(confirmedEvent);
+        setAuditTrail((prev) => [confirmedEvent, ...prev]);
+
+        // Synthesize studio acoustic feedback strictly upon verified HTTP 200 server confirmation
+        if (action === 're_attest') {
+          playVerifiedAttestationSound(200);
+        } else {
+          playVerifiedExceptionSound(200);
+        }
 
         // Construct friendly toast notification
         if (action === 're_attest') {
@@ -700,53 +857,67 @@ export default function ReviewerDashboardPage() {
         </div>
       )}
 
-      {/* 1. Modular Header Component */}
-      <DashboardHeader
-        projectName="Shadows Over Broadway"
-        projectId="proj_blockbuster_cinema"
-        policyNumber="E&O-2026.1-DEVPOST"
-        underwriterStatus="PENDING_REVIEW"
-        baseVersionLabel="Script Cut v7 Locked"
-        targetVersionLabel={targetVersionId === 'v7' ? 'v7 Locked (Parity)' : 'v8 Revised'}
-        baseContentHash="a1b2c3d4e5f60718293a4b5c6d7e8f90"
-        targetContentHash={
-          targetVersionId === 'v7'
-            ? 'a1b2c3d4e5f60718293a4b5c6d7e8f90'
-            : 'f9e8d7c6b5a43210fedcba9876543210'
-        }
-        totalClaimsCount={totalClaims}
-        auditEventCount={auditTrail.length}
-        isRunningEvaluation={isRunningEvaluation}
-        isPending={isPending}
-        targetVersionId={targetVersionId}
-        onToggleTargetVersion={handleToggleVersion}
-        onRunEvaluation={handleRunEvaluation}
-        onOpenAuditTrail={() => setIsAuditDrawerOpen(true)}
-        exceptionsScheduleUrl="/report/proj_blockbuster_cinema"
-        onResetDemo={handleResetDemo}
-        isResettingDemo={isResettingDemo}
-        onSeedDemoMode={handleSeedDemoMode}
-        currentDemoMode={currentDemoMode}
+      {/* 0. Hollywood Studio Director's Presentation HUD & Teleprompter Navigator */}
+      <DirectorsPresentationHud
+        activeBeat={currentBeat}
+        onSelectBeat={handleSelectBeat}
       />
 
-      {/* 2. Modular Clearance Summary Cards & Invariant Conservation Ribbon */}
-      <ClearanceSummaryCards
-        totalClaims={totalClaims}
-        carriedCount={carriedCount}
-        staleCount={staleCount}
-        reattestedCount={reattestedCount}
-        exceptionCount={exceptionCount}
-        isReconciled={isReconciled}
-        exceptionsScheduleUrl="/report/proj_blockbuster_cinema"
-      />
-
-      {/* Sprint 4C Fix 2: Active Clearance Blockers Summary (when stale decisions exist) */}
-      {staleCount > 0 && (
-        <ActiveClearanceBlockers
-          staleCount={staleCount}
-          claims={claims}
-          onOpenInGate={handleOpenInGate}
+      {/* 1. Modular Header Component (Pitch Beat 2: Version 7 Baseline) */}
+      <section id="pitch-beat-2" data-pitch-beat="2" className="scroll-mt-6">
+        <DashboardHeader
+          projectName="Shadows Over Broadway"
+          projectId="proj_blockbuster_cinema"
+          policyNumber="E&O-2026.1-DEVPOST"
+          underwriterStatus="PENDING_REVIEW"
+          baseVersionLabel="Script Cut v7 Locked"
+          targetVersionLabel={targetVersionId === 'v7' ? 'v7 Locked (Parity)' : 'v8 Revised'}
+          baseContentHash="a1b2c3d4e5f60718293a4b5c6d7e8f90"
+          targetContentHash={
+            targetVersionId === 'v7'
+              ? 'a1b2c3d4e5f60718293a4b5c6d7e8f90'
+              : 'f9e8d7c6b5a43210fedcba9876543210'
+          }
+          totalClaimsCount={totalClaims}
+          auditEventCount={auditTrail.length}
+          isRunningEvaluation={isRunningEvaluation}
+          isPending={isPending}
+          targetVersionId={targetVersionId}
+          onToggleTargetVersion={handleToggleVersion}
+          onRunEvaluation={handleRunEvaluation}
+          onOpenAuditTrail={() => setIsAuditDrawerOpen(true)}
+          exceptionsScheduleUrl="/report/proj_blockbuster_cinema"
+          onResetDemo={handleResetDemo}
+          isResettingDemo={isResettingDemo}
+          onSeedDemoMode={handleSeedDemoMode}
+          currentDemoMode={currentDemoMode}
         />
+      </section>
+
+      {/* 2. Modular Clearance Summary Cards & Invariant Conservation Ribbon (Pitch Beat 4) */}
+      <section id="pitch-beat-4" data-pitch-beat="4" className="scroll-mt-6">
+        <ClearanceSummaryCards
+          totalClaims={totalClaims}
+          carriedCount={carriedCount}
+          staleCount={staleCount}
+          reattestedCount={reattestedCount}
+          exceptionCount={exceptionCount}
+          isReconciled={isReconciled}
+          exceptionsScheduleUrl="/report/proj_blockbuster_cinema"
+          traces={traces}
+          elapsedMs={evalElapsedMs}
+        />
+      </section>
+
+      {/* Sprint 4C Fix 2: Active Clearance Blockers Summary (Pitch Beat 1: Clearance Drift Crisis) */}
+      {staleCount > 0 && (
+        <section id="pitch-beat-1" data-pitch-beat="1" className="scroll-mt-6">
+          <ActiveClearanceBlockers
+            staleCount={staleCount}
+            claims={claims}
+            onOpenInGate={handleOpenInGate}
+          />
+        </section>
       )}
 
       {/* Sprint 4C Fix 3: Clearance Decision Lifecycle Guide */}
@@ -808,9 +979,36 @@ export default function ReviewerDashboardPage() {
           </button>
         </div>
 
-        <span className="text-xs text-slate-400 hidden md:block font-mono">
-          Sprint 4B &bull; Interaction &amp; Failure States Architecture
-        </span>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              const nextMuted = toggleSoundMuted();
+              setSoundMutedState(nextMuted);
+              setToast({
+                type: 'info',
+                message: nextMuted ? '🔇 Studio audio muted' : '🔊 Studio sound effects enabled',
+              });
+            }}
+            className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-mono rounded-lg border transition-all ${
+              soundMuted
+                ? 'border-slate-800 bg-slate-900/60 text-slate-400 hover:text-slate-200'
+                : 'border-sky-500/40 bg-sky-500/10 text-sky-300 shadow-sm'
+            }`}
+            title="Toggle studio sound effects (Shortcut: M)"
+            aria-label={soundMuted ? 'Unmute studio sound effects' : 'Mute studio sound effects'}
+          >
+            {soundMuted ? (
+              <VolumeX className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
+            ) : (
+              <Volume2 className="h-3.5 w-3.5 text-sky-400 animate-pulse" aria-hidden="true" />
+            )}
+            <span>{soundMuted ? 'Audio Muted [M]' : 'Studio Audio [M]'}</span>
+          </button>
+          <span className="text-xs text-slate-400 hidden md:block font-mono">
+            Hollywood Studio Legal Ops
+          </span>
+        </div>
       </nav>
 
       {/* ===================================================================== */}
@@ -883,33 +1081,77 @@ export default function ReviewerDashboardPage() {
               </div>
             </div>
           ) : (
-            <>
-              {/* 3. Modular Delta List Breakdown (Item 11 & 12 Focus) */}
-              <DeltaListComponent
-                items={reviewQueue}
-                selectedQueueKey={selectedQueueKey}
-                onSelectQueueItem={(key) => setSelectedQueueKey(key)}
-                onInspectItem={(key) => setSelectedQueueKey(key)}
-              />
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+              {/* Left Column (xl:col-span-7): Delta List Breakdown & Full 12-Claim Register */}
+              <div className="xl:col-span-7 space-y-6">
+                {/* 3. Modular Delta List Breakdown (Pitch Beat 3: Bimodal Drift) */}
+                <section id="pitch-beat-3" data-pitch-beat="3" className="scroll-mt-6">
+                  <DeltaListComponent
+                    items={reviewQueue}
+                    selectedQueueKey={selectedQueueKey}
+                    onSelectQueueItem={(key) => {
+                      setSelectedQueueKey(key);
+                      setSelectedClaimKey(key);
+                    }}
+                    onInspectItem={(key) => {
+                      setSelectedQueueKey(key);
+                      setSelectedClaimKey(key);
+                    }}
+                  />
+                </section>
 
-              {/* 5. Modular 4-Dimensional Explanation & Prior Baseline Accordion */}
-              <ExplanationDrawerComponent
-                activeQueueItem={activeQueueItem}
-                isPriorDecisionOpen={isPriorDecisionOpen}
-                onTogglePriorDecision={() => setIsPriorDecisionOpen(!isPriorDecisionOpen)}
-              />
+                {/* 4. Modular Decision List Component (12 Claims Table Matrix) */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                      <Layers className="h-4 w-4 text-sky-400" aria-hidden="true" />
+                      <span>Script Cut v8 Rights Clearance Matrix (12 Assets)</span>
+                    </h3>
+                    <span className="text-[11px] font-mono text-slate-500">
+                      Click row to inspect in 4D panel
+                    </span>
+                  </div>
+                  <DecisionListComponent
+                    claims={claims}
+                    selectedClaimKey={selectedClaimKey}
+                    onSelectClaim={(key) => {
+                      setSelectedClaimKey(key);
+                      setSelectedQueueKey(key);
+                    }}
+                    onOpenInGate={(key) => {
+                      setSelectedQueueKey(key);
+                      setSelectedClaimKey(key);
+                    }}
+                  />
+                </div>
+              </div>
 
-              {/* 6. Modular Affirmative Counsel Adjudication Panel */}
-              <ReviewActionComponent
-                activeItem={activeQueueItem}
-                reviewerIdentity={reviewerIdentity}
-                counselRationale={counselRationale}
-                onRationaleChange={(val) => setCounselRationale(val)}
-                onAction={handleReviewAction}
-                isSubmitting={isSubmittingAction}
-                isPending={isPending}
-              />
-            </>
+              {/* Right Column (xl:col-span-5): Persistent 4D Inspector & Adjudication Gate */}
+              <div className="xl:col-span-5 space-y-6 xl:sticky xl:top-6">
+                {/* 5. Modular 4-Dimensional Explanation & Baseline Accordion (Pitch Beat 5) */}
+                <section id="pitch-beat-5" data-pitch-beat="5" className="scroll-mt-6">
+                  <ExplanationDrawerComponent
+                    activeQueueItem={activeQueueItem}
+                    isPriorDecisionOpen={isPriorDecisionOpen}
+                    onTogglePriorDecision={() => setIsPriorDecisionOpen(!isPriorDecisionOpen)}
+                  />
+                </section>
+
+                {/* 6. Modular Affirmative Counsel Adjudication Panel (Pitch Beat 6) */}
+                <section id="pitch-beat-6" data-pitch-beat="6" className="scroll-mt-6">
+                  <ReviewActionComponent
+                    activeItem={activeQueueItem}
+                    reviewerIdentity={reviewerIdentity}
+                    counselRationale={counselRationale}
+                    onRationaleChange={(val) => setCounselRationale(val)}
+                    onAction={handleReviewAction}
+                    isSubmitting={isSubmittingAction}
+                    isPending={isPending}
+                    lastConfirmedEvent={lastConfirmedEvent}
+                  />
+                </section>
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -967,119 +1209,39 @@ export default function ReviewerDashboardPage() {
             </div>
           </div>
 
-          {/* Right Column: Claim Inspection Drawer & Evidence Details */}
-          <div className="lg:col-span-5 space-y-4 sticky top-20">
-            <div className="rounded-xl border border-slate-800 bg-[#131b2e] p-5 shadow-xl space-y-4">
-              <div className="border-b border-slate-800 pb-3 flex items-start justify-between">
-                <div>
-                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-sky-400">
-                    Lineage Claim Detail
-                  </span>
-                  <h3 className="text-base font-bold text-white mt-0.5">
-                    {selectedClaim.description}
-                  </h3>
-                  <p className="text-xs text-slate-400 font-mono">
-                    Key: {selectedClaim.stable_lineage_key} &middot; {selectedClaim.scene}
-                  </p>
-                </div>
-                <div>
-                  {selectedClaim.state === DecisionState.CARRIED_FORWARD && (
-                    <span className="rounded px-2 py-0.5 text-[10px] font-bold badge-carried">
-                      CARRIED
-                    </span>
-                  )}
-                  {selectedClaim.state === DecisionState.STALE && (
-                    <span className="rounded px-2 py-0.5 text-[10px] font-bold badge-stale">
-                      REOPENED
-                    </span>
-                  )}
-                  {selectedClaim.state === DecisionState.RE_ATTESTED && (
-                    <span className="rounded px-2 py-0.5 text-[10px] font-bold badge-reattested">
-                      RE-ATTESTED
-                    </span>
-                  )}
-                  {selectedClaim.state === DecisionState.EXCEPTION && (
-                    <span className="rounded px-2 py-0.5 text-[10px] font-bold badge-exception">
-                      EXCEPTION
-                    </span>
-                  )}
-                </div>
-              </div>
+          {/* Right Column: Persistent Split-Screen 4D Inspector & Adjudication Gate */}
+          <div className="lg:col-span-5 space-y-4 sticky top-6">
+            <ExplanationDrawerComponent
+              activeQueueItem={lineageInspectorItem}
+              isPriorDecisionOpen={isPriorDecisionOpen}
+              onTogglePriorDecision={() => setIsPriorDecisionOpen(!isPriorDecisionOpen)}
+            />
 
-              {/* Creative Context & Prominence */}
-              <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3.5 space-y-1">
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                  Creative Prominence &amp; Invalidation Reason
-                </div>
-                <p className="text-xs text-slate-200">
-                  <strong>Prominence:</strong> {selectedClaim.prominence}
-                </p>
-                <p className="text-xs text-slate-300 font-mono">
-                  <strong>Reason Code:</strong> {selectedClaim.reason_code}
-                </p>
-              </div>
-
-              {/* Parallel Search Corroboration */}
-              {selectedClaim.evidence && (
-                <div className="rounded-lg border border-sky-500/30 bg-sky-950/20 p-3.5 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-sky-400 uppercase tracking-wider">
-                      <Search className="h-3.5 w-3.5" aria-hidden="true" />
-                      <span>Parallel Search Corroboration</span>
-                    </div>
-                    <span
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
-                        selectedClaim.evidence.stance === EvidenceStance.SUPPORTING
-                          ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/40'
-                          : selectedClaim.evidence.stance === EvidenceStance.CONTRADICTORY
-                          ? 'bg-rose-950/80 text-rose-300 border border-rose-500/40'
-                          : 'bg-slate-800 text-slate-300'
-                      }`}
-                    >
-                      Stance: {String(selectedClaim.evidence.stance).toUpperCase()}
-                    </span>
-                  </div>
-
-                  <div>
-                    <a
-                      href={selectedClaim.evidence.source_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs font-semibold text-sky-300 hover:underline flex items-center gap-1"
-                    >
-                      <span>{selectedClaim.evidence.source_title}</span>
-                      <ExternalLink className="h-3 w-3 inline" aria-hidden="true" />
-                    </a>
-                    <p className="mt-1 text-xs text-slate-300 bg-slate-900/80 p-2.5 rounded border border-slate-800 font-serif italic">
-                      &ldquo;{selectedClaim.evidence.excerpt}&rdquo;
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Quick Jump to Checkpoint Gate button */}
-              {selectedClaim.state === DecisionState.STALE && (
-                <button
-                  type="button"
-                  onClick={() => handleOpenInGate(selectedClaim.stable_lineage_key)}
-                  className="w-full flex items-center justify-center gap-2 rounded-lg bg-sky-500 hover:bg-sky-400 py-2.5 px-4 text-xs font-bold text-slate-950 transition-all shadow-md shadow-sky-500/20 focus:outline-none focus:ring-2 focus:ring-sky-300"
-                >
-                  <Gavel className="h-4 w-4" aria-hidden="true" />
-                  <span>Open in Counsel Checkpoint Gate</span>
-                </button>
-              )}
-            </div>
+            {lineageInspectorItem.current_state === DecisionState.STALE && (
+              <ReviewActionComponent
+                activeItem={lineageInspectorItem}
+                reviewerIdentity={reviewerIdentity}
+                counselRationale={counselRationale}
+                onRationaleChange={(val) => setCounselRationale(val)}
+                onAction={handleReviewAction}
+                isSubmitting={isSubmittingAction}
+                isPending={isPending}
+                lastConfirmedEvent={lastConfirmedEvent}
+              />
+            )}
           </div>
         </div>
       )}
 
-      {/* 7. Modular Export & Underwriter Legal Notice Component */}
-      <ExportActionComponent
-        projectId="proj_blockbuster_cinema"
-        projectName="Shadows Over Broadway"
-        claims={claims}
-        exceptionsScheduleUrl="/report/proj_blockbuster_cinema"
-      />
+      {/* 7. Modular Export & Underwriter Legal Notice Component (Pitch Beat 7) */}
+      <section id="pitch-beat-7" data-pitch-beat="7" className="scroll-mt-6">
+        <ExportActionComponent
+          projectId="proj_blockbuster_cinema"
+          projectName="Shadows Over Broadway"
+          claims={claims}
+          exceptionsScheduleUrl="/report/proj_blockbuster_cinema"
+        />
+      </section>
 
       {/* 8. Modular Append-Only Audit Trail Slide-Over Drawer */}
       <AuditTrailDrawer

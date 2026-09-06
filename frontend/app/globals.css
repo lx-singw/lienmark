@@ -15,6 +15,14 @@
     --accent-red: #ef4444;
     --accent-purple: #818cf8;
     --border-color: #2e3d60;
+    --cinema-black: #050811;
+    --cinema-navy: #090e1a;
+    --cinema-slate: #0f172a;
+    --cinema-card: rgba(15, 23, 42, 0.75);
+    --gold-accent: #f59e0b;
+    --cyan-accent: #38bdf8;
+    --emerald-accent: #10b981;
+    --crimson-accent: #ef4444;
   }
 
   body {
@@ -45,47 +53,142 @@
   background: #475569;
 }
 
-/* Clearance Status Badges */
+/* Glassmorphism & Hollywood Cinema Surface Utilities */
+.glass-panel {
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.glass-panel-subtle {
+  background: rgba(9, 14, 26, 0.65);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(56, 189, 248, 0.12);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4);
+}
+
+.glass-card {
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-card-hover {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-card-hover:hover {
+  background: rgba(15, 23, 42, 0.85);
+  border-color: rgba(56, 189, 248, 0.35);
+  box-shadow: 0 12px 30px -5px rgba(0, 0, 0, 0.5), 0 0 20px -3px rgba(56, 189, 248, 0.2);
+}
+
+/* Subtle Border Gradients */
+.border-gradient-cyan {
+  border: 1px solid transparent;
+  background-image: linear-gradient(rgba(15, 23, 42, 0.8), rgba(15, 23, 42, 0.8)), linear-gradient(135deg, rgba(56, 189, 248, 0.45), rgba(56, 189, 248, 0.08));
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+}
+
+.border-gradient-gold {
+  border: 1px solid transparent;
+  background-image: linear-gradient(rgba(15, 23, 42, 0.8), rgba(15, 23, 42, 0.8)), linear-gradient(135deg, rgba(245, 158, 11, 0.45), rgba(245, 158, 11, 0.08));
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+}
+
+.border-gradient-emerald {
+  border: 1px solid transparent;
+  background-image: linear-gradient(rgba(15, 23, 42, 0.8), rgba(15, 23, 42, 0.8)), linear-gradient(135deg, rgba(16, 185, 129, 0.45), rgba(16, 185, 129, 0.08));
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+}
+
+.border-gradient-crimson {
+  border: 1px solid transparent;
+  background-image: linear-gradient(rgba(15, 23, 42, 0.8), rgba(15, 23, 42, 0.8)), linear-gradient(135deg, rgba(239, 68, 68, 0.45), rgba(239, 68, 68, 0.08));
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+}
+
+.border-gradient-subtle {
+  border: 1px solid transparent;
+  background-image: linear-gradient(rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.85)), linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.02));
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+}
+
+/* Clearance Status Badges & High-Impact Cinema Glows */
 .badge-carried {
   background-color: rgba(16, 185, 129, 0.15);
   color: #34d399;
-  border: 1px solid rgba(16, 185, 129, 0.35);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  box-shadow: 0 0 12px -2px rgba(16, 185, 129, 0.3);
+  text-shadow: 0 0 8px rgba(16, 185, 129, 0.3);
 }
 
 .badge-stale,
 .badge-reopened {
   background-color: rgba(245, 158, 11, 0.15);
   color: #fbbf24;
-  border: 1px solid rgba(245, 158, 11, 0.35);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  box-shadow: 0 0 12px -2px rgba(245, 158, 11, 0.3);
+  text-shadow: 0 0 8px rgba(245, 158, 11, 0.3);
 }
 
 .badge-reattested {
   background-color: rgba(56, 189, 248, 0.15);
   color: #38bdf8;
-  border: 1px solid rgba(56, 189, 248, 0.35);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  box-shadow: 0 0 12px -2px rgba(56, 189, 248, 0.35);
+  text-shadow: 0 0 8px rgba(56, 189, 248, 0.35);
 }
 
 .badge-exception {
-  background-color: rgba(239, 68, 68, 0.15);
+  background-color: rgba(239, 68, 68, 0.18);
   color: #f87171;
-  border: 1px solid rgba(239, 68, 68, 0.35);
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  box-shadow: 0 0 14px -1px rgba(239, 68, 68, 0.35);
+  text-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}
+
+/* Standalone / Modifier Badge Glow Helpers */
+.badge-glow-carried {
+  box-shadow: 0 0 14px -2px rgba(16, 185, 129, 0.45);
+}
+
+.badge-glow-reopened {
+  box-shadow: 0 0 14px -2px rgba(245, 158, 11, 0.45);
+}
+
+.badge-glow-reattested {
+  box-shadow: 0 0 14px -2px rgba(56, 189, 248, 0.45);
+}
+
+.badge-glow-exception {
+  box-shadow: 0 0 16px -1px rgba(239, 68, 68, 0.5);
 }
 
 /* Metric Card Glows */
 .metric-glow-green {
-  box-shadow: 0 0 20px -5px rgba(16, 185, 129, 0.15);
+  box-shadow: 0 0 20px -5px rgba(16, 185, 129, 0.25);
 }
 
 .metric-glow-amber {
-  box-shadow: 0 0 20px -5px rgba(245, 158, 11, 0.15);
+  box-shadow: 0 0 20px -5px rgba(245, 158, 11, 0.25);
 }
 
 .metric-glow-blue {
-  box-shadow: 0 0 20px -5px rgba(56, 189, 248, 0.15);
+  box-shadow: 0 0 20px -5px rgba(56, 189, 248, 0.25);
 }
 
 .metric-glow-red {
-  box-shadow: 0 0 20px -5px rgba(239, 68, 68, 0.15);
+  box-shadow: 0 0 20px -5px rgba(239, 68, 68, 0.25);
 }
 
 /* Statutory Print Engine for Underwriter Form E&O-2026 */
@@ -104,7 +207,7 @@
     display: none !important;
   }
 
-  /* Reset document root to clean legal paper layout */
+  /* Reset document root to clean authentic white legal paper layout */
   html,
   body {
     background: #ffffff !important;
@@ -122,7 +225,16 @@
     margin: 12mm 12mm 12mm 12mm;
   }
 
-  /* Printable container */
+  /* Strip all shadows, glows, and filters for clean legal ink reproduction */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* Printable container & legal paper surface */
   .print-document {
     background: #ffffff !important;
     color: #0f172a !important;
@@ -131,6 +243,107 @@
     padding: 0 !important;
     max-width: 100% !important;
     margin: 0 !important;
+  }
+
+  /* Invert dark cards and backgrounds to crisp white/off-white legal sheets */
+  .print-document div,
+  .print-document section,
+  .print-document article,
+  .print-document .bg-\[\#0f172a\],
+  .print-document .bg-slate-900,
+  .print-document .bg-slate-900\/60,
+  .print-document .bg-slate-900\/80,
+  .print-document .bg-slate-900\/90,
+  .print-document .bg-slate-950,
+  .print-document .bg-slate-950\/60,
+  .print-document .bg-slate-950\/70,
+  .print-document .bg-slate-950\/80,
+  .print-document .bg-slate-950\/90,
+  .print-document .bg-cinema-black,
+  .print-document .bg-cinema-navy,
+  .print-document .bg-cinema-slate,
+  .print-document .bg-cinema-card,
+  .print-document .glass-panel,
+  .print-document .glass-panel-subtle,
+  .print-document .glass-card {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+  }
+
+  /* Subtle card background contrast on paper */
+  .print-document .rounded-xl,
+  .print-document .rounded-lg,
+  .print-document .rounded-2xl {
+    background-color: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+  }
+
+  /* Legal borders: crisp hairline gray */
+  .print-document .border-slate-700,
+  .print-document .border-slate-800,
+  .print-document .border-slate-900,
+  .print-document .border-b-2 {
+    border-color: #94a3b8 !important;
+  }
+
+  /* Legal typography color overrides */
+  .print-document .text-white,
+  .print-document .text-slate-100,
+  .print-document .text-slate-200,
+  .print-document .text-slate-300 {
+    color: #0f172a !important;
+  }
+
+  .print-document .text-slate-400,
+  .print-document .text-slate-500 {
+    color: #475569 !important;
+  }
+
+  .print-document .text-sky-400,
+  .print-document .text-sky-300 {
+    color: #0369a1 !important;
+  }
+
+  .print-document .text-emerald-400,
+  .print-document .text-emerald-300 {
+    color: #047857 !important;
+  }
+
+  .print-document .text-rose-400,
+  .print-document .text-rose-300 {
+    color: #b91c1c !important;
+  }
+
+  /* Statutory Warranty Disclaimer on white paper */
+  .print-document .bg-rose-950\/20,
+  .print-document .bg-rose-950\/30,
+  .print-document .bg-rose-950 {
+    background-color: #fff1f2 !important;
+    border: 1px solid #f87171 !important;
+    color: #991b1b !important;
+  }
+
+  .print-document .text-rose-200,
+  .print-document .text-rose-200\/90 {
+    color: #991b1b !important;
+  }
+
+  .print-document strong.text-rose-300 {
+    color: #881337 !important;
+  }
+
+  /* Summary metric cards in print */
+  .print-document .bg-emerald-950\/20,
+  .print-document .bg-emerald-950\/30 {
+    background-color: #f0fdf4 !important;
+    border: 1px solid #86efac !important;
+  }
+
+  .print-document .bg-sky-950\/20,
+  .print-document .bg-sky-950\/30 {
+    background-color: #f0f9ff !important;
+    border: 1px solid #bae6fd !important;
   }
 
   /* Table styles in print */
@@ -161,19 +374,19 @@
     font-weight: 700 !important;
   }
 
-  /* Print Status Pills */
+  /* Authentic Print Status Pills (High Contrast Legal Paper Fills) */
   .badge-carried {
     background: #ecfdf5 !important;
     color: #047857 !important;
     border: 1px solid #059669 !important;
-    font-weight: 600 !important;
+    font-weight: 700 !important;
   }
 
   .badge-reattested {
     background: #f0f9ff !important;
     color: #0369a1 !important;
     border: 1px solid #0284c7 !important;
-    font-weight: 600 !important;
+    font-weight: 700 !important;
   }
 
   .badge-exception {
@@ -188,9 +401,10 @@
     background: #fffbeb !important;
     color: #b45309 !important;
     border: 1px solid #d97706 !important;
-    font-weight: 600 !important;
+    font-weight: 700 !important;
   }
 
+  /* Page break controls */
   .break-inside-avoid,
   .print-break-inside-avoid {
     break-inside: avoid !important;
@@ -200,6 +414,27 @@
   .print-page-break-before {
     page-break-before: always !important;
     break-before: page !important;
+  }
+
+  .print-page-break-after {
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+
+  /* Expandable sections (details / summary) in print */
+  details {
+    display: block !important;
+  }
+  details[open], details {
+    border: 1px solid #cbd5e1 !important;
+    background: #ffffff !important;
+  }
+  details > summary {
+    list-style: none !important;
+    pointer-events: none !important;
+  }
+  details > summary::-webkit-details-marker {
+    display: none !important;
   }
 
   a {
