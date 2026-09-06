@@ -2,7 +2,7 @@
 ## Master Pitch Script & Presenter Teleprompter Guide
 
 > **Document Status:** Authoritative Presenter Pitch Script (Locked)  
-> **Milestone:** Phase 6 Story, Video, and Freeze — Sprint 6A (§11, [`docs/winning/04-build-roadmap.md`](file:///z:/home/lx_singw/projects/lienmark/docs/winning/04-build-roadmap.md))  
+> **Milestone:** Phase 6 Story, Video, and Freeze — Sprint 6A (§11, [`docs/submission/devpost_submission.md`](file:///z:/home/lx_singw/projects/lienmark/docs/submission/devpost_submission.md))  
 > **Narrative Reference:** [`docs/story/story_lock.md`](file:///z:/home/lx_singw/projects/lienmark/docs/story/story_lock.md)  
 > **Track Category:** Parallel Track ($15,000 Prize Pool) & Core Agentic Cinema  
 > **Target Video Runtime:** Exactly **165 seconds (2:45)** [Permissible range: 150s (2:30) to 170s (2:50); 15s buffer before 3:00 Devpost hard cutoff]  

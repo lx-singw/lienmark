@@ -91,6 +91,12 @@ def verify_and_extract_session_id(cookie_val: Optional[str]) -> Optional[str]:
         expected_sig = hashlib.sha256(f"{sess_id}::{SESSION_SECRET_KEY}".encode("utf-8")).hexdigest()[:16]
         if hmac.compare_digest(sig, expected_sig):
             return sess_id
+    strict_signing = (
+        os.getenv("SESSION_STRICT_SIGNING", "").lower() in ("true", "1")
+        or os.getenv("ENVIRONMENT", "").lower() in ("production", "demo")
+    )
+    if strict_signing:
+        return None
     if val.startswith("sess_") or len(val) >= 8:
         return val.split(".")[0]
     return None
@@ -142,12 +148,16 @@ class SessionScopingMiddleware(BaseHTTPMiddleware):
 
         signed_cookie_val = sign_session_id(session_id)
         response.headers["X-Session-ID"] = session_id
+        is_secure = (
+            request.url.scheme == "https"
+            or os.getenv("ENVIRONMENT", "").lower() in ("production", "demo")
+        )
         response.set_cookie(
             key=SESSION_COOKIE_NAME,
             value=signed_cookie_val,
             httponly=True,
             samesite="lax",
-            secure=False,
+            secure=is_secure,
             path="/",
         )
         return response

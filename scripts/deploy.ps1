@@ -194,7 +194,6 @@ try {
     & $gcloudCmd builds submit `
         --tag $ApiImageTag `
         --project $ProjectId `
-        --file Dockerfile `
         .
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Cloud Build failed for 'lienmark-api' with exit code $LASTEXITCODE."
@@ -221,7 +220,6 @@ try {
     & $gcloudCmd builds submit `
         --tag $WebImageTag `
         --project $ProjectId `
-        --file Dockerfile `
         .
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Cloud Build failed for 'lienmark-web' with exit code $LASTEXITCODE."
@@ -246,7 +244,10 @@ Write-Host "`n--> [3/4] Deploying 'lienmark-api' to Cloud Run..." -ForegroundCol
 $ApiEnvVars = @(
     "ENVIRONMENT=$Environment",
     "GOOGLE_CLOUD_PROJECT=$ProjectId",
-    "GOOGLE_CLOUD_REGION=$Region"
+    "GOOGLE_CLOUD_REGION=$Region",
+    "FIRESTORE_PROJECT_ID=$ProjectId",
+    "FIRESTORE_DATABASE=(default)",
+    "GOOGLE_GENAI_USE_VERTEXAI=true"
 )
 if ($ParallelApiKey) { $ApiEnvVars += "PARALLEL_API_KEY=$ParallelApiKey" }
 if ($GeminiApiKey) { $ApiEnvVars += "GEMINI_API_KEY=$GeminiApiKey" }
@@ -269,7 +270,7 @@ $ApiDeployArgs = @(
     "--set-env-vars", ($ApiEnvVars -join ",")
 )
 if ($UseSecretManager) {
-    $ApiDeployArgs += "--set-secrets=PARALLEL_API_KEY=parallel-api-key:latest,GEMINI_API_KEY=gemini-api-key:latest"
+    $ApiDeployArgs += "--set-secrets=PARALLEL_API_KEY=parallel-api-key:latest,SESSION_SECRET_KEY=session-secret-key:latest"
 }
 
 & $gcloudCmd @ApiDeployArgs
@@ -285,8 +286,11 @@ Write-Host "    [OK] lienmark-api URL: $ApiUrl" -ForegroundColor Green
 Write-Host "`n--> [4/4] Deploying 'lienmark-web' to Cloud Run..." -ForegroundColor Yellow
 $WebEnvVars = @(
     "NODE_ENV=production",
-    "NEXT_PUBLIC_BACKEND_URL=$ApiUrl",
-    "INTERNAL_BACKEND_URL=$ApiUrl"
+    "INTERNAL_API_URL=$ApiUrl",
+    "BACKEND_URL=$ApiUrl",
+    "INTERNAL_BACKEND_URL=$ApiUrl",
+    "NEXT_PUBLIC_API_BASE_URL=$ApiUrl",
+    "NEXT_PUBLIC_BACKEND_URL=$ApiUrl"
 )
 
 $WebDeployArgs = @(

@@ -152,7 +152,6 @@ cd "${ROOT_DIR}"
 gcloud builds submit \
   --tag "${API_IMAGE_TAG}" \
   --project="${PROJECT_ID}" \
-  --file=Dockerfile \
   .
 
 echo "    Resolving immutable SHA-256 digest for 'lienmark-api'..."
@@ -168,7 +167,6 @@ cd "${ROOT_DIR}/frontend"
 gcloud builds submit \
   --tag "${WEB_IMAGE_TAG}" \
   --project="${PROJECT_ID}" \
-  --file=Dockerfile \
   .
 
 echo "    Resolving immutable SHA-256 digest for 'lienmark-web'..."
@@ -180,13 +178,13 @@ echo "    [OK] Immutable Digest: ${WEB_SHA256}"
 
 # ── 3. Deploy Cloud Run: lienmark-api ─────────────────────────────────────────
 echo "--> [3/4] Deploying 'lienmark-api' to Cloud Run..."
-API_ENV_VARS="ENVIRONMENT=${ENVIRONMENT},GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_REGION=${REGION}"
+API_ENV_VARS="ENVIRONMENT=${ENVIRONMENT},GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_REGION=${REGION},FIRESTORE_PROJECT_ID=${PROJECT_ID},FIRESTORE_DATABASE=(default),GOOGLE_GENAI_USE_VERTEXAI=true"
 if [ -n "${PARALLEL_API_KEY:-}" ]; then API_ENV_VARS="${API_ENV_VARS},PARALLEL_API_KEY=${PARALLEL_API_KEY}"; fi
 if [ -n "${GEMINI_API_KEY:-}" ]; then API_ENV_VARS="${API_ENV_VARS},GEMINI_API_KEY=${GEMINI_API_KEY}"; fi
 
 SECRETS_ARG=""
 if [ "${USE_SECRET_MANAGER}" = true ]; then
-  SECRETS_ARG="--set-secrets=PARALLEL_API_KEY=parallel-api-key:latest,GEMINI_API_KEY=gemini-api-key:latest"
+  SECRETS_ARG="--set-secrets=PARALLEL_API_KEY=parallel-api-key:latest,SESSION_SECRET_KEY=session-secret-key:latest"
 fi
 
 # shellcheck disable=SC2086
@@ -216,7 +214,7 @@ echo "    [OK] lienmark-api URL: ${API_URL}"
 
 # ── 4. Deploy Cloud Run: lienmark-web ─────────────────────────────────────────
 echo "--> [4/4] Deploying 'lienmark-web' to Cloud Run..."
-WEB_ENV_VARS="NODE_ENV=production,NEXT_PUBLIC_BACKEND_URL=${API_URL},INTERNAL_BACKEND_URL=${API_URL}"
+WEB_ENV_VARS="NODE_ENV=production,INTERNAL_API_URL=${API_URL},BACKEND_URL=${API_URL},INTERNAL_BACKEND_URL=${API_URL},NEXT_PUBLIC_API_BASE_URL=${API_URL},NEXT_PUBLIC_BACKEND_URL=${API_URL}"
 
 gcloud run deploy lienmark-web \
   --image "${WEB_DIGEST_REF}" \

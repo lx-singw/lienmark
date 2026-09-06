@@ -1,13 +1,13 @@
 {
-  "preflight_id": "preflight_1788690684",
-  "timestamp": "2026-09-06T10:31:24.531555+00:00",
+  "preflight_id": "preflight_1788693819",
+  "timestamp": "2026-09-06T11:23:39.023647+00:00",
   "status": "READY_FOR_RECORDING",
   "policy_version": "E&O-2026.1-DEVPOST",
   "project_id": "proj_blockbuster_cinema",
   "total_checks": 7,
   "passed_checks": 7,
   "failed_checks": 0,
-  "elapsed_seconds": 2.102,
+  "elapsed_seconds": 2.294,
   "checks": [
     {
       "check_id": "CHECK_1_CREDENTIALS",
@@ -76,7 +76,7 @@
         "Item 11 Stance:        EvidenceStance.SUPPORTING (Public Domain renewal verified)",
         "Item 12 Query:         Attributable (ASCAP ACE Repertory & Billboard Rights Bulletin - https://ascap.com/ace-title-search/midnigh...)",
         "Item 12 Stance:        EvidenceStance.CONTRADICTORY (Adverse sync assignment identified)",
-        "Call Latency:          255.6ms total (120.0ms / 120.0ms)",
+        "Call Latency:          253.5ms total (120.0ms / 120.0ms)",
         "Quota & Audit Header:  SHA-256 raw_payload_hash verified (ee2092c13bf7e728...)"
       ],
       "metadata": {
@@ -85,7 +85,7 @@
         "item12_url": "https://ascap.com/ace-title-search/midnight-serenade-9921",
         "item12_stance": "EvidenceStance.CONTRADICTORY",
         "call_count": 2,
-        "latency_total_ms": 255.63
+        "latency_total_ms": 253.54
       }
     },
     {

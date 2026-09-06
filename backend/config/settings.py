@@ -12,7 +12,7 @@ from typing import Optional
 @dataclass
 class Settings:
     # Google Cloud
-    google_cloud_project: str = field(default_factory=lambda: os.getenv("GOOGLE_CLOUD_PROJECT", "lienmark-hackathon"))
+    google_cloud_project: str = field(default_factory=lambda: os.getenv("GOOGLE_CLOUD_PROJECT", "lienmark-dev-lx-2026"))
     google_cloud_region: str = field(default_factory=lambda: os.getenv("GOOGLE_CLOUD_REGION", "us-central1"))
     google_application_credentials: Optional[str] = field(default_factory=lambda: os.getenv("GOOGLE_APPLICATION_CREDENTIALS"))
 
@@ -20,7 +20,7 @@ class Settings:
     gemini_model: str = field(default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-2.5-pro"))
     gemini_flash_model: str = field(default_factory=lambda: os.getenv("GEMINI_FLASH_MODEL", "gemini-2.5-flash"))
     gemini_flash_lite_model: str = field(default_factory=lambda: os.getenv("GEMINI_FLASH_LITE_MODEL", "gemini-2.5-flash-lite"))
-    agent_builder_project_id: str = field(default_factory=lambda: os.getenv("AGENT_BUILDER_PROJECT_ID", "lienmark-hackathon"))
+    agent_builder_project_id: str = field(default_factory=lambda: os.getenv("AGENT_BUILDER_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT", "lienmark-dev-lx-2026"))
     agent_builder_location: str = field(default_factory=lambda: os.getenv("AGENT_BUILDER_LOCATION", "us-central1"))
 
     # Parallel Search & MCP
@@ -29,7 +29,7 @@ class Settings:
     parallel_mcp_server_url: str = field(default_factory=lambda: os.getenv("PARALLEL_MCP_SERVER_URL", "https://search.parallel.ai/mcp"))
 
     # Firestore
-    firestore_project_id: str = field(default_factory=lambda: os.getenv("FIRESTORE_PROJECT_ID", "lienmark-hackathon"))
+    firestore_project_id: str = field(default_factory=lambda: os.getenv("FIRESTORE_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT", "lienmark-dev-lx-2026"))
     firestore_database: str = field(default_factory=lambda: os.getenv("FIRESTORE_DATABASE", "(default)"))
 
     # Governance & Operational Controls

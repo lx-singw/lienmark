@@ -472,7 +472,13 @@ class NativeFirestoreClient(FirestoreClientInterface):
                 "google-cloud-firestore package is required to instantiate NativeFirestoreClient."
             ) from e
 
-        proj = project_id or settings.firestore_project_id or settings.google_cloud_project
+        proj = (
+            project_id
+            or os.getenv("FIRESTORE_PROJECT_ID")
+            or os.getenv("GOOGLE_CLOUD_PROJECT")
+            or settings.firestore_project_id
+            or settings.google_cloud_project
+        )
         db_name = database or settings.firestore_database or "(default)"
         self.db = firestore.Client(project=proj, database=db_name)
         logger.info(f"Initialized NativeFirestoreClient for project '{proj}', database '{db_name}'.")
@@ -720,17 +726,42 @@ def get_firestore_client(force_in_memory: bool = False) -> FirestoreClientInterf
         has_credentials = bool(os.getenv("GOOGLE_APPLICATION_CREDENTIALS")) or bool(
             os.getenv("K_SERVICE")  # Cloud Run / App Engine environment indicator
         )
+        require_persistent = (
+            os.getenv("REQUIRE_PERSISTENT_FIRESTORE", "").lower() in ("true", "1")
+            or bool(os.getenv("K_SERVICE") and os.getenv("ENVIRONMENT", "").lower() in ("production", "demo"))
+        )
 
-        if has_credentials:
+        if has_credentials or require_persistent:
             try:
                 _client_instance = NativeFirestoreClient()
                 logger.info("Successfully connected Native Google Cloud Firestore client.")
                 return _client_instance
             except Exception as e:
+                if require_persistent:
+                    proj = (
+                        os.getenv("FIRESTORE_PROJECT_ID")
+                        or os.getenv("GOOGLE_CLOUD_PROJECT")
+                        or settings.firestore_project_id
+                        or settings.google_cloud_project
+                    )
+                    raise FirestoreError(
+                        f"Fatal: Failed to connect to Native Google Cloud Firestore for project '{proj}': {e}. REQUIRE_PERSISTENT_FIRESTORE is enforced."
+                    ) from e
                 logger.warning(
                     f"Could not connect to Google Cloud Firestore ({e}). "
                     "Falling back to InMemoryFirestoreClient."
                 )
+
+        if require_persistent:
+            proj = (
+                os.getenv("FIRESTORE_PROJECT_ID")
+                or os.getenv("GOOGLE_CLOUD_PROJECT")
+                or settings.firestore_project_id
+                or settings.google_cloud_project
+            )
+            raise FirestoreError(
+                f"Fatal: Missing Google Cloud credentials for Native Firestore in project '{proj}'. REQUIRE_PERSISTENT_FIRESTORE is enforced."
+            )
 
         _client_instance = InMemoryFirestoreClient()
         return _client_instance

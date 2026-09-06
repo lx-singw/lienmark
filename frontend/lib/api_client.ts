@@ -104,7 +104,7 @@ export interface ApiClientConfig {
 
 const resolveDefaultBaseUrl = (): string => {
   if (typeof window !== 'undefined') {
-    // Browser runtime: use public base URL if configured, or empty string to use Next.js /api rewrite proxy
+    // Browser runtime: use public base URL if configured, or empty string to use Next.js /api runtime server proxy
     return (
       process.env.NEXT_PUBLIC_API_BASE_URL ||
       process.env.NEXT_PUBLIC_BACKEND_URL ||
@@ -115,11 +115,9 @@ const resolveDefaultBaseUrl = (): string => {
   // Server / SSR runtime: prioritize container internal network address
   return (
     process.env.INTERNAL_API_URL ||
-    process.env.BACKEND_INTERNAL_URL ||
     process.env.BACKEND_URL ||
-    process.env.NEXT_PUBLIC_API_BASE_URL ||
-    process.env.NEXT_PUBLIC_BACKEND_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
+    process.env.INTERNAL_BACKEND_URL ||
+    process.env.BACKEND_INTERNAL_URL ||
     'http://127.0.0.1:8000'
   );
 };
