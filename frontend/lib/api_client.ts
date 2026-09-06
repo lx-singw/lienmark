@@ -160,6 +160,7 @@ export class LienmarkApiClient {
     try {
       this.log('info', `Dispatching ${options.method || 'GET'} ${fullUrl}`);
       const response = await fetch(fullUrl, {
+        credentials: options.credentials || 'same-origin',
         ...options,
         signal: controller.signal,
         headers: {
@@ -463,6 +464,7 @@ export class LienmarkApiClient {
   /**
    * POST /api/demo/reset
    * Resets workflow state, decisions, queues, and idempotency cache to clean V7 baseline.
+   * If the backend fails (5xx/network error), propagates error to UI so user sees real status and displayed state is preserved.
    */
   async resetDemo(timeoutMs: number = 10000): Promise<DemoResetResponse> {
     try {
@@ -474,18 +476,8 @@ export class LienmarkApiClient {
       this.fallbackReattestations = {};
       return resp;
     } catch (error: unknown) {
-      if (!this.enableFallback) throw error;
-      this.log('warn', 'FastAPI demo reset unreachable; executing offline fallback reset', error);
-      this.fallbackReattestations = {};
-      return {
-        status: 'RESET_SUCCESS',
-        message: 'Demo state reset to clean V7 baseline (offline fallback)',
-        total_claims: 12,
-        approved_claims: 12,
-        carried_forward_count: 12,
-        reopened_count: 0,
-        timestamp: new Date().toISOString(),
-      };
+      this.log('error', 'FastAPI demo reset failed upstream; propagating error to caller', error);
+      throw error;
     }
   }
 

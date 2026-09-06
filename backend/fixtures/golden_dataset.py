@@ -9,6 +9,7 @@ Contains 12 canonical rights-bearing uses:
 Authored strictly under Google AntiGravity for Agentic Cinema compliance.
 """
 
+import hashlib
 from typing import Any, Dict, List, Tuple
 from backend.domain.models import (
     CreativeUse,
@@ -18,8 +19,11 @@ from backend.domain.models import (
     ProductionVersion,
     PublicEvidenceSnapshot,
 )
-from backend.core.invalidation_engine import InvalidationEngine
-from backend.core.semantic_delta import DeltaAnalysisResult
+
+
+def compute_context_hash(text: str, prominence: str) -> str:
+    payload = f"{text.strip()}::{prominence.strip()}"
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 
 
 def get_v7_version() -> ProductionVersion:
@@ -151,7 +155,7 @@ def get_golden_fixtures() -> Tuple[
         prominence,
         context,
     ) in unchanged_specs:
-        v7_hash = InvalidationEngine.compute_context_hash(context, prominence)
+        v7_hash = compute_context_hash(context, prominence)
         v7_u = CreativeUse(
             use_id=f"use_v7_{key}",
             version_id="v7",
@@ -210,7 +214,7 @@ def get_golden_fixtures() -> Tuple[
     poster_key = "poster_noir_detective_magazine"
     v7_poster_prominence = "Out-of-focus background blur, 2s"
     v7_poster_context = "Poster hangs on far wall behind detective desk, soft focus."
-    v7_poster_hash = InvalidationEngine.compute_context_hash(
+    v7_poster_hash = compute_context_hash(
         v7_poster_context, v7_poster_prominence
     )
 
@@ -233,7 +237,7 @@ def get_golden_fixtures() -> Tuple[
         "Detective grabs poster off wall, examines the cover art closely and reads: "
         "'Look at this headline: Shadows Over Broadway! They knew everything back in 1946.'"
     )
-    v8_poster_hash = InvalidationEngine.compute_context_hash(
+    v8_poster_hash = compute_context_hash(
         v8_poster_context, v8_poster_prominence
     )
 
@@ -283,7 +287,7 @@ def get_golden_fixtures() -> Tuple[
     music_key = "music_cue_midnight_serenade"
     v7_music_prominence = "Background jazz trio performance in speakeasy, 20s"
     v7_music_context = "Atmospheric jazz trumpet playing in background while characters talk."
-    v7_music_hash = InvalidationEngine.compute_context_hash(
+    v7_music_hash = compute_context_hash(
         v7_music_context, v7_music_prominence
     )
 
@@ -362,6 +366,7 @@ def get_golden_expected_deltas() -> ExpectedDeltaDict:
     - Item 11 (Scene 42 poster: poster_noir_detective_magazine) has material delta (is_material=True).
     - Item 12 (Scene 18 jazz cue: music_cue_midnight_serenade) and Items 1-10 have is_material=False for creative context.
     """
+    from backend.core.semantic_delta import DeltaAnalysisResult
     deltas = ExpectedDeltaDict({
 
         # 10 Unchanged Creative Uses (is_material=False, low risk, action=carry)

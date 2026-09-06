@@ -674,6 +674,8 @@ class ReviewActionRequest(BaseModel):
     reviewer: Optional[Union[ReviewerIdentity, Dict[str, Any]]] = None
     reviewer_name: Optional[str] = None
     version_id: str = "v8"
+    run_id: Optional[str] = None
+    session_id: Optional[str] = None
 
     @model_validator(mode="before")
     @classmethod

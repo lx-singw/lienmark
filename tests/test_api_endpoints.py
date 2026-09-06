@@ -6,9 +6,15 @@ Authored strictly under Google AntiGravity for Agentic Cinema compliance.
 
 import pytest
 from fastapi.testclient import TestClient
-from backend.main import app
+from backend.main import app, counsel_checkpoint_manager
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def reset_counsel_state():
+    yield
+    counsel_checkpoint_manager.reset()
 
 
 def test_health_endpoints():

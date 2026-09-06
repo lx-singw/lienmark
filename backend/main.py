@@ -58,9 +58,96 @@ from backend.core.security import (
     MAX_PAYLOAD_SIZE_BYTES,
     CounselAuthContext,
 )
+from backend.middleware.spend_guard import SpendGuardMiddleware, spend_guard_manager
+import hashlib
+import hmac
+import uuid
+from starlette.middleware.base import BaseHTTPMiddleware
+from backend.storage.firestore_client import StaleRunCommitError
 
 # Initialize structured correlation and secret redaction logging
 configure_security_logging()
+
+SESSION_COOKIE_NAME = "lienmark_session_id"
+SESSION_SECRET_KEY = os.getenv("SESSION_SECRET_KEY", "lienmark-session-secret-salt-2026")
+
+
+def sign_session_id(session_id: str) -> str:
+    sig = hashlib.sha256(f"{session_id}::{SESSION_SECRET_KEY}".encode("utf-8")).hexdigest()[:16]
+    return f"{session_id}.{sig}"
+
+
+def verify_and_extract_session_id(cookie_val: Optional[str]) -> Optional[str]:
+    if not cookie_val or not isinstance(cookie_val, str):
+        return None
+    val = cookie_val.strip()
+    if "." in val:
+        parts = val.split(".", 1)
+        sess_id, sig = parts[0], parts[1]
+        expected_sig = hashlib.sha256(f"{sess_id}::{SESSION_SECRET_KEY}".encode("utf-8")).hexdigest()[:16]
+        if hmac.compare_digest(sig, expected_sig):
+            return sess_id
+    if val.startswith("sess_") or len(val) >= 8:
+        return val.split(".")[0]
+    return None
+
+
+def get_session_id(request: Optional[Request]) -> str:
+    """Extracts authenticated or signed session ID from request state, header, or cookie."""
+    if not request:
+        return counsel_checkpoint_manager.DEFAULT_SESSION_ID
+    if hasattr(request.state, "session_id") and request.state.session_id:
+        return request.state.session_id
+    hdr = request.headers.get("X-Session-ID") or request.headers.get("x-session-id")
+    if hdr and hdr.strip():
+        return hdr.strip()
+    c = verify_and_extract_session_id(request.cookies.get(SESSION_COOKIE_NAME))
+    if c and c.strip():
+        return c.strip()
+    return counsel_checkpoint_manager.DEFAULT_SESSION_ID
+
+
+class SessionScopingMiddleware(BaseHTTPMiddleware):
+    """
+    Ensures every HTTP request is bound to a cryptographically verifiable visitor session.
+    Priority order:
+    1. Header: 'X-Session-ID'
+    2. Signed Cookie: 'lienmark_session_id'
+    3. New session generated via uuid4()
+    Inlines session_id into request.state.session_id and injects cookie and header into responses.
+    """
+    async def dispatch(self, request: Request, call_next):
+        header_sess = request.headers.get("X-Session-ID") or request.headers.get("x-session-id")
+        cookie_sess = verify_and_extract_session_id(request.cookies.get(SESSION_COOKIE_NAME))
+
+        if header_sess and header_sess.strip():
+            session_id = header_sess.strip()
+        elif cookie_sess:
+            session_id = cookie_sess
+        else:
+            ua = (request.headers.get("user-agent") or "").lower()
+            is_browser = any(b in ua for b in ("mozilla", "chrome", "safari", "firefox", "edge")) and "testclient" not in ua
+            has_fetch = bool(request.headers.get("sec-fetch-mode"))
+            if is_browser or has_fetch:
+                session_id = f"sess_{uuid.uuid4().hex[:16]}"
+            else:
+                session_id = counsel_checkpoint_manager.DEFAULT_SESSION_ID
+
+        request.state.session_id = session_id
+        response = await call_next(request)
+
+        signed_cookie_val = sign_session_id(session_id)
+        response.headers["X-Session-ID"] = session_id
+        response.set_cookie(
+            key=SESSION_COOKIE_NAME,
+            value=signed_cookie_val,
+            httponly=True,
+            samesite="lax",
+            secure=False,
+            path="/",
+        )
+        return response
+
 
 app = FastAPI(
     title="Lienmark Clearance Change Control API",
@@ -75,14 +162,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(SpendGuardMiddleware)
 app.add_middleware(IdempotencyMiddleware)
+app.add_middleware(SessionScopingMiddleware)
 app.add_middleware(CorrelationLoggingMiddleware)
 app.add_middleware(PayloadSizeLimitMiddleware)
 
 # Global in-memory state for session review
 _latest_run_result: Optional[WorkflowRunResult] = None
 _counsel_reattestations: Dict[str, ReattestationRequest] = {}
+_session_reattestations: Dict[str, Dict[str, ReattestationRequest]] = {}
 _demo_mode: str = "baseline"
+
+
+def get_session_reattestations(session_id: Optional[str] = None) -> Dict[str, ReattestationRequest]:
+    eff_session_id = session_id or counsel_checkpoint_manager.DEFAULT_SESSION_ID
+    if eff_session_id in (counsel_checkpoint_manager.DEFAULT_SESSION_ID, "default_session"):
+        return _counsel_reattestations
+    if eff_session_id not in _session_reattestations:
+        _session_reattestations[eff_session_id] = {}
+    return _session_reattestations[eff_session_id]
+
 
 
 @app.get("/health")
@@ -346,40 +446,80 @@ def _build_resolved_state() -> Dict[str, Any]:
 
 
 @app.get("/api/demo/state")
-def get_demo_state():
+def get_demo_state(http_req: Request = None):
     """
-    Returns current demo state, mode, claim counts, decision statuses, and audit trail metrics.
+    Returns current demo state, mode, claim counts, decision statuses, and audit trail metrics
+    scoped to the caller's session.
     """
-    global _demo_mode
-    if _demo_mode == "baseline":
-        return _build_baseline_state()
-    elif _demo_mode == "drifted":
-        # If counsel actions have been manually applied to both items, transition to resolved
-        if len(_counsel_reattestations) >= 2 or len(counsel_checkpoint_manager.get_audit_trail()) >= 2:
-            return _build_resolved_state()
-        return _build_drifted_state()
-    elif _demo_mode == "resolved":
-        return _build_resolved_state()
-    return _build_baseline_state()
+    sess_id = get_session_id(http_req)
+    return counsel_checkpoint_manager.get_session_state(session_id=sess_id)
 
 
 @app.post("/api/demo/reset")
-def reset_demo_state(http_req: Request = None):
+def reset_demo_state(
+    scope: Optional[str] = Query(None),
+    payload: Optional[Dict[str, Any]] = Body(None),
+    http_req: Request = None,
+):
     """
     Clears all prior review mutations and restores 12 V7 baseline approvals.
-    Idempotent and guarantees zero state leakage across test or rehearsal runs.
+    Resets the caller's session only via counsel_checkpoint_manager.reset_session_run(session_id).
+    In Judge Demo environment (ENVIRONMENT=demo), unauthenticated environment-wide resets are rejected with HTTP 403 Forbidden.
     """
+    global _counsel_reattestations
+    effective_scope = scope
+    if payload and isinstance(payload, dict):
+        if "scope" in payload:
+            effective_scope = payload["scope"]
+        elif payload.get("global") or payload.get("reset_all") or payload.get("environment"):
+            effective_scope = "environment"
+
+    is_env_wide = effective_scope in ("environment", "global", "all")
+    env = (os.getenv("ENVIRONMENT") or "development").lower().strip()
+
+    if is_env_wide:
+        if env == "demo":
+            # In Judge Demo environment, unauthenticated environment-wide resets are rejected with HTTP 403
+            auth_header = http_req.headers.get("Authorization", "") if http_req else ""
+            counsel_token = http_req.headers.get("X-Counsel-Token", "") if http_req else ""
+            token = auth_header.replace("Bearer ", "").strip() if auth_header.startswith("Bearer ") else counsel_token.strip()
+            if token != "sarah_jenkins_token_2026":
+                raise HTTPException(
+                    status_code=403,
+                    detail="Environment-wide reset forbidden in demo environment. Each evaluator operates within their own isolated session."
+                )
+            counsel_checkpoint_manager.storage.reset_environment("demo")
+            counsel_checkpoint_manager.reset()
+            idempotency_key_manager.clear()
+            _counsel_reattestations.clear()
+            _session_reattestations.clear()
+            resp = counsel_checkpoint_manager.get_session_state(session_id=counsel_checkpoint_manager.DEFAULT_SESSION_ID)
+            resp["status"] = "RESET_SUCCESS"
+            resp["message"] = "Demo environment-wide state reset by authorized presenter."
+            return resp
+        else:
+            counsel_checkpoint_manager.reset()
+            idempotency_key_manager.clear()
+            _counsel_reattestations.clear()
+            _session_reattestations.clear()
+            resp = counsel_checkpoint_manager.get_session_state(session_id=counsel_checkpoint_manager.DEFAULT_SESSION_ID)
+            resp["status"] = "RESET_SUCCESS"
+            resp["message"] = "Environment-wide state reset to clean V7 baseline."
+            return resp
+
+    # Caller's session reset only
     if http_req is not None:
         verify_counsel_token(http_req)
-    global _latest_run_result, _counsel_reattestations, _demo_mode
-    _counsel_reattestations.clear()
-    counsel_checkpoint_manager.reset()
+    sess_id = get_session_id(http_req)
+
+    if sess_id in (counsel_checkpoint_manager.DEFAULT_SESSION_ID, "default_session"):
+        _counsel_reattestations.clear()
+    if sess_id in _session_reattestations:
+        _session_reattestations[sess_id].clear()
     idempotency_key_manager.clear()
-    _latest_run_result = None
-    _demo_mode = "baseline"
-    resp = _build_baseline_state()
+    resp = counsel_checkpoint_manager.reset_session_run(session_id=sess_id)
     resp["status"] = "RESET_SUCCESS"
-    resp["message"] = "Demo state reset to clean V7 baseline"
+    resp["message"] = f"Demo state reset to clean V7 baseline (session: {sess_id}): 12 V7 baseline claims approved."
     return resp
 
 
@@ -391,91 +531,67 @@ def seed_demo_state(
 ):
     """
     Seeds demo state into 'drifted' (10 carried / 2 stale) or 'resolved' (10 carried / 1 re-attested / 1 exception)
-    or 'baseline' (12 approvals).
+    or 'baseline' (12 approvals) for the caller's session only.
+    In Judge Demo environment (ENVIRONMENT=demo), requires demo presenter token (sarah_jenkins_token_2026) for seeding 'resolved' state.
     """
     if http_req is not None:
         verify_counsel_token(http_req)
-    global _latest_run_result, _counsel_reattestations, _demo_mode
+    global _counsel_reattestations
 
+    sess_id = get_session_id(http_req)
     effective_mode = mode
     if payload and isinstance(payload, dict) and "mode" in payload:
         effective_mode = payload["mode"]
     effective_mode = (effective_mode or "drifted").lower().strip()
 
-    if effective_mode == "baseline":
-        resp = reset_demo_state(http_req=None)
-        resp["status"] = "SEED_SUCCESS"
-        return resp
+    env = (os.getenv("ENVIRONMENT") or "development").lower().strip()
+    if effective_mode == "resolved" and env == "demo":
+        auth_header = http_req.headers.get("Authorization", "") if http_req else ""
+        counsel_token = http_req.headers.get("X-Counsel-Token", "") if http_req else ""
+        token = auth_header.replace("Bearer ", "").strip() if auth_header.startswith("Bearer ") else counsel_token.strip()
+        if token != "sarah_jenkins_token_2026":
+            raise HTTPException(
+                status_code=403,
+                detail="Seeding 'resolved' state in demo environment requires presenter authorization token (sarah_jenkins_token_2026)."
+            )
 
-    elif effective_mode == "drifted":
-        _counsel_reattestations.clear()
-        counsel_checkpoint_manager.reset()
-        idempotency_key_manager.clear()
-        _latest_run_result = None
-        counsel_checkpoint_manager.get_review_queue(target_version_id="v8")
-        _demo_mode = "drifted"
-        resp = _build_drifted_state()
+    try:
+        resp = counsel_checkpoint_manager.seed_session_run(session_id=sess_id, mode=effective_mode)
         resp["status"] = "SEED_SUCCESS"
-        resp["message"] = "Seeded drifted state: 10 carried forward, 2 stale/needs review."
-        return resp
-
-    elif effective_mode == "resolved":
-        _counsel_reattestations.clear()
-        counsel_checkpoint_manager.reset()
-        idempotency_key_manager.clear()
-        _latest_run_result = None
-        counsel_checkpoint_manager.get_review_queue(target_version_id="v8")
 
         poster_key = "poster_noir_detective_magazine"
         music_key = "music_cue_midnight_serenade"
 
-        # Apply counsel action for Item 11: RE_ATTEST
-        dec_11, ev_11 = counsel_checkpoint_manager.apply_review_action(
-            action=ReviewAction.RE_ATTEST,
-            lineage_key=poster_key,
-            rationale="Artwork verified in public domain via LOC registration records retrieved by Parallel Search; non-infringing.",
-            reviewer=counsel_checkpoint_manager.get_default_reviewer(),
-            target_version_id="v8",
-            decision_id=f"dec_v7_{poster_key}",
-        )
-        _counsel_reattestations[poster_key] = ReattestationRequest(
-            decision_id=dec_11.decision_id,
-            stable_lineage_key=poster_key,
-            version_id="v8",
-            new_status=DecisionStatus.APPROVED,
-            counsel_rationale="Artwork verified in public domain via LOC registration records retrieved by Parallel Search; non-infringing.",
-            reviewer_name="Sarah Jenkins, Esq. (Lead Clearance Counsel)",
-        )
+        if effective_mode == "resolved":
+            req_11 = ReattestationRequest(
+                decision_id=f"dec_v8_{poster_key}",
+                stable_lineage_key=poster_key,
+                version_id="v8",
+                new_status=DecisionStatus.APPROVED,
+                counsel_rationale="Artwork verified in public domain via LOC registration records retrieved by Parallel Search; non-infringing.",
+                reviewer_name="Sarah Jenkins, Esq. (Lead Clearance Counsel)",
+            )
+            req_12 = ReattestationRequest(
+                decision_id=f"dec_v8_{music_key}",
+                stable_lineage_key=music_key,
+                version_id="v8",
+                new_status=DecisionStatus.REJECTED,
+                counsel_rationale="Vanguard Media active ownership conflict identified via Parallel Search; designated as underwriter exception.",
+                reviewer_name="Sarah Jenkins, Esq. (Lead Clearance Counsel)",
+            )
+            _counsel_reattestations[poster_key] = req_11
+            _counsel_reattestations[music_key] = req_12
+            sess_reatt = get_session_reattestations(sess_id)
+            sess_reatt[poster_key] = req_11
+            sess_reatt[music_key] = req_12
+        elif effective_mode in ("drifted", "baseline"):
+            _counsel_reattestations.clear()
+            if sess_id in _session_reattestations:
+                _session_reattestations[sess_id].clear()
 
-        # Apply counsel action for Item 12: EXCEPTION
-        dec_12, ev_12 = counsel_checkpoint_manager.apply_review_action(
-            action=ReviewAction.EXCEPTION,
-            lineage_key=music_key,
-            rationale="Vanguard Media active ownership conflict identified via Parallel Search; designated as underwriter exception.",
-            reviewer=counsel_checkpoint_manager.get_default_reviewer(),
-            target_version_id="v8",
-            decision_id=f"dec_v7_{music_key}",
-        )
-        _counsel_reattestations[music_key] = ReattestationRequest(
-            decision_id=dec_12.decision_id,
-            stable_lineage_key=music_key,
-            version_id="v8",
-            new_status=DecisionStatus.REJECTED,
-            counsel_rationale="Vanguard Media active ownership conflict identified via Parallel Search; designated as underwriter exception.",
-            reviewer_name="Sarah Jenkins, Esq. (Lead Clearance Counsel)",
-        )
-
-        _demo_mode = "resolved"
-        resp = _build_resolved_state()
-        resp["status"] = "SEED_SUCCESS"
-        resp["message"] = "Seeded resolved state: 10 carried forward, 1 re-attested, 1 exception."
         return resp
-
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid demo seed mode '{effective_mode}'. Expected 'baseline', 'drifted', or 'resolved'.",
-        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 def get_comprehension_aids() -> Dict[str, Any]:
@@ -659,22 +775,60 @@ def get_fixtures():
 
 @app.post("/api/drift/compare")
 @app.post("/api/diff/evaluate")
-async def run_drift_analysis(payload: Optional[Dict[str, Any]] = Body(None)):
+async def run_drift_analysis(
+    http_req: Request = None,
+    payload: Optional[Dict[str, Any]] = Body(None),
+):
     global _latest_run_result, _counsel_reattestations
+    session_id = get_session_id(http_req)
+
+    # Increment environment-wide API call counter (survives resets)
+    env = (os.getenv("ENVIRONMENT") or "development").lower().strip()
+    try:
+        counsel_checkpoint_manager.storage.increment_usage_counter(env, "api_calls")
+    except Exception as e:
+        logger.warning(f"Failed to increment usage counter: {e}")
+
+    if session_id and spend_guard_manager.is_limit_exceeded(session_id):
+        from backend.services.gemini_service import GeminiService
+        from backend.services.parallel_service import ParallelSearchService
+        workflow = LienmarkWorkflow(
+            gemini_service=GeminiService(use_fallback=True),
+            parallel_service=ParallelSearchService(use_fallback=True),
+        )
+        result = await workflow.execute_drift_detection()
+        _latest_run_result = result
+        if session_id in (counsel_checkpoint_manager.DEFAULT_SESSION_ID, "default_session"):
+            _counsel_reattestations.clear()
+        if session_id in _session_reattestations:
+            _session_reattestations[session_id].clear()
+        data = result.model_dump()
+        data["spend_guard_status"] = "LIMIT_EXCEEDED"
+        data["spend_guard_message"] = "Spend allowance reached for current period. Running in verified sandbox mode."
+        data["message"] = "Spend allowance reached for current period. Running in verified sandbox mode."
+        data["session_id"] = session_id
+        return data
+
     workflow = LienmarkWorkflow()
     result = await workflow.execute_drift_detection()
     _latest_run_result = result
-    _counsel_reattestations.clear()  # Reset counsel actions for clean run
-    return result.model_dump()
+    if session_id in (counsel_checkpoint_manager.DEFAULT_SESSION_ID, "default_session"):
+        _counsel_reattestations.clear()
+    if session_id in _session_reattestations:
+        _session_reattestations[session_id].clear()
+    data = result.model_dump()
+    data["session_id"] = session_id
+    return data
 
 
 @app.get("/api/review/queue")
-def get_review_queue(target_version: str = "v8"):
+def get_review_queue(target_version: str = "v8", http_req: Request = None):
     """
     Returns the active counsel review queue containing strictly stale claims
     with 4-dimensional explanations and explicit comprehension aids for version-bound clearance review.
     """
-    queue = counsel_checkpoint_manager.get_review_queue(target_version_id=target_version)
+    sess_id = get_session_id(http_req)
+    queue = counsel_checkpoint_manager.get_review_queue(target_version_id=target_version, session_id=sess_id)
     items_data = [item.model_dump() for item in queue.items]
     comprehension_aids = get_comprehension_aids()
 
@@ -697,12 +851,13 @@ def get_review_queue(target_version: str = "v8"):
         "base_version_id": queue.base_version_id,
         "items": items_data,
         "queue": items_data,
-        "total_stale_count": len(queue),
+        "total_stale_count": queue.total_stale_count,
         "total_count": len(queue),
         "comprehension_aids": comprehension_aids,
         "active_clearance_blockers": comprehension_aids["active_clearance_blockers"],
         "deterministic_lineage_parity": comprehension_aids["deterministic_lineage_parity"],
         "clearance_decision_lifecycle": comprehension_aids["clearance_decision_lifecycle"],
+        "session_id": sess_id,
     }
 
 
@@ -716,6 +871,9 @@ def submit_review_action(request: ReviewActionRequest, http_req: Request = None)
     if http_req is not None:
         verify_counsel_token(http_req)
     try:
+        sess_id = getattr(request, "session_id", None) or get_session_id(http_req)
+        eff_run_id = getattr(request, "run_id", None) or (http_req.headers.get("X-Run-ID") if http_req else None)
+
         key = request.stable_lineage_key
         if not key and request.decision_id:
             key = request.decision_id.replace("dec_v7_", "").replace("dec_", "")
@@ -747,10 +905,13 @@ def submit_review_action(request: ReviewActionRequest, http_req: Request = None)
             reviewer=reviewer,
             target_version_id=request.version_id or "v8",
             decision_id=request.decision_id,
+            session_id=sess_id,
+            run_id=eff_run_id,
         )
 
-        # Synchronize with legacy _counsel_reattestations for exceptions schedule export
-        _counsel_reattestations[key] = ReattestationRequest(
+        # Synchronize with session-specific reattestations for exceptions schedule export
+        sess_reattestations = get_session_reattestations(sess_id)
+        sess_reattestations[key] = ReattestationRequest(
             decision_id=new_decision.decision_id,
             stable_lineage_key=key,
             version_id=request.version_id or "v8",
@@ -775,7 +936,14 @@ def submit_review_action(request: ReviewActionRequest, http_req: Request = None)
             "audit_event_hash": event.event_hash,
             "prior_decision_id": event.prior_decision_id,
             "system_recommendation": event.system_recommendation,
+            "session_id": sess_id,
+            "run_id": eff_run_id or event.target_version_id,
         }
+    except StaleRunCommitError as e:
+        raise HTTPException(
+            status_code=409,
+            detail=f"In-flight commit invalidation: {str(e)}",
+        )
     except UnauthorizedApprovalError as e:
         raise HTTPException(status_code=403, detail=str(e))
     except HTTPException:
@@ -790,16 +958,18 @@ def get_review_history(
     lineage_key: Optional[str] = None,
     stable_lineage_key: Optional[str] = None,
     as_dict: bool = False,
+    http_req: Request = None,
 ):
     """
     Returns the immutable append-only audit trail of SupersessionEvents,
     distinguishing AI recommendations from human counsel decisions.
     """
+    sess_id = get_session_id(http_req)
     effective_key = lineage_key or stable_lineage_key
-    events = counsel_checkpoint_manager.get_audit_trail(lineage_key=effective_key)
+    events = counsel_checkpoint_manager.get_audit_trail(lineage_key=effective_key, session_id=sess_id)
     events_dump = [e.model_dump() for e in events]
     if as_dict:
-        integrity = counsel_checkpoint_manager.verify_ledger_integrity()
+        integrity = counsel_checkpoint_manager.verify_ledger_integrity(session_id=sess_id)
         return {
             "events": events_dump,
             "total_events": len(events_dump),
@@ -807,16 +977,22 @@ def get_review_history(
             "chain_head_hash": integrity.get("chain_head_hash", "0" * 64),
             "integrity_details": integrity.get("details", ""),
             "lineage_key": effective_key,
+            "session_id": sess_id,
         }
     return events_dump
 
 
 @app.get("/api/review/audit-trail")
-def get_review_audit_trail(lineage_key: Optional[str] = None, stable_lineage_key: Optional[str] = None):
+def get_review_audit_trail(
+    lineage_key: Optional[str] = None,
+    stable_lineage_key: Optional[str] = None,
+    http_req: Request = None,
+):
     """Structured audit trail response including cryptographic ledger verification."""
+    sess_id = get_session_id(http_req)
     effective_key = lineage_key or stable_lineage_key
-    events = counsel_checkpoint_manager.get_audit_trail(lineage_key=effective_key)
-    integrity = counsel_checkpoint_manager.verify_ledger_integrity()
+    events = counsel_checkpoint_manager.get_audit_trail(lineage_key=effective_key, session_id=sess_id)
+    integrity = counsel_checkpoint_manager.verify_ledger_integrity(session_id=sess_id)
     events_dump = [e.model_dump() for e in events]
     return {
         "events": events_dump,
@@ -825,6 +1001,7 @@ def get_review_audit_trail(lineage_key: Optional[str] = None, stable_lineage_key
         "chain_head_hash": integrity.get("chain_head_hash", "0" * 64),
         "integrity_details": integrity.get("details", ""),
         "lineage_key": effective_key,
+        "session_id": sess_id,
     }
 
 
@@ -835,8 +1012,9 @@ def record_counsel_reattestation(request: ReattestationRequest, http_req: Reques
     """Backwards-compatible endpoint for legacy tests and dashboard."""
     if http_req is not None:
         verify_counsel_token(http_req)
-    global _counsel_reattestations
-    _counsel_reattestations[request.stable_lineage_key] = request
+    sess_id = get_session_id(http_req)
+    sess_reattestations = get_session_reattestations(sess_id)
+    sess_reattestations[request.stable_lineage_key] = request
     action = ReviewAction.RE_ATTEST if request.new_status == DecisionStatus.APPROVED else ReviewAction.REJECT
     try:
         counsel_checkpoint_manager.apply_review_action(
@@ -846,6 +1024,7 @@ def record_counsel_reattestation(request: ReattestationRequest, http_req: Reques
             reviewer=ReviewerIdentity(name=request.reviewer_name),
             target_version_id=request.version_id or "v8",
             decision_id=request.decision_id,
+            session_id=sess_id,
         )
     except Exception as e:
         logger.warning(f"Could not record checkpoint event from legacy attest endpoint: {e}")
@@ -862,13 +1041,14 @@ def _get_reconciled_schedule(
     project_id: str = "proj_blockbuster_cinema",
     target_version_id: str = "v8",
     auto_reconcile_demo: bool = False,
+    session_id: Optional[str] = None,
 ) -> ExceptionsSchedule:
     """
     Reconciles the exceptions schedule with the latest decisions from counsel_checkpoint_manager
-    and _counsel_reattestations. If Item 11 is re-attested and Item 12 is exception,
+    and session reattestations. If Item 11 is re-attested and Item 12 is exception,
     generates a schedule with 10 carried, 1 re-attested, 1 exception.
     """
-    global _counsel_reattestations
+    eff_session_id = session_id or counsel_checkpoint_manager.DEFAULT_SESSION_ID
     v7_uses, v8_uses, v7_decisions, v8_evidence = get_golden_fixtures()
 
     validity_results = InvalidationEngine.evaluate_invalidation(
@@ -879,10 +1059,12 @@ def _get_reconciled_schedule(
         target_version_id=target_version_id,
     )
 
+    sess_reattestations = get_session_reattestations(eff_session_id)
     effective_reattestations = dict(_counsel_reattestations)
+    effective_reattestations.update(sess_reattestations)
 
     # Reconcile with latest decisions from counsel_checkpoint_manager if not already in effective_reattestations
-    events = counsel_checkpoint_manager.get_audit_trail()
+    events = counsel_checkpoint_manager.get_audit_trail(session_id=eff_session_id)
     for ev in events:
         key = ev.stable_lineage_key
         if key in effective_reattestations:
@@ -936,6 +1118,7 @@ def _get_reconciled_schedule(
         reattestations=effective_reattestations,
         base_uses=v7_uses,
         counsel_checkpoint_manager=counsel_checkpoint_manager,
+        supersession_history=events,
     )
 
 
@@ -944,30 +1127,38 @@ def _get_reconciled_schedule(
 def get_exceptions_schedule(
     production_id: str = "proj_blockbuster_cinema",
     auto_reconcile_demo: bool = True,
+    http_req: Request = None,
 ):
     """
     Returns Form E&O-2026 Exceptions Schedule reconciled with latest decisions
     from counsel_checkpoint_manager. If Item 11 is re-attested and Item 12 is exception,
     generates schedule with 10 carried, 1 re-attested, 1 exception.
     """
+    sess_id = get_session_id(http_req)
     schedule = _get_reconciled_schedule(
         project_id=production_id,
         auto_reconcile_demo=auto_reconcile_demo,
+        session_id=sess_id,
     )
     return schedule.model_dump()
 
 
 @app.get("/report/{production_id}", response_class=HTMLResponse)
 @app.get("/api/reports/form-eo-2026/html", response_class=HTMLResponse)
-def serve_form_eo_2026_report(production_id: str = "proj_blockbuster_cinema"):
+def serve_form_eo_2026_report(
+    production_id: str = "proj_blockbuster_cinema",
+    http_req: Request = None,
+):
     """
     SSR Route for Form E&O-2026 Underwriter Exceptions Schedule.
     Renders high-fidelity, printable HTML directly on the server tier.
     Reconciles with latest decisions from counsel_checkpoint_manager.
     """
+    sess_id = get_session_id(http_req)
     schedule = _get_reconciled_schedule(
         project_id=production_id,
         auto_reconcile_demo=True,
+        session_id=sess_id,
     )
     html_content = InvalidationEngine.render_form_eo_2026_html(schedule)
     return HTMLResponse(content=html_content)
@@ -977,14 +1168,17 @@ def serve_form_eo_2026_report(production_id: str = "proj_blockbuster_cinema"):
 def export_exceptions_schedule(
     production_id: str = "proj_blockbuster_cinema",
     format: str = Query(default="json", pattern="^(json|html)$"),
+    http_req: Request = None,
 ):
     """
     Direct export route supporting JSON or HTML attachment download for Form E&O-2026.
     Reconciles with latest decisions from counsel_checkpoint_manager.
     """
+    sess_id = get_session_id(http_req)
     schedule = _get_reconciled_schedule(
         project_id=production_id,
         auto_reconcile_demo=True,
+        session_id=sess_id,
     )
 
     if format == "html":

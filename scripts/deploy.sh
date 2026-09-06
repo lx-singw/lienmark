@@ -1,38 +1,101 @@
 #!/usr/bin/env bash
-# Production Deployment Script for Lienmark on Google Cloud Run
+# Two-Project Isolated Production Deployment Script for Lienmark
 # Authored under Google AntiGravity for Agentic Cinema: The Blockbuster Hackathon
 set -euo pipefail
 
 # ── 1. Configuration & Defaults ───────────────────────────────────────────────
-PROJECT_ID="${GOOGLE_CLOUD_PROJECT:-benchpress-ai-cloud}"
+ENVIRONMENT="dev"
+PROJECT_ID=""
 REGION="${GCP_REGION:-us-central1}"
-SERVICE_NAME="lienmark"
 REPO_NAME="${REPO_NAME:-lienmark-repo}"
-IMAGE_TAG="${IMAGE_TAG:-${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${SERVICE_NAME}:latest}"
-SERVICE_ACCOUNT="${SERVICE_ACCOUNT:-lienmark-sa@${PROJECT_ID}.iam.gserviceaccount.com}"
-
-CPU="${CPU_LIMIT:-2}"
-MEMORY="${MEMORY_LIMIT:-2Gi}"
+SERVICE_ACCOUNT=""
+CPU_LIMIT="${CPU_LIMIT:-2}"
+MEMORY_LIMIT="${MEMORY_LIMIT:-2Gi}"
 MIN_INSTANCES="${MIN_INSTANCES:-0}"
 MAX_INSTANCES="${MAX_INSTANCES:-10}"
 CONCURRENCY="${CONCURRENCY:-80}"
 TIMEOUT="${TIMEOUT:-300}"
+DRY_RUN=false
+USE_SECRET_MANAGER="${USE_SECRET_MANAGER:-false}"
 
-echo "======================================================================"
-echo ">> 🚀 DEPLOYING LIENMARK TO GOOGLE CLOUD RUN"
-echo "   Service:         ${SERVICE_NAME}"
-echo "   Project:         ${PROJECT_ID}"
-echo "   Region:          ${REGION}"
-echo "   Image:           ${IMAGE_TAG}"
-echo "   Service Account: ${SERVICE_ACCOUNT}"
-echo "   Resources:       ${CPU} CPU, ${MEMORY} RAM"
-echo "======================================================================"
-
-# ── 2. Environment Configuration ─────────────────────────────────────────────
-# Automatically read .env if present in root or scripts directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+OUTPUT_DIR="${ROOT_DIR}/output"
+mkdir -p "${OUTPUT_DIR}"
 
+# ── Parse Arguments ───────────────────────────────────────────────────────────
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --environment|-e)
+      ENVIRONMENT="$2"
+      shift 2
+      ;;
+    --project-id|-p)
+      PROJECT_ID="$2"
+      shift 2
+      ;;
+    --region|-r)
+      REGION="$2"
+      shift 2
+      ;;
+    --repo-name)
+      REPO_NAME="$2"
+      shift 2
+      ;;
+    --dry-run)
+      DRY_RUN=true
+      shift
+      ;;
+    --use-secret-manager)
+      USE_SECRET_MANAGER=true
+      shift
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+# Resolve default Project ID
+if [ -z "${PROJECT_ID}" ]; then
+  if [ -n "${GOOGLE_CLOUD_PROJECT:-}" ]; then
+    PROJECT_ID="${GOOGLE_CLOUD_PROJECT}"
+  elif [ "${ENVIRONMENT}" = "dev" ]; then
+    PROJECT_ID="lienmark-dev-lx-2026"
+  else
+    PROJECT_ID="lienmark-demo-lx-2026"
+  fi
+fi
+
+# Resolve default Service Account
+if [ -z "${SERVICE_ACCOUNT}" ]; then
+  if [ "${ENVIRONMENT}" = "dev" ]; then
+    SERVICE_ACCOUNT="lienmark-dev-sa@${PROJECT_ID}.iam.gserviceaccount.com"
+  else
+    SERVICE_ACCOUNT="lienmark-demo-sa@${PROJECT_ID}.iam.gserviceaccount.com"
+  fi
+fi
+
+# Determine Git commit SHA
+GIT_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "46b3e6684eaa91b10afb2e53ec39f855e697377c")
+GIT_COMMIT_SHORT="${GIT_COMMIT:0:7}"
+
+API_IMAGE_TAG="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/lienmark-api:${GIT_COMMIT_SHORT}"
+WEB_IMAGE_TAG="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/lienmark-web:${GIT_COMMIT_SHORT}"
+
+echo "======================================================================"
+echo ">> 🚀 LIENMARK ISOLATED DEPLOYMENT PIPELINE (Bash)"
+echo "   Environment:     ${ENVIRONMENT}"
+echo "   Project ID:      ${PROJECT_ID}"
+echo "   Region:          ${REGION}"
+echo "   Repository:      ${REPO_NAME}"
+echo "   Service Account: ${SERVICE_ACCOUNT}"
+echo "   Git Commit:      ${GIT_COMMIT_SHORT} (${GIT_COMMIT})"
+echo "   Dry Run Mode:    ${DRY_RUN}"
+echo "======================================================================"
+
+# Source .env if present
 if [ -f "${ROOT_DIR}/.env" ]; then
   echo "--> Sourcing local configuration from ${ROOT_DIR}/.env..."
   set -a
@@ -41,68 +104,174 @@ if [ -f "${ROOT_DIR}/.env" ]; then
   set +a
 fi
 
-# Build Cloud Run environment variable parameters
-ENV_VARS="ENVIRONMENT=production,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_REGION=${REGION}"
+# Dry run simulation
+if [ "${DRY_RUN}" = true ]; then
+  echo ""
+  echo "[DRY-RUN] Simulating Cloud Build and Cloud Run deployment for '${ENVIRONMENT}'..."
+  SYNTHETIC_API_DIGEST="sha256:$(python -c 'import hashlib, sys; print(hashlib.sha256(("lienmark-api-" + sys.argv[1]).encode()).hexdigest())' "${GIT_COMMIT}")"
+  SYNTHETIC_WEB_DIGEST="sha256:$(python -c 'import hashlib, sys; print(hashlib.sha256(("lienmark-web-" + sys.argv[1]).encode()).hexdigest())' "${GIT_COMMIT}")"
+  TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-if [ -n "${PARALLEL_API_KEY:-}" ]; then
-  ENV_VARS="${ENV_VARS},PARALLEL_API_KEY=${PARALLEL_API_KEY}"
-  echo "  [OK] Attached PARALLEL_API_KEY environment variable"
-else
-  echo "  [INFO] PARALLEL_API_KEY not provided (will operate in deterministic mock mode)"
+  cat > "${OUTPUT_DIR}/release_manifest.json" <<EOF
+{
+  "schema_version": "1.0.0",
+  "timestamp": "${TIMESTAMP}",
+  "environment": "${ENVIRONMENT}",
+  "project_id": "${PROJECT_ID}",
+  "region": "${REGION}",
+  "repository": "${REPO_NAME}",
+  "git_commit": "${GIT_COMMIT}",
+  "git_commit_short": "${GIT_COMMIT_SHORT}",
+  "images": {
+    "lienmark-api": {
+      "service": "lienmark-api",
+      "tag": "${API_IMAGE_TAG}",
+      "digest": "${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/lienmark-api@${SYNTHETIC_API_DIGEST}",
+      "sha256": "${SYNTHETIC_API_DIGEST}",
+      "url": "https://lienmark-api-dryrun.a.run.app"
+    },
+    "lienmark-web": {
+      "service": "lienmark-web",
+      "tag": "${WEB_IMAGE_TAG}",
+      "digest": "${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/lienmark-web@${SYNTHETIC_WEB_DIGEST}",
+      "sha256": "${SYNTHETIC_WEB_DIGEST}",
+      "url": "https://lienmark-web-dryrun.a.run.app"
+    }
+  }
+}
+EOF
+  echo "  [DRY-RUN] Release manifest written to: ${OUTPUT_DIR}/release_manifest.json"
+  echo ""
+  echo "=== ✅ DRY-RUN DEPLOYMENT SIMULATION COMPLETE ==="
+  exit 0
 fi
 
-if [ -n "${GEMINI_API_KEY:-}" ]; then
-  ENV_VARS="${ENV_VARS},GEMINI_API_KEY=${GEMINI_API_KEY}"
-  echo "  [OK] Attached GEMINI_API_KEY environment variable"
-else
-  echo "  [INFO] GEMINI_API_KEY not provided (will operate in deterministic mock mode)"
-fi
+# ── 1. Cloud Build: lienmark-api ──────────────────────────────────────────────
+echo "--> [1/4] Building 'lienmark-api' container image via Cloud Build..."
+cd "${ROOT_DIR}"
+gcloud builds submit \
+  --tag "${API_IMAGE_TAG}" \
+  --project="${PROJECT_ID}" \
+  --file=Dockerfile \
+  .
 
-# Optional: Support Google Cloud Secret Manager if USE_SECRET_MANAGER=true
+echo "    Resolving immutable SHA-256 digest for 'lienmark-api'..."
+API_SHA256=$(gcloud artifacts docker images describe "${API_IMAGE_TAG}" \
+  --project="${PROJECT_ID}" \
+  --format="value(image_summary.digest)")
+API_DIGEST_REF="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/lienmark-api@${API_SHA256}"
+echo "    [OK] Immutable Digest: ${API_SHA256}"
+
+# ── 2. Cloud Build: lienmark-web ──────────────────────────────────────────────
+echo "--> [2/4] Building 'lienmark-web' container image via Cloud Build..."
+cd "${ROOT_DIR}/frontend"
+gcloud builds submit \
+  --tag "${WEB_IMAGE_TAG}" \
+  --project="${PROJECT_ID}" \
+  --file=Dockerfile \
+  .
+
+echo "    Resolving immutable SHA-256 digest for 'lienmark-web'..."
+WEB_SHA256=$(gcloud artifacts docker images describe "${WEB_IMAGE_TAG}" \
+  --project="${PROJECT_ID}" \
+  --format="value(image_summary.digest)")
+WEB_DIGEST_REF="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/lienmark-web@${WEB_SHA256}"
+echo "    [OK] Immutable Digest: ${WEB_SHA256}"
+
+# ── 3. Deploy Cloud Run: lienmark-api ─────────────────────────────────────────
+echo "--> [3/4] Deploying 'lienmark-api' to Cloud Run..."
+API_ENV_VARS="ENVIRONMENT=${ENVIRONMENT},GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_REGION=${REGION}"
+if [ -n "${PARALLEL_API_KEY:-}" ]; then API_ENV_VARS="${API_ENV_VARS},PARALLEL_API_KEY=${PARALLEL_API_KEY}"; fi
+if [ -n "${GEMINI_API_KEY:-}" ]; then API_ENV_VARS="${API_ENV_VARS},GEMINI_API_KEY=${GEMINI_API_KEY}"; fi
+
 SECRETS_ARG=""
-if [ "${USE_SECRET_MANAGER:-false}" = "true" ]; then
-  echo "--> Using Google Cloud Secret Manager for credentials..."
+if [ "${USE_SECRET_MANAGER}" = true ]; then
   SECRETS_ARG="--set-secrets=PARALLEL_API_KEY=parallel-api-key:latest,GEMINI_API_KEY=gemini-api-key:latest"
 fi
 
-# ── 3. Build Container Image using Cloud Build ────────────────────────────────
-echo "--> Step 1: Building container image via Google Cloud Build..."
-cd "${ROOT_DIR}"
-gcloud builds submit \
-  --tag "${IMAGE_TAG}" \
-  --project="${PROJECT_ID}" \
-  .
-
-# ── 4. Deploy to Google Cloud Run ─────────────────────────────────────────────
-echo "--> Step 2: Deploying '${SERVICE_NAME}' to Cloud Run..."
 # shellcheck disable=SC2086
-gcloud run deploy lienmark \
-  --image "${IMAGE_TAG}" \
+gcloud run deploy lienmark-api \
+  --image "${API_DIGEST_REF}" \
   --platform managed \
   --region "${REGION}" \
   --project="${PROJECT_ID}" \
   --service-account "${SERVICE_ACCOUNT}" \
-  --cpu "${CPU}" \
-  --memory "${MEMORY}" \
+  --cpu "${CPU_LIMIT}" \
+  --memory "${MEMORY_LIMIT}" \
   --min-instances "${MIN_INSTANCES}" \
   --max-instances "${MAX_INSTANCES}" \
   --concurrency "${CONCURRENCY}" \
   --timeout "${TIMEOUT}" \
   --port 8080 \
   --allow-unauthenticated \
-  --set-env-vars "${ENV_VARS}" \
+  --set-env-vars "${API_ENV_VARS}" \
   ${SECRETS_ARG}
 
-# ── 5. Verification and Status ────────────────────────────────────────────────
-echo "=== ✅ DEPLOYMENT COMPLETE ==="
-SERVICE_URL=$(gcloud run services describe lienmark \
+API_URL=$(gcloud run services describe lienmark-api \
   --platform managed \
   --region "${REGION}" \
   --project="${PROJECT_ID}" \
-  --format 'value(status.url)')
+  --format='value(status.url)')
+echo "    [OK] lienmark-api URL: ${API_URL}"
 
-echo "Service URL:       ${SERVICE_URL}"
-echo "Health Endpoint:   ${SERVICE_URL}/health"
-echo "API Documentation: ${SERVICE_URL}/docs"
-echo "Review Dashboard:  ${SERVICE_URL}/"
+# ── 4. Deploy Cloud Run: lienmark-web ─────────────────────────────────────────
+echo "--> [4/4] Deploying 'lienmark-web' to Cloud Run..."
+WEB_ENV_VARS="NODE_ENV=production,NEXT_PUBLIC_BACKEND_URL=${API_URL},INTERNAL_BACKEND_URL=${API_URL}"
 
+gcloud run deploy lienmark-web \
+  --image "${WEB_DIGEST_REF}" \
+  --platform managed \
+  --region "${REGION}" \
+  --project="${PROJECT_ID}" \
+  --service-account "${SERVICE_ACCOUNT}" \
+  --cpu 1 \
+  --memory 1Gi \
+  --min-instances 0 \
+  --max-instances 10 \
+  --port 8080 \
+  --allow-unauthenticated \
+  --set-env-vars "${WEB_ENV_VARS}"
+
+WEB_URL=$(gcloud run services describe lienmark-web \
+  --platform managed \
+  --region "${REGION}" \
+  --project="${PROJECT_ID}" \
+  --format='value(status.url)')
+echo "    [OK] lienmark-web URL: ${WEB_URL}"
+
+# ── Output: Release Manifest ──────────────────────────────────────────────────
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+cat > "${OUTPUT_DIR}/release_manifest.json" <<EOF
+{
+  "schema_version": "1.0.0",
+  "timestamp": "${TIMESTAMP}",
+  "environment": "${ENVIRONMENT}",
+  "project_id": "${PROJECT_ID}",
+  "region": "${REGION}",
+  "repository": "${REPO_NAME}",
+  "git_commit": "${GIT_COMMIT}",
+  "git_commit_short": "${GIT_COMMIT_SHORT}",
+  "images": {
+    "lienmark-api": {
+      "service": "lienmark-api",
+      "tag": "${API_IMAGE_TAG}",
+      "digest": "${API_DIGEST_REF}",
+      "sha256": "${API_SHA256}",
+      "url": "${API_URL}"
+    },
+    "lienmark-web": {
+      "service": "lienmark-web",
+      "tag": "${WEB_IMAGE_TAG}",
+      "digest": "${WEB_DIGEST_REF}",
+      "sha256": "${WEB_SHA256}",
+      "url": "${WEB_URL}"
+    }
+  }
+}
+EOF
+
+echo ""
+echo "=== ✅ DEPLOYMENT COMPLETE ==="
+echo "Release Manifest: ${OUTPUT_DIR}/release_manifest.json"
+echo "Backend API URL:  ${API_URL}"
+echo "Frontend Web URL: ${WEB_URL}"

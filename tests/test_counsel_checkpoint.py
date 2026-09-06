@@ -527,6 +527,12 @@ class TestFastAPIReviewEndpoints:
     - GET /api/review/history
     """
 
+    @pytest.fixture(autouse=True, scope="class")
+    def ensure_clean_state(self):
+        counsel_checkpoint_manager.reset()
+        yield
+        counsel_checkpoint_manager.reset()
+
     def test_get_review_queue_endpoint(self):
         """GET /api/review/queue returns strictly stale claims with 4D explanations."""
         res = client.get("/api/review/queue")

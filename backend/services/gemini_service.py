@@ -44,31 +44,107 @@ class GeminiService:
     """
     Interface for Google Gemini 2.5 Flash.
     Provides semantic script delta analysis and clearance synthesis.
-    Hardened with SHA-256 payload hashing, latency/token metrics auditing,
-    and defensive Pydantic v2 parsing.
+    Supports Google Cloud Vertex AI ADC, direct Gemini API Key, and deterministic sandbox fallback.
+    Hardened with bounded timeouts (15s), bounded retries (max 2), SHA-256 payload hashing,
+    latency/token metrics auditing, and defensive Pydantic v2 parsing.
     """
 
     MODEL_NAME = "gemini-2.5-flash"
     CLIENT_TIMEOUT: float = 5.0
+    MAX_BOUNDED_TIMEOUT: float = 15.0
+    MAX_BOUNDED_RETRIES: int = 2
+    DEFAULT_ADC_LOCATION: str = "us-central1"
 
     def __init__(
         self,
         api_key: Optional[str] = None,
         use_fallback: bool = False,
         mock_latency_ms: float = 120.0,
-        max_retries: int = 3,
+        max_retries: Optional[int] = None,
         retry_backoff_base: float = 0.15,
-        client_timeout: float = 5.0,
+        client_timeout: Optional[float] = None,
         timeout: Optional[float] = None,
+        use_vertex_ai: Optional[bool] = None,
+        project: Optional[str] = None,
+        location: Optional[str] = None,
+        adc_credentials: Optional[Any] = None,
+        adc_token: Optional[str] = None,
     ):
-        self.api_key = api_key or os.getenv("GEMINI_API_KEY", "")
-        self.use_fallback = use_fallback
+        self._adc_credentials = adc_credentials
+        self._adc_token = adc_token
         self.mock_latency_ms = mock_latency_ms
-        self.max_retries = max_retries
         self.retry_backoff_base = retry_backoff_base
-        self.client_timeout = timeout if timeout is not None else client_timeout
         self.call_count: int = 0
         self.last_metrics: Dict[str, Any] = {}
+
+        # 1. Resolve Vertex AI ADC vs API Key vs Sandbox Mocked
+        vertex_flag = os.environ.get("GOOGLE_GENAI_USE_VERTEXAI", "").lower() in ("true", "1", "yes")
+        env_name = os.environ.get("ENVIRONMENT", "").lower()
+        is_target_env = env_name in ("development", "dev", "demo", "production")
+        is_gcp = bool(
+            os.environ.get("K_SERVICE")
+            or os.environ.get("K_REVISION")
+            or os.environ.get("GOOGLE_CLOUD_PROJECT")
+            or os.environ.get("GCP_PROJECT")
+            or os.environ.get("RUNNING_ON_GCP", "").lower() in ("true", "1", "yes")
+            or os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+        )
+
+        should_use_vertex = (
+            use_vertex_ai
+            if use_vertex_ai is not None
+            else (vertex_flag or (is_target_env and is_gcp))
+        )
+
+        raw_api_key = api_key if api_key is not None else os.environ.get("GEMINI_API_KEY", "")
+        is_live_api_key = bool(
+            raw_api_key
+            and not any(raw_api_key.lower().startswith(p) for p in ("mock", "sandbox", "fixture", "test"))
+        )
+
+        if should_use_vertex:
+            self.auth_mode = "VERTEX_ADC"
+            self.is_vertex_ai = True
+            self.project = (
+                project
+                or os.environ.get("GOOGLE_CLOUD_PROJECT")
+                or os.environ.get("GCP_PROJECT")
+                or "lienmark-dev-lx-2026"
+            )
+            self.location = (
+                location
+                or os.environ.get("GOOGLE_CLOUD_REGION")
+                or self.DEFAULT_ADC_LOCATION
+            )
+            self.api_key = raw_api_key
+        elif is_live_api_key:
+            self.auth_mode = "API_KEY"
+            self.is_vertex_ai = False
+            self.project = project or os.environ.get("GOOGLE_CLOUD_PROJECT")
+            self.location = location or os.environ.get("GOOGLE_CLOUD_REGION", self.DEFAULT_ADC_LOCATION)
+            self.api_key = raw_api_key
+        else:
+            self.auth_mode = "SANDBOX_MOCKED"
+            self.is_vertex_ai = False
+            self.project = project or os.environ.get("GOOGLE_CLOUD_PROJECT")
+            self.location = location or os.environ.get("GOOGLE_CLOUD_REGION", self.DEFAULT_ADC_LOCATION)
+            self.api_key = raw_api_key
+
+        self.use_fallback = use_fallback or (self.auth_mode == "SANDBOX_MOCKED")
+
+        # 2. Bounded timeouts (clamped to 15s max)
+        requested_timeout = (
+            timeout
+            if timeout is not None
+            else (client_timeout if client_timeout is not None else (15.0 if self.is_vertex_ai else 5.0))
+        )
+        self.client_timeout = min(float(requested_timeout), self.MAX_BOUNDED_TIMEOUT)
+
+        # 3. Bounded retries (clamped to max 2 in Vertex AI mode)
+        if max_retries is not None:
+            self.max_retries = min(max_retries, self.MAX_BOUNDED_RETRIES) if self.is_vertex_ai else max_retries
+        else:
+            self.max_retries = self.MAX_BOUNDED_RETRIES if self.is_vertex_ai else 3
 
     @property
     def timeout(self) -> float:
@@ -77,7 +153,32 @@ class GeminiService:
 
     @timeout.setter
     def timeout(self, value: float) -> None:
-        self.client_timeout = value
+        self.client_timeout = min(float(value), self.MAX_BOUNDED_TIMEOUT)
+
+    def _get_vertex_token(self) -> Optional[str]:
+        """Obtains OAuth2 access token via Application Default Credentials (ADC)."""
+        if self._adc_token:
+            return self._adc_token
+        if self._adc_credentials:
+            if hasattr(self._adc_credentials, "token") and self._adc_credentials.token:
+                return self._adc_credentials.token
+            if hasattr(self._adc_credentials, "refresh"):
+                try:
+                    self._adc_credentials.refresh(None)
+                    return getattr(self._adc_credentials, "token", None)
+                except Exception as e:
+                    logger.warning(f"Failed to refresh injected ADC credentials: {e}")
+        try:
+            import google.auth
+            from google.auth.transport.requests import Request as GoogleRequest
+            creds, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+            creds.refresh(GoogleRequest())
+            return creds.token
+        except Exception as e:
+            logger.info(
+                f"Google Cloud Vertex AI ADC credentials unavailable ({e}). Falling back cleanly to verified sandbox mode."
+            )
+            return None
 
     @staticmethod
     def compute_payload_hash(payload: Any) -> str:
@@ -98,6 +199,95 @@ class GeminiService:
     def _parse_llm_json(raw_text: str, target_model: Optional[Any] = None) -> Dict[str, Any]:
         """Defensively repairs malformed LLM JSON output through multi-stage normalization."""
         return repair_json_output(raw_text, target_model=target_model)
+
+    async def _execute_llm_request(
+        self,
+        prompt: str,
+        target_model: Any,
+        start_time: float,
+        raw_payload_hash: str,
+        token_estimate: int,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Executes outbound LLM request via Vertex AI ADC or Direct API Key with bounded retries and exponential backoff.
+        Returns parsed JSON dict, token count, elapsed ms, or None if retries exhausted / sandbox fallback needed.
+        """
+        headers: Dict[str, str] = {"Content-Type": "application/json"}
+        payload: Dict[str, Any] = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0.1,
+                "response_mime_type": "application/json",
+            },
+        }
+
+        if self.auth_mode == "VERTEX_ADC":
+            token = self._get_vertex_token()
+            if not token:
+                logger.info("Vertex AI ADC token unavailable; executing deterministic sandbox fallback.")
+                return None
+            url = f"https://{self.location}-aiplatform.googleapis.com/v1/projects/{self.project}/locations/{self.location}/publishers/google/models/{self.MODEL_NAME}:generateContent"
+            headers["Authorization"] = f"Bearer {token}"
+        elif self.auth_mode == "API_KEY" and self.api_key:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.MODEL_NAME}:generateContent?key={self.api_key}"
+        else:
+            return None
+
+        max_retries = self.max_retries
+        for attempt in range(1, max_retries + 1):
+            try:
+                self.call_count += 1
+                async with httpx.AsyncClient(timeout=self.client_timeout) as client:
+                    resp = await client.post(url, json=payload, headers=headers)
+                    elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        text = data["candidates"][0]["content"]["parts"][0]["text"]
+                        usage = data.get("usageMetadata", {})
+                        actual_tokens = usage.get("totalTokenCount", token_estimate)
+
+                        parsed = self._parse_llm_json(text, target_model=target_model)
+                        return {
+                            "parsed": parsed,
+                            "actual_tokens": actual_tokens,
+                            "elapsed_ms": elapsed_ms,
+                            "attempt": attempt,
+                            "http_status_code": 200,
+                        }
+                    elif resp.status_code == 429:
+                        retry_after = resp.headers.get("retry-after")
+                        backoff = (
+                            min(float(retry_after), 2.0)
+                            if retry_after and retry_after.replace(".", "", 1).isdigit()
+                            else (self.retry_backoff_base * (2 ** (attempt - 1)) + random.uniform(0.01, 0.08))
+                        )
+                        logger.warning(
+                            f"Gemini API rate limit (HTTP 429) on attempt {attempt}/{max_retries}. Backing off {backoff:.2f}s."
+                        )
+                        if attempt < max_retries:
+                            await asyncio.sleep(backoff)
+                            continue
+                        else:
+                            logger.warning("Gemini rate limit retries exhausted. Using deterministic analysis fallback.")
+                            break
+                    else:
+                        backoff = self.retry_backoff_base * (2 ** (attempt - 1)) + random.uniform(0.01, 0.08)
+                        logger.warning(
+                            f"Gemini API returned status {resp.status_code} on attempt {attempt}/{max_retries}. Backing off {backoff:.2f}s."
+                        )
+                        if attempt < max_retries:
+                            await asyncio.sleep(backoff)
+            except Exception as e:
+                backoff = self.retry_backoff_base * (2 ** (attempt - 1)) + random.uniform(0.01, 0.08)
+                logger.warning(
+                    f"Gemini API attempt {attempt}/{max_retries} failed: {e}. Backing off {backoff:.2f}s."
+                )
+                if attempt < max_retries:
+                    await asyncio.sleep(backoff)
+                else:
+                    logger.warning("All Gemini API retries exhausted. Using deterministic analysis fallback.")
+
+        return None
 
     async def analyze_scene_delta(
         self,
@@ -142,81 +332,40 @@ Return a valid JSON object matching this schema:
         raw_payload_hash = self.compute_payload_hash(prompt)
         token_estimate = max(1, len(prompt) // 4)
 
-        if not effective_fallback and self.api_key and not self.api_key.startswith("mock_"):
-            max_retries = self.max_retries
-            for attempt in range(1, max_retries + 1):
-                try:
-                    self.call_count += 1
-                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.MODEL_NAME}:generateContent?key={self.api_key}"
-                    payload = {
-                        "contents": [{"parts": [{"text": prompt}]}],
-                        "generationConfig": {
-                            "temperature": 0.1,
-                            "response_mime_type": "application/json",
-                        },
-                    }
-                    async with httpx.AsyncClient(timeout=self.client_timeout) as client:
-                        resp = await client.post(url, json=payload)
-                        elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
-                        if resp.status_code == 200:
-                            data = resp.json()
-                            text = data["candidates"][0]["content"]["parts"][0]["text"]
-                            usage = data.get("usageMetadata", {})
-                            actual_tokens = usage.get("totalTokenCount", token_estimate)
+        if not effective_fallback and self.auth_mode in ("VERTEX_ADC", "API_KEY"):
+            exec_res = await self._execute_llm_request(
+                prompt=prompt,
+                target_model=DeltaAnalysisResult,
+                start_time=start_time,
+                raw_payload_hash=raw_payload_hash,
+                token_estimate=token_estimate,
+            )
+            if exec_res:
+                result = DeltaAnalysisResult.model_validate(exec_res["parsed"])
+                result.raw_payload_hash = raw_payload_hash
+                result.latency_ms = exec_res["elapsed_ms"]
+                result.model_version = self.MODEL_NAME
+                result.token_estimate = exec_res["actual_tokens"]
+                result.metadata = {
+                    "call_count": self.call_count,
+                    "http_status_code": exec_res["http_status_code"],
+                    "raw_payload_hash": raw_payload_hash,
+                    "attempt": exec_res["attempt"],
+                    "auth_mode": self.auth_mode,
+                    "is_vertex_ai": self.is_vertex_ai,
+                    "project": self.project,
+                    "location": self.location,
+                }
 
-                            parsed = self._parse_llm_json(text, target_model=DeltaAnalysisResult)
-                            result = DeltaAnalysisResult.model_validate(parsed)
-                            result.raw_payload_hash = raw_payload_hash
-                            result.latency_ms = elapsed_ms
-                            result.model_version = self.MODEL_NAME
-                            result.token_estimate = actual_tokens
-                            result.metadata = {
-                                "call_count": self.call_count,
-                                "http_status_code": 200,
-                                "raw_payload_hash": raw_payload_hash,
-                                "attempt": attempt,
-                            }
-
-                            self.last_metrics = {
-                                "request_latency_ms": elapsed_ms,
-                                "token_estimate": actual_tokens,
-                                "model_version": self.MODEL_NAME,
-                                "raw_payload_hash": raw_payload_hash,
-                                "call_count": self.call_count,
-                            }
-                            return result
-                        elif resp.status_code == 429:
-                            retry_after = resp.headers.get("retry-after")
-                            backoff = (
-                                min(float(retry_after), 2.0)
-                                if retry_after and retry_after.replace(".", "", 1).isdigit()
-                                else (self.retry_backoff_base * (2 ** (attempt - 1)) + random.uniform(0.01, 0.08))
-                            )
-                            logger.warning(
-                                f"Gemini API rate limit (HTTP 429) on attempt {attempt}/{max_retries}. Backing off {backoff:.2f}s."
-                            )
-                            if attempt < max_retries:
-                                await asyncio.sleep(backoff)
-                                continue
-                            else:
-                                logger.warning("Gemini rate limit retries exhausted. Using deterministic analysis fallback.")
-                                break
-                        else:
-                            backoff = self.retry_backoff_base * (2 ** (attempt - 1)) + random.uniform(0.01, 0.08)
-                            logger.warning(
-                                f"Gemini API returned status {resp.status_code} on attempt {attempt}/{max_retries}. Backing off {backoff:.2f}s."
-                            )
-                            if attempt < max_retries:
-                                await asyncio.sleep(backoff)
-                except Exception as e:
-                    backoff = self.retry_backoff_base * (2 ** (attempt - 1)) + random.uniform(0.01, 0.08)
-                    logger.warning(
-                        f"Gemini API attempt {attempt}/{max_retries} failed: {e}. Backing off {backoff:.2f}s."
-                    )
-                    if attempt < max_retries:
-                        await asyncio.sleep(backoff)
-                    else:
-                        logger.warning("All Gemini API retries exhausted. Using deterministic analysis fallback.")
+                self.last_metrics = {
+                    "request_latency_ms": exec_res["elapsed_ms"],
+                    "token_estimate": exec_res["actual_tokens"],
+                    "model_version": self.MODEL_NAME,
+                    "raw_payload_hash": raw_payload_hash,
+                    "call_count": self.call_count,
+                    "auth_mode": self.auth_mode,
+                }
+                return result
 
         # Deterministic analysis
         self.call_count += 1
@@ -356,85 +505,44 @@ Return a valid JSON object matching this schema:
         raw_payload_hash = self.compute_payload_hash(prompt)
         token_estimate = max(1, len(prompt) // 4)
 
-        if not effective_fallback and self.api_key and not self.api_key.startswith("mock_"):
-            max_retries = self.max_retries
-            for attempt in range(1, max_retries + 1):
-                try:
-                    self.call_count += 1
-                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.MODEL_NAME}:generateContent?key={self.api_key}"
-                    payload = {
-                        "contents": [{"parts": [{"text": prompt}]}],
-                        "generationConfig": {
-                            "temperature": 0.1,
-                            "response_mime_type": "application/json",
-                        },
-                    }
-                    async with httpx.AsyncClient(timeout=self.client_timeout) as client:
-                        resp = await client.post(url, json=payload)
-                        elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
-                        if resp.status_code == 200:
-                            data = resp.json()
-                            text = data["candidates"][0]["content"]["parts"][0]["text"]
-                            usage = data.get("usageMetadata", {})
-                            actual_tokens = usage.get("totalTokenCount", token_estimate)
+        if not effective_fallback and self.auth_mode in ("VERTEX_ADC", "API_KEY"):
+            exec_res = await self._execute_llm_request(
+                prompt=prompt,
+                target_model=ClearanceBriefing,
+                start_time=start_time,
+                raw_payload_hash=raw_payload_hash,
+                token_estimate=token_estimate,
+            )
+            if exec_res:
+                briefing = ClearanceBriefing.model_validate(exec_res["parsed"])
+                briefing.stable_lineage_key = stable_lineage_key
+                briefing.citation = citation
+                briefing.raw_payload_hash = raw_payload_hash
+                briefing.latency_ms = exec_res["elapsed_ms"]
+                briefing.model_version = self.MODEL_NAME
+                briefing.token_estimate = exec_res["actual_tokens"]
+                briefing.metadata = {
+                    "citation": citation,
+                    "domain": domain,
+                    "source_url": source_url,
+                    "call_count": self.call_count,
+                    "http_status_code": 200,
+                    "attempt": exec_res["attempt"],
+                    "auth_mode": self.auth_mode,
+                    "is_vertex_ai": self.is_vertex_ai,
+                    "project": self.project,
+                    "location": self.location,
+                }
 
-                            parsed = self._parse_llm_json(text, target_model=ClearanceBriefing)
-                            briefing = ClearanceBriefing.model_validate(parsed)
-                            briefing.stable_lineage_key = stable_lineage_key
-                            briefing.citation = citation
-                            briefing.raw_payload_hash = raw_payload_hash
-                            briefing.latency_ms = elapsed_ms
-                            briefing.model_version = self.MODEL_NAME
-                            briefing.token_estimate = actual_tokens
-                            briefing.metadata = {
-                                "citation": citation,
-                                "domain": domain,
-                                "source_url": source_url,
-                                "call_count": self.call_count,
-                                "http_status_code": 200,
-                                "attempt": attempt,
-                            }
-
-                            self.last_metrics = {
-                                "request_latency_ms": elapsed_ms,
-                                "token_estimate": actual_tokens,
-                                "model_version": self.MODEL_NAME,
-                                "raw_payload_hash": raw_payload_hash,
-                                "call_count": self.call_count,
-                            }
-                            return briefing
-                        elif resp.status_code == 429:
-                            retry_after = resp.headers.get("retry-after")
-                            backoff = (
-                                min(float(retry_after), 2.0)
-                                if retry_after and retry_after.replace(".", "", 1).isdigit()
-                                else (self.retry_backoff_base * (2 ** (attempt - 1)) + random.uniform(0.01, 0.08))
-                            )
-                            logger.warning(
-                                f"Gemini API briefing rate limit (HTTP 429) on attempt {attempt}/{max_retries}. Backing off {backoff:.2f}s."
-                            )
-                            if attempt < max_retries:
-                                await asyncio.sleep(backoff)
-                                continue
-                            else:
-                                logger.warning("Gemini briefing rate limit retries exhausted. Using deterministic briefing fallback.")
-                                break
-                        else:
-                            backoff = self.retry_backoff_base * (2 ** (attempt - 1)) + random.uniform(0.01, 0.08)
-                            logger.warning(
-                                f"Gemini API briefing synthesis returned status {resp.status_code} on attempt {attempt}/{max_retries}. Backing off {backoff:.2f}s."
-                            )
-                            if attempt < max_retries:
-                                await asyncio.sleep(backoff)
-                except Exception as e:
-                    backoff = self.retry_backoff_base * (2 ** (attempt - 1)) + random.uniform(0.01, 0.08)
-                    logger.warning(
-                        f"Gemini API briefing synthesis attempt {attempt}/{max_retries} failed: {e}. Backing off {backoff:.2f}s."
-                    )
-                    if attempt < max_retries:
-                        await asyncio.sleep(backoff)
-                    else:
-                        logger.warning("All Gemini API briefing retries exhausted. Using deterministic briefing fallback.")
+                self.last_metrics = {
+                    "request_latency_ms": exec_res["elapsed_ms"],
+                    "token_estimate": exec_res["actual_tokens"],
+                    "model_version": self.MODEL_NAME,
+                    "raw_payload_hash": raw_payload_hash,
+                    "call_count": self.call_count,
+                    "auth_mode": self.auth_mode,
+                }
+                return briefing
 
         # Deterministic fallback briefing
         self.call_count += 1

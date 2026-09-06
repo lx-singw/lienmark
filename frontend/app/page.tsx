@@ -222,6 +222,13 @@ export default function ReviewerDashboardPage() {
     try {
       // 1. Call backend demo reset endpoint via Server Action
       const result = await resetDemoAction();
+      if (!result.success) {
+        setToast({
+          type: 'error',
+          message: result.error || 'Failed to reset demo state on server. Preserving current state.',
+        });
+        return;
+      }
 
       // 2. Reset UI state to clean V7 baseline (12 claims carried forward, zero drift)
       setTargetVersionId('v7');
@@ -247,20 +254,9 @@ export default function ReviewerDashboardPage() {
       });
     } catch (err: unknown) {
       console.error('[handleResetDemo] Error resetting demo state:', err);
-      // Fallback local reset
-      setTargetVersionId('v7');
-      setCurrentDemoMode('baseline');
-      const v7BaselineClaims: EvaluatedClaim[] = getGoldenDriftEvaluationResult().claims.map((c) => ({
-        ...c,
-        state: DecisionState.CARRIED_FORWARD,
-        reason_code: 'DEPENDENCIES_SATISFIED_UNCHANGED',
-        revalidation_action: 'carry',
-      }));
-      setClaims(v7BaselineClaims);
-      setReviewQueue([]);
       setToast({
-        type: 'success',
-        message: 'Demo state reset to clean V7 baseline (local fallback).',
+        type: 'error',
+        message: err instanceof Error ? err.message : 'Failed to reset demo state on server.',
       });
     } finally {
       setIsResettingDemo(false);

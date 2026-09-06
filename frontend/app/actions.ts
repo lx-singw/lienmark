@@ -376,16 +376,14 @@ export async function resetDemoAction(): Promise<ActionResponse<DemoResetRespons
       data: result,
     };
   } catch (error: unknown) {
-    console.warn('[Action:resetDemoAction] Reset failed upstream; serving local fallback:', error);
+    console.error('[Action:resetDemoAction] Reset failed upstream; propagating real error:', error);
     return {
-      success: true,
-      data: {
-        status: 'RESET_SUCCESS',
-        message: 'Demo state reset to clean V7 baseline (local fallback)',
-        total_claims: 12,
-        approved_claims: 12,
-        timestamp: new Date().toISOString(),
-      },
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to reset demo state on server',
+      details: error,
     };
   }
 }
