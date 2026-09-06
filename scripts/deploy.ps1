@@ -249,7 +249,7 @@ $ApiEnvVars = @(
     "FIRESTORE_DATABASE=(default)",
     "GOOGLE_GENAI_USE_VERTEXAI=true"
 )
-if ($ParallelApiKey) { $ApiEnvVars += "PARALLEL_API_KEY=$ParallelApiKey" }
+if (-not $UseSecretManager -and $ParallelApiKey) { $ApiEnvVars += "PARALLEL_API_KEY=$ParallelApiKey" }
 if ($GeminiApiKey) { $ApiEnvVars += "GEMINI_API_KEY=$GeminiApiKey" }
 
 $ApiDeployArgs = @(

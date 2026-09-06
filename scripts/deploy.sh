@@ -179,7 +179,7 @@ echo "    [OK] Immutable Digest: ${WEB_SHA256}"
 # ── 3. Deploy Cloud Run: lienmark-api ─────────────────────────────────────────
 echo "--> [3/4] Deploying 'lienmark-api' to Cloud Run..."
 API_ENV_VARS="ENVIRONMENT=${ENVIRONMENT},GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_REGION=${REGION},FIRESTORE_PROJECT_ID=${PROJECT_ID},FIRESTORE_DATABASE=(default),GOOGLE_GENAI_USE_VERTEXAI=true"
-if [ -n "${PARALLEL_API_KEY:-}" ]; then API_ENV_VARS="${API_ENV_VARS},PARALLEL_API_KEY=${PARALLEL_API_KEY}"; fi
+if [ "${USE_SECRET_MANAGER}" != true ] && [ -n "${PARALLEL_API_KEY:-}" ]; then API_ENV_VARS="${API_ENV_VARS},PARALLEL_API_KEY=${PARALLEL_API_KEY}"; fi
 if [ -n "${GEMINI_API_KEY:-}" ]; then API_ENV_VARS="${API_ENV_VARS},GEMINI_API_KEY=${GEMINI_API_KEY}"; fi
 
 SECRETS_ARG=""
