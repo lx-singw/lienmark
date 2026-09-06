@@ -253,22 +253,22 @@ export const ClaimsTable: React.FC<ClaimsTableProps> = ({
             {/* Table Matrix Header */}
             <thead className="sticky top-0 z-10 bg-[#131d33] border-b border-slate-700/80 text-[11px] font-mono uppercase tracking-wider text-slate-300">
               <tr>
-                <th scope="col" className="py-3 px-3.5 text-center w-12 font-bold">
+                <th scope="col" className="py-2.5 px-2.5 text-center w-12 font-bold">
                   #
                 </th>
-                <th scope="col" className="py-3 px-3.5 w-40 font-bold">
+                <th scope="col" className="py-2.5 px-2.5 w-40 font-bold">
                   Scene Timecode
                 </th>
-                <th scope="col" className="py-3 px-3.5 font-bold">
+                <th scope="col" className="py-2.5 px-2.5 font-bold">
                   Asset &amp; Category
                 </th>
-                <th scope="col" className="py-3 px-3.5 hidden md:table-cell font-bold">
+                <th scope="col" className="py-2.5 px-2.5 hidden 2xl:table-cell font-bold">
                   Prominence &amp; Context
                 </th>
-                <th scope="col" className="py-3 px-3.5 w-48 font-bold">
+                <th scope="col" className="py-2.5 px-2.5 w-48 font-bold">
                   Clearance Status
                 </th>
-                <th scope="col" className="py-3 px-3.5 text-right w-28 font-bold">
+                <th scope="col" className="py-2.5 px-2.5 text-right w-28 font-bold">
                   4D Action
                 </th>
               </tr>

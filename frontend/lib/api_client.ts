@@ -385,12 +385,20 @@ export class LienmarkApiClient {
    * GET /api/reports/exceptions
    * Retrieves Form E&O-2026 Underwriter Exceptions Schedule.
    */
-  async getExceptionsSchedule(timeoutMs?: number): Promise<ExceptionsSchedule> {
+  async getExceptionsSchedule(
+    optionsOrTimeout?: { autoReconcileDemo?: boolean; timeoutMs?: number } | number
+  ): Promise<ExceptionsSchedule> {
+    const opts =
+      typeof optionsOrTimeout === 'object'
+        ? optionsOrTimeout
+        : { timeoutMs: optionsOrTimeout };
+    const autoReconcile = opts.autoReconcileDemo ?? true;
+    const url = `/api/reports/exceptions${autoReconcile ? '?auto_reconcile_demo=true' : ''}`;
     try {
       return await this.request<ExceptionsSchedule>(
-        '/api/reports/exceptions',
+        url,
         { method: 'GET' },
-        timeoutMs
+        opts.timeoutMs
       );
     } catch (error: unknown) {
       if (!this.enableFallback) throw error;
@@ -403,7 +411,7 @@ export class LienmarkApiClient {
       for (const [key, val] of Object.entries(this.fallbackReattestations)) {
         reattestMap[key] = { status: val.status, rationale: val.rationale };
       }
-      return getGoldenExceptionsSchedule(reattestMap);
+      return getGoldenExceptionsSchedule(reattestMap, autoReconcile);
     }
   }
 

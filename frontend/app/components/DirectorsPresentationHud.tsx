@@ -367,8 +367,8 @@ export const DirectorsPresentationHud: React.FC<DirectorsPresentationHudProps> =
   onSelectBeat,
   className = '',
 }) => {
-  // Local state for collapsed banner with persistence
-  const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
+  // Local state for collapsed banner with persistence (defaults to collapsed)
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(true);
   const [selectedBeatId, setSelectedBeatId] = useState<number>(1);
   const [hasCopiedScript, setHasCopiedScript] = useState<boolean>(false);
   const [isLargeTeleprompter, setIsLargeTeleprompter] = useState<boolean>(false);
@@ -662,12 +662,13 @@ export const DirectorsPresentationHud: React.FC<DirectorsPresentationHudProps> =
         <div className="flex items-center gap-2">
           {/* Script Documentation Link */}
           <Link
-            href="/docs/pitch_script.md"
+            href="/pitch-script"
             target="_blank"
+            rel="noopener noreferrer"
             title="Inspect Master Pitch Script & Teleprompter Reference in Repository"
             className="hidden sm:inline-flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900/60 hover:bg-slate-800 px-2.5 py-1 text-xs text-slate-400 hover:text-slate-200 transition-colors"
           >
-            <span className="font-mono text-[11px]">docs/pitch_script.md</span>
+            <span className="font-mono text-[11px] text-amber-400">docs/pitch_script.md</span>
             <ExternalLink className="h-3 w-3" aria-hidden="true" />
           </Link>
 

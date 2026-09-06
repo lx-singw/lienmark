@@ -1,13 +1,13 @@
 {
-  "preflight_id": "preflight_1788696624",
-  "timestamp": "2026-09-06T12:10:24.566927+00:00",
+  "preflight_id": "preflight_1788704963",
+  "timestamp": "2026-09-06T14:29:23.370090+00:00",
   "status": "READY_FOR_RECORDING",
   "policy_version": "E&O-2026.1-DEVPOST",
   "project_id": "proj_blockbuster_cinema",
   "total_checks": 7,
   "passed_checks": 7,
   "failed_checks": 0,
-  "elapsed_seconds": 2.478,
+  "elapsed_seconds": 3.067,
   "checks": [
     {
       "check_id": "CHECK_1_CREDENTIALS",
@@ -53,7 +53,7 @@
       "status": "PASSED",
       "passed": true,
       "details": [
-        "Next.js App Router:    Verified (frontend/app/page.tsx, size: 53276 bytes)",
+        "Next.js App Router:    Verified (frontend/app/page.tsx, size: 53544 bytes)",
         "SSR Exceptions Report: Verified (frontend/app/report/[production_id]/page.tsx)",
         "Package Dependencies:  Next.js ^15.1.4, React ^19.0.0",
         "Dev/Prod Server:       STANDBY_READY (Static App Router components verified)"
@@ -76,7 +76,7 @@
         "Item 11 Stance:        EvidenceStance.SUPPORTING (Public Domain renewal verified)",
         "Item 12 Query:         Attributable (ASCAP ACE Repertory & Billboard Rights Bulletin - https://ascap.com/ace-title-search/midnigh...)",
         "Item 12 Stance:        EvidenceStance.CONTRADICTORY (Adverse sync assignment identified)",
-        "Call Latency:          252.3ms total (120.0ms / 120.0ms)",
+        "Call Latency:          258.6ms total (120.0ms / 120.0ms)",
         "Quota & Audit Header:  SHA-256 raw_payload_hash verified (ee2092c13bf7e728...)"
       ],
       "metadata": {
@@ -85,7 +85,7 @@
         "item12_url": "https://ascap.com/ace-title-search/midnight-serenade-9921",
         "item12_stance": "EvidenceStance.CONTRADICTORY",
         "call_count": 2,
-        "latency_total_ms": 252.3
+        "latency_total_ms": 258.56
       }
     },
     {

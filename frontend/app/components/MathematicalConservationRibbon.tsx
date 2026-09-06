@@ -88,27 +88,22 @@ export const MathematicalConservationRibbon: React.FC<MathematicalConservationRi
       }
     }
 
-    // Default to canonical 2 targeted search requests if traces empty or not yet hydrated
-    const effectiveCalls =
-      networkCalls > 0
-        ? networkCalls
-        : staleCount > 0 || reattestedCount > 0 || exceptionCount > 0
-        ? 2
-        : 0;
+    // Do NOT synthesize 2 network calls if networkCalls === 0 and traces are empty
+    const effectiveCalls = networkCalls;
     const effectiveRetries = retries;
     const effectiveElapsed =
       typeof elapsedMs === 'number' && elapsedMs > 0
         ? elapsedMs
         : traceDurationSum > 0
         ? traceDurationSum
-        : 525.8;
+        : null;
 
     return {
       networkCalls: effectiveCalls,
       retries: effectiveRetries,
       elapsedMs: effectiveElapsed,
     };
-  }, [traces, elapsedMs, staleCount, reattestedCount, exceptionCount]);
+  }, [traces, elapsedMs]);
 
   // Derived mathematical conservation values
   const safeTotal = Math.max(totalClaims, 1);
@@ -418,20 +413,28 @@ export const MathematicalConservationRibbon: React.FC<MathematicalConservationRi
             <span className="text-[11px] font-semibold uppercase tracking-wider text-indigo-400">
               Network Requests
             </span>
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase tracking-wider bg-indigo-950/80 text-indigo-300 border border-indigo-500/40">
-              Measured Runtime
-            </span>
+            {telemetry.networkCalls > 0 ? (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase tracking-wider bg-indigo-950/80 text-indigo-300 border border-indigo-500/40">
+                Measured Runtime
+              </span>
+            ) : (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase tracking-wider bg-slate-800 text-slate-400 border border-slate-700">
+                [Scenario Plan]
+              </span>
+            )}
           </div>
           <div className="mt-2 flex items-baseline justify-between">
             <span className="text-2xl font-bold text-indigo-300 font-mono">
               {telemetry.networkCalls} Calls
             </span>
             <span className="text-[11px] font-mono font-bold text-slate-400">
-              {telemetry.retries} Retries
+              {telemetry.networkCalls === 0 ? '2 Planned (Targeted)' : `${telemetry.retries} Retries`}
             </span>
           </div>
           <p className="mt-1 text-[11px] text-slate-400 leading-tight">
-            Recorded in execution traces (Parallel Search API)
+            {telemetry.networkCalls > 0
+              ? 'Recorded in execution traces (Parallel Search API)'
+              : '2 Planned (Targeted) · Recorded in execution traces (Parallel Search API)'}
           </p>
         </div>
 
@@ -446,15 +449,30 @@ export const MathematicalConservationRibbon: React.FC<MathematicalConservationRi
               <Clock className="h-3 w-3" aria-hidden="true" />
               <span>Measured Latency</span>
             </span>
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase tracking-wider bg-teal-950/80 text-teal-300 border border-teal-500/40">
-              Measured Runtime
-            </span>
+            {telemetry.elapsedMs !== null ? (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase tracking-wider bg-teal-950/80 text-teal-300 border border-teal-500/40">
+                Measured Runtime
+              </span>
+            ) : (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase tracking-wider bg-slate-800 text-slate-400 border border-slate-700">
+                [Awaiting Run]
+              </span>
+            )}
           </div>
           <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold text-teal-300 font-mono">
-              {telemetry.elapsedMs.toFixed(1)} ms
-            </span>
-            <span className="text-[10px] font-mono text-slate-400">Live Telemetry</span>
+            {telemetry.elapsedMs !== null ? (
+              <>
+                <span className="text-2xl font-bold text-teal-300 font-mono">
+                  {telemetry.elapsedMs.toFixed(1)} ms
+                </span>
+                <span className="text-[10px] font-mono text-slate-400">Live Telemetry</span>
+              </>
+            ) : (
+              <>
+                <span className="text-xl font-bold text-slate-400 font-mono">Not measured</span>
+                <span className="text-[10px] font-mono text-slate-500">Awaiting Run</span>
+              </>
+            )}
           </div>
           <p className="mt-1 text-[11px] text-slate-400 leading-tight font-mono">
             API elapsed time: <code className="text-teal-300">response.elapsed_ms</code>

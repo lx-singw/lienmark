@@ -1,6 +1,6 @@
 {
   "status": "PASS",
-  "last_success_timestamp": "2026-09-06T09:21:21.886861Z",
+  "last_success_timestamp": "2026-09-06T14:36:29.753771Z",
   "probe_mode": "in_process_adk",
   "environment": "production_readiness",
   "tested_services": [
@@ -9,10 +9,10 @@
     "Agent Builder Engine"
   ],
   "service_telemetry": {
-    "gemini_latency_ms": 251.37,
-    "parallel_latency_ms": 250.55,
-    "agent_builder_latency_ms": 647.87,
-    "total_latency_ms": 1150.04,
+    "gemini_latency_ms": 255.65,
+    "parallel_latency_ms": 255.37,
+    "agent_builder_latency_ms": 645.27,
+    "total_latency_ms": 1156.59,
     "gemini_model_version": "gemini-2.5-flash",
     "gemini_tokens_total": 536,
     "parallel_x_api_key_status": "SANDBOX_MOCKED_VERIFIED",
@@ -22,7 +22,7 @@
     "parallel_api": {
       "auth_scheme": "x-api-key",
       "x_api_key_auth_status": "SANDBOX_MOCKED_VERIFIED",
-      "live_latency_ms": 250.55,
+      "live_latency_ms": 255.37,
       "retrieval_latencies": {
         "contradiction_ms": 120.0,
         "supporting_ms": 120.0,
@@ -51,7 +51,7 @@
       },
       "vertex_ai_adc_status": "NOT_CONFIGURED (API_KEY_OR_SANDBOX)",
       "auth_mode": "SANDBOX_MOCKED",
-      "live_latency_ms": 251.37,
+      "live_latency_ms": 255.65,
       "is_live_integration": false,
       "delta_materiality": true,
       "delta_action": "revalidate",

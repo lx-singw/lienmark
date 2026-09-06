@@ -588,8 +588,12 @@ export default function ReviewerDashboardPage() {
   };
 
   // Handler: Submit counsel review action with Optimistic State Rollback on Error
-  const handleReviewAction = async (action: ReviewActionTypeChoice) => {
-    if (!activeQueueItem || isSubmittingAction) return;
+  const handleReviewAction = async (
+    action: ReviewActionTypeChoice
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!activeQueueItem || isSubmittingAction) {
+      return { success: false, error: 'Review action already in progress or no active item' };
+    }
 
     // 1. Snapshot previous state before optimistic mutation
     const snapshotClaims = [...claims];
@@ -635,83 +639,85 @@ export default function ReviewerDashboardPage() {
       )
     );
 
-    startTransition(async () => {
-      try {
-        const result = await submitReviewAction(
-          action,
-          lineageKey,
-          rationaleToSubmit,
-          reviewerIdentity
-        );
+    try {
+      const result = await submitReviewAction(
+        action,
+        lineageKey,
+        rationaleToSubmit,
+        reviewerIdentity
+      );
 
-        if (!result.success || !result.data) {
-          // Optimistic State Rollback on Error
-          console.error('[handleReviewAction] submitReviewAction failed, rolling back:', result.error);
-          setClaims(snapshotClaims);
-          setReviewQueue(snapshotQueue);
-          setAuditTrail(snapshotAudit);
-          setToast({
-            type: 'error',
-            message: `Adjudication Failed: ${result.error || 'Server error recording counsel action.'}`,
-            retryAction: () => handleReviewAction(action),
-          });
-          return;
-        }
-
-        // Success path: Append SupersessionEvent to append-only immutable ledger
-        const confirmedEvent = result.data as SupersessionEvent;
-        setLastConfirmedEvent(confirmedEvent);
-        setAuditTrail((prev) => [confirmedEvent, ...prev]);
-
-        // Synthesize studio acoustic feedback strictly upon verified HTTP 200 server confirmation
-        if (action === 're_attest') {
-          playVerifiedAttestationSound(200);
-        } else {
-          playVerifiedExceptionSound(200);
-        }
-
-        // Construct friendly toast notification
-        if (action === 're_attest') {
-          setToast({
-            type: 'success',
-            message: `✓ Re-Attested ${activeQueueItem.asset_name} as APPROVED under Public Domain doctrine.`,
-          });
-        } else if (action === 'reject') {
-          setToast({
-            type: 'warning',
-            message: `⛔ Rejected & De-Cleared ${activeQueueItem.asset_name} from production.`,
-          });
-        } else {
-          setToast({
-            type: 'info',
-            message: `⚠️ Left ${activeQueueItem.asset_name} as UNRESOLVED EXCEPTION on Form E&O-2026 Schedule.`,
-          });
-        }
-
-        // Advance to Item 12 if Item 11 was just completed
-        if (lineageKey === 'poster_noir_detective_magazine') {
-          const item12 = reviewQueue.find(
-            (q) => q.stable_lineage_key === 'music_cue_midnight_serenade'
-          );
-          if (item12 && item12.status === 'pending') {
-            setSelectedQueueKey('music_cue_midnight_serenade');
-          }
-        }
-      } catch (err: unknown) {
-        // Optimistic State Rollback on Exception
-        console.error('[handleReviewAction] Exception encountered, rolling back:', err);
+      if (!result.success || !result.data) {
+        // Optimistic State Rollback on Error
+        console.error('[handleReviewAction] submitReviewAction failed, rolling back:', result.error);
         setClaims(snapshotClaims);
         setReviewQueue(snapshotQueue);
         setAuditTrail(snapshotAudit);
         setToast({
           type: 'error',
-          message: `Adjudication Error: ${err instanceof Error ? err.message : 'Unknown exception occurred.'}`,
+          message: `Adjudication Failed: ${result.error || 'Server error recording counsel action.'}`,
           retryAction: () => handleReviewAction(action),
         });
-      } finally {
-        setIsSubmittingAction(false);
+        return { success: false, error: result.error || 'Server error recording counsel action' };
       }
-    });
+
+      // Success path: Append SupersessionEvent to append-only immutable ledger
+      const confirmedEvent = result.data as SupersessionEvent;
+      setLastConfirmedEvent(confirmedEvent);
+      setAuditTrail((prev) => [confirmedEvent, ...prev]);
+
+      // Synthesize studio acoustic feedback strictly upon verified HTTP 200 server confirmation
+      if (action === 're_attest') {
+        playVerifiedAttestationSound(200);
+      } else {
+        playVerifiedExceptionSound(200);
+      }
+
+      // Construct friendly toast notification
+      if (action === 're_attest') {
+        setToast({
+          type: 'success',
+          message: `✓ Re-Attested ${activeQueueItem.asset_name} as APPROVED under Public Domain doctrine.`,
+        });
+      } else if (action === 'reject') {
+        setToast({
+          type: 'warning',
+          message: `⛔ Rejected & De-Cleared ${activeQueueItem.asset_name} from production.`,
+        });
+      } else {
+        setToast({
+          type: 'info',
+          message: `⚠️ Left ${activeQueueItem.asset_name} as UNRESOLVED EXCEPTION on Form E&O-2026 Schedule.`,
+        });
+      }
+
+      // Advance to Item 12 if Item 11 was just completed
+      if (lineageKey === 'poster_noir_detective_magazine') {
+        const item12 = reviewQueue.find(
+          (q) => q.stable_lineage_key === 'music_cue_midnight_serenade'
+        );
+        if (item12 && (item12.current_state === DecisionState.STALE || item12.status === 'pending')) {
+          setSelectedQueueKey('music_cue_midnight_serenade');
+        }
+      }
+
+      return { success: true };
+    } catch (err: unknown) {
+      // Optimistic State Rollback on Exception
+      console.error('[handleReviewAction] Exception encountered, rolling back:', err);
+      setClaims(snapshotClaims);
+      setReviewQueue(snapshotQueue);
+      setAuditTrail(snapshotAudit);
+      const errMsg = err instanceof Error ? err.message : 'Unknown exception occurred.';
+      setToast({
+        type: 'error',
+        message: `Adjudication Error: ${errMsg}`,
+        retryAction: () => handleReviewAction(action),
+      });
+      return { success: false, error: errMsg };
+    } finally {
+      setIsSubmittingAction(false);
+    }
   };
 
   // Handler: Open in Checkpoint Gate from Lineage View
@@ -721,7 +727,7 @@ export default function ReviewerDashboardPage() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
+    <div className="mx-auto max-w-[1720px] px-4 py-8 sm:px-6 lg:px-8 space-y-6">
       {/* Animated Multi-Stage Orchestration Progress Modal */}
       {isRunningEvaluation && (
         <div
@@ -1127,7 +1133,7 @@ export default function ReviewerDashboardPage() {
               </div>
 
               {/* Right Column (xl:col-span-5): Persistent 4D Inspector & Adjudication Gate */}
-              <div className="xl:col-span-5 space-y-6 xl:sticky xl:top-6">
+              <div className="xl:col-span-5 space-y-6 xl:sticky xl:top-6 xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto pr-1">
                 {/* 5. Modular 4-Dimensional Explanation & Baseline Accordion (Pitch Beat 5) */}
                 <section id="pitch-beat-5" data-pitch-beat="5" className="scroll-mt-6">
                   <ExplanationDrawerComponent

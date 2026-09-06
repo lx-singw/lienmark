@@ -48,6 +48,13 @@ export function PrintButton({
     const handleAfterPrint = () => {
       setIsPrinting(false);
       setPrintSuccess(true);
+
+      // Restore collapsed details elements
+      document.querySelectorAll('details[data-was-collapsed="true"]').forEach((el) => {
+        (el as HTMLDetailsElement).open = false;
+        el.removeAttribute('data-was-collapsed');
+      });
+
       const timer = setTimeout(() => setPrintSuccess(false), 3000);
       return () => clearTimeout(timer);
     };
@@ -58,20 +65,42 @@ export function PrintButton({
     };
   }, []);
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     if (typeof window !== 'undefined') {
       try {
         setIsPrinting(true);
-        // Give UI 150ms to paint the "Preparing Print..." state before blocking print dialog
+
+        // Force open all details tags before print and remember which ones were closed
+        document.querySelectorAll('details').forEach((el) => {
+          if (!el.open) {
+            el.setAttribute('data-was-collapsed', 'true');
+            el.open = true;
+          }
+        });
+
+        // Wait for document fonts if supported to prevent blank font flash
+        if ('fonts' in document) {
+          try {
+            await document.fonts.ready;
+          } catch {
+            // Ignore font loading errors
+          }
+        }
+
+        // Give UI 100ms to repaint expanded details
         setTimeout(() => {
           window.print();
           // Fallback reset if user closes dialog or afterprint does not fire
           setTimeout(() => {
             setIsPrinting(false);
             setPrintSuccess(true);
+            document.querySelectorAll('details[data-was-collapsed="true"]').forEach((el) => {
+              (el as HTMLDetailsElement).open = false;
+              el.removeAttribute('data-was-collapsed');
+            });
             setTimeout(() => setPrintSuccess(false), 2500);
-          }, 1200);
-        }, 150);
+          }, 1500);
+        }, 100);
       } catch (err: unknown) {
         console.error('[PrintButton] Error triggering print:', err);
         setIsPrinting(false);

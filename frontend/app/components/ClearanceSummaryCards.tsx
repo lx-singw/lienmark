@@ -92,7 +92,7 @@ export const ClearanceSummaryCards: React.FC<ClearanceSummaryCardsProps> = ({
               {totalClaims}
             </span>
             <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold tracking-wider uppercase bg-slate-800 text-slate-300 border border-slate-700">
-              Measured Runtime
+              Total Ingested
             </span>
           </div>
 
@@ -147,7 +147,7 @@ export const ClearanceSummaryCards: React.FC<ClearanceSummaryCardsProps> = ({
             </span>
             <span className="inline-flex items-center gap-1 rounded bg-emerald-950/90 px-2 py-0.5 text-[10px] font-mono font-bold text-emerald-300 border border-emerald-500/40 shadow-sm">
               <DollarSign className="h-3 w-3 -mr-0.5" aria-hidden="true" />
-              Measured: $0 Review
+              Autonomous Parity ($0 Review)
             </span>
           </div>
 

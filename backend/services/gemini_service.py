@@ -214,9 +214,10 @@ class GeminiService:
         """
         headers: Dict[str, str] = {"Content-Type": "application/json"}
         payload: Dict[str, Any] = {
-            "contents": [{"parts": [{"text": prompt}]}],
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
             "generationConfig": {
                 "temperature": 0.1,
+                "responseMimeType": "application/json",
                 "response_mime_type": "application/json",
             },
         }

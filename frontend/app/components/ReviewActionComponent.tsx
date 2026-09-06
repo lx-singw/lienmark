@@ -38,7 +38,7 @@ export interface ReviewActionComponentProps {
   reviewerIdentity?: string;
   counselRationale: string;
   onRationaleChange: (value: string) => void;
-  onAction: (action: ReviewActionTypeChoice) => Promise<void> | void;
+  onAction: (action: ReviewActionTypeChoice) => Promise<unknown> | void;
   isSubmitting: boolean;
   isPending?: boolean;
   lastConfirmedEvent?: SupersessionEvent | null;
@@ -126,18 +126,13 @@ export const ReviewActionComponent: React.FC<ReviewActionComponentProps> = ({
   const verifiedEventHash =
     lastConfirmedEvent?.event_hash ||
     (activeItem as unknown as { event_hash?: string })?.event_hash ||
-    (activeLineageKey === 'poster_noir_detective_magazine'
-      ? '2c8b7e6a1f0d3e5b8c7a9f2e4d6b8c0a1f3e5d7b9c1a3e5f7a9b1c3d5e7f9a1b'
-      : activeLineageKey === 'music_cue_midnight_serenade'
-      ? '9b1c3d5e7f9a1b3c5e7a1f3e5b7c9a1f3e5d7b9c1a3e5f7a9b1c3d5e7f9a1b3c'
-      : 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
+    null;
 
   const chainedParentHash =
     lastConfirmedEvent?.parent_hash ||
     lastConfirmedEvent?.parent_event_hash ||
-    (activeLineageKey === 'poster_noir_detective_magazine'
-      ? 'a1b2c3d4e5f60718293a4b5c6d7e8f90abcdef1234567890abcdef12345678'
-      : '4d6e8f0a2b4c6e8a0f2d4e6b8c0a2f4e6d8b0c2a4e6f8a0b2c4d6e8f0a2b4c6e');
+    (activeItem as unknown as { parent_hash?: string })?.parent_hash ||
+    null;
 
   // Reset confirmation banner when active item changes
   useEffect(() => {
@@ -164,6 +159,7 @@ export const ReviewActionComponent: React.FC<ReviewActionComponentProps> = ({
   );
 
   const handleCopyHash = () => {
+    if (!verifiedEventHash) return;
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(verifiedEventHash);
       setCopiedHash(true);
@@ -360,15 +356,22 @@ export const ReviewActionComponent: React.FC<ReviewActionComponentProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="rounded bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 text-[10px] font-bold flex items-center gap-1">
-              <ShieldCheck className="h-3 w-3 text-emerald-400" aria-hidden="true" />
-              <span>[VERIFIED SHA-256 HASH CHAIN]</span>
-            </span>
+            {verifiedEventHash ? (
+              <span className="rounded bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 text-[10px] font-bold flex items-center gap-1">
+                <ShieldCheck className="h-3 w-3 text-emerald-400" aria-hidden="true" />
+                <span>[VERIFIED SHA-256 HASH CHAIN]</span>
+              </span>
+            ) : (
+              <span className="rounded bg-amber-950/70 text-amber-300 border border-amber-500/40 px-2 py-0.5 text-[10px] font-bold flex items-center gap-1 font-mono">
+                <span>[AWAITING ADJUDICATION]</span>
+              </span>
+            )}
             <button
               type="button"
               onClick={handleCopyHash}
-              className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-              title="Copy SHA-256 event hash to clipboard"
+              disabled={!verifiedEventHash}
+              className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title={verifiedEventHash ? "Copy SHA-256 event hash to clipboard" : "Hash generated upon counsel sign-off"}
               aria-label="Copy SHA-256 hash"
             >
               {copiedHash ? (
@@ -383,15 +386,23 @@ export const ReviewActionComponent: React.FC<ReviewActionComponentProps> = ({
         <div className="space-y-1.5 text-[11px]">
           <div>
             <span className="text-slate-500">Event Hash:</span>{' '}
-            <span className="text-sky-300 break-all select-all font-semibold">
-              {verifiedEventHash}
-            </span>
+            {verifiedEventHash ? (
+              <span className="text-sky-300 break-all select-all font-semibold font-mono">
+                {verifiedEventHash}
+              </span>
+            ) : (
+              <span className="text-amber-400/90 font-mono italic">Awaiting counsel decision</span>
+            )}
           </div>
           <div>
             <span className="text-slate-500">Chained Parent Hash:</span>{' '}
-            <span className="text-slate-400 break-all select-all">
-              {chainedParentHash}
-            </span>
+            {chainedParentHash ? (
+              <span className="text-slate-400 break-all select-all font-mono">
+                {chainedParentHash}
+              </span>
+            ) : (
+              <span className="text-slate-500 font-mono italic">Awaiting server confirmation</span>
+            )}
           </div>
           <div className="text-[10px] text-slate-500 pt-1 border-t border-slate-800/60 flex items-center justify-between">
             <span>Cryptographic Formula: event_hash = sha256(parent_hash + payload)</span>

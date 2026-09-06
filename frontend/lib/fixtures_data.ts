@@ -638,7 +638,8 @@ export function getGoldenDriftEvaluationResult(): DriftEvaluationResult {
 }
 
 export function getGoldenExceptionsSchedule(
-  reattestations: Record<string, { status: DecisionStatus; rationale: string }> = {}
+  reattestations: Record<string, { status: DecisionStatus; rationale: string }> = {},
+  autoReconcileDemo: boolean = true
 ): ExceptionsSchedule {
   const baseClaims = getGoldenDriftEvaluationResult().claims;
   let carried = 0;
@@ -656,24 +657,54 @@ export function getGoldenExceptionsSchedule(
       action = 'Carried forward unchanged from prior approved counsel attestation.';
     } else {
       reopened++;
-      const userReattest = reattestations[claim.stable_lineage_key];
+      const userReattest =
+        reattestations[claim.stable_lineage_key] ||
+        (autoReconcileDemo && claim.stable_lineage_key === 'poster_noir_detective_magazine'
+          ? {
+              status: DecisionStatus.APPROVED,
+              rationale:
+                'United States Public Domain doctrine following verified copyright expiration without statutory renewal (17 U.S.C. § 304).',
+            }
+          : undefined);
+
       if (userReattest) {
         if (userReattest.status === DecisionStatus.APPROVED) {
           evalState = DecisionState.RE_ATTESTED;
           reattested++;
           action = `Re-attested by Clearance Counsel: ${userReattest.rationale}`;
+          reason = 'Creative delta escalation resolved via public domain confirmation.';
         } else {
           evalState = DecisionState.EXCEPTION;
           exceptions++;
           action = `Marked as UNRESOLVED EXCEPTION by Clearance Counsel: ${userReattest.rationale}`;
+          reason = claim.reason_code;
         }
       } else {
         evalState = DecisionState.EXCEPTION;
         exceptions++;
-        reason = claim.reason_code;
-        action = 'Pending counsel re-attestation following detected drift.';
+        if (claim.stable_lineage_key === 'music_cue_midnight_serenade') {
+          reason =
+            'Worldwide exclusive synchronization and master rights assigned in August 2026 to Vanguard Media Holdings LLC (administered by Kobalt Music). Prior public domain attestation invalid under European term extension.';
+          action =
+            'Execute synchronization license with Vanguard Media Holdings prior to final audio mix, or replace cue with pre-cleared production library music.';
+        } else if (claim.stable_lineage_key === 'poster_noir_detective_magazine') {
+          reason =
+            'Escalated from 2s out-of-focus background blur to 14s close-up focal dialogue shot. Invalidates prior de minimis clearance under Sandoval v. New Line Cinema.';
+          action =
+            'Re-attest under United States Public Domain doctrine following verified copyright expiration without renewal, or secure publisher quitclaim.';
+        } else {
+          reason = claim.reason_code;
+          action = 'Pending counsel re-attestation following detected drift.';
+        }
       }
     }
+
+    const defaultPayloadHash =
+      claim.stable_lineage_key === 'poster_noir_detective_magazine'
+        ? 'a1f498bc20379d749be8b0821c4fa92b5e28329623e10d860d5b4e72fb4d0267'
+        : claim.stable_lineage_key === 'music_cue_midnight_serenade'
+        ? 'c958448a39a8264582f3a677353f40f098fe5c5b525d8e752989b6574f881028'
+        : undefined;
 
     const citations: EvidenceCitation[] = claim.evidence
       ? [
@@ -681,8 +712,10 @@ export function getGoldenExceptionsSchedule(
             source_title: claim.evidence.source_title,
             source_url: claim.evidence.source_url,
             excerpt: claim.evidence.excerpt,
-            provider: claim.evidence.provider,
-          },
+            provider: claim.evidence.provider || 'Parallel Search API v1',
+            provider_call_id: claim.evidence.call_id || undefined,
+            payload_hash: defaultPayloadHash,
+          } as EvidenceCitation,
         ]
       : [];
 
