@@ -1,88 +1,52 @@
-"""backend/storage/ledger.py: Append-only cryptographic audit ledger for film & TV E&O clearance."""
+"""
+Lienmark Cryptographic Audit Ledger Subsystem.
+
+Provides an append-only, tamper-evident cryptographic audit ledger for film and television
+E&O clearance, ensuring immutable history, SHA-256 hash chaining, and non-destructive supersession.
+Authored strictly under Google AntiGravity: Defensive, typed, zero-suppression architecture.
+"""
+
 from __future__ import annotations
 
 import copy
-import hashlib
-import json
 import threading
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
-from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from backend.storage.ledger_types import (
+    AuditEvent,
+    ImmutablePayload,
+    LedgerIntegrityError,
+    LedgerTamperError,
+    compute_canonical_digest,
+    compute_entry_hash,
+)
 
-class LedgerTamperError(Exception):
-    """Raised when an illegal attempt is made to mutate, update, or delete ledger entries."""
-    pass
-
-class LedgerIntegrityError(Exception):
-    """Raised when cryptographic verification or chain continuity fails."""
-    pass
-
-
-def compute_canonical_digest(payload: Dict[str, Any]) -> str:
-    """Computes SHA-256 hex digest of canonically serialized JSON (sorted keys, compact)."""
-    serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
-
-def compute_entry_hash(
-    previous_event_hash: str, payload_digest: str, timestamp_utc: str, sequence_number: int
-) -> str:
-    """Computes SHA-256 entry hash chaining previous hash, payload digest, timestamp, sequence."""
-    raw = f"{previous_event_hash}{payload_digest}{timestamp_utc}{sequence_number}"
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
-
-
-class ImmutablePayload(dict):
-    """Read-only dictionary that raises LedgerTamperError on any mutation attempt."""
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-        for k, v in list(self.items()):
-            if isinstance(v, dict) and not isinstance(v, ImmutablePayload):
-                super().__setitem__(k, ImmutablePayload(v))
-
-    def __setitem__(self, key: Any, value: Any) -> None: raise LedgerTamperError(f"Cannot modify '{key}'")
-    def __delitem__(self, key: Any) -> None: raise LedgerTamperError(f"Cannot delete '{key}'")
-    def pop(self, *args: Any, **kwargs: Any) -> Any: raise LedgerTamperError("pop() forbidden")
-    def popitem(self) -> Tuple[Any, Any]: raise LedgerTamperError("popitem() forbidden")
-    def clear(self) -> None: raise LedgerTamperError("clear() forbidden")
-    def update(self, *args: Any, **kwargs: Any) -> None: raise LedgerTamperError("update() forbidden")
-    def setdefault(self, key: Any, default: Any = None) -> Any: raise LedgerTamperError("forbidden")
-
-
-class AuditEvent(BaseModel):
-    """Cryptographic audit event representing an append-only ledger block."""
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    event_id: str
-    tenant_id: str
-    production_id: str
-    actor_id: str
-    action_type: str
-    payload: Dict[str, Any]
-    payload_digest: str
-    sequence_number: int = Field(..., ge=1)
-    timestamp_utc: str
-    previous_event_hash: str
-    entry_hash: str
-
-    @field_validator("payload", mode="after")
-    @classmethod
-    def _validate_payload_immutable(cls, v: Any) -> ImmutablePayload:
-        return v if isinstance(v, ImmutablePayload) else ImmutablePayload(v)
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        if hasattr(self, "__pydantic_fields_set__"):
-            raise LedgerTamperError(f"AuditEvent is immutable; cannot modify attribute '{name}'")
-        super().__setattr__(name, value)
-
-    def __delattr__(self, name: str) -> None:
-        raise LedgerTamperError(f"AuditEvent is immutable; cannot delete attribute '{name}'")
+# Re-export for seamless dual-import and backward compatibility
+__all__ = [
+    "AuditEvent",
+    "ImmutablePayload",
+    "LedgerIntegrityError",
+    "LedgerTamperError",
+    "CryptographicLedger",
+    "compute_canonical_digest",
+    "compute_entry_hash",
+]
 
 
 class CryptographicLedger:
-    """Append-only, tamper-evident cryptographic audit ledger for film & TV E&O clearance."""
+    """
+    Append-only, tamper-evident cryptographic audit ledger for film & TV E&O clearance.
+    
+    Guarantees:
+      1. Genesis event initialization with sequence number 1 and 64-zero parent hash.
+      2. Strict monotonic sequence numbers (1, 2, 3...).
+      3. Immutable parent hash chaining: Entry Hash = SHA256(PrevHash + Digest + Time + Seq).
+      4. Append-only persistence: Updates, deletions, or direct mutations raise LedgerTamperError.
+      5. Non-destructive supersession: Emits a SUPERSEDED event without mutating prior records.
+      6. High-performance integrity verification traversing 1,000 events in < 2.0s.
+    """
 
     GENESIS_HASH: str = "0" * 64
 
@@ -98,12 +62,14 @@ class CryptographicLedger:
         with self._lock:
             if production_id in self._chains and len(self._chains[production_id]) > 0:
                 raise LedgerIntegrityError(f"Ledger for production '{production_id}' is already initialized.")
+
             payload = {"action": "GENESIS", "production_id": production_id, "tenant_id": tenant_id}
             digest = compute_canonical_digest(payload)
             timestamp = datetime.now(timezone.utc).isoformat()
             seq = 1
             prev_hash = self.GENESIS_HASH
             entry_hash = compute_entry_hash(prev_hash, digest, timestamp, seq)
+
             event = AuditEvent(
                 event_id=f"evt_{uuid.uuid4().hex}",
                 tenant_id=tenant_id,
@@ -134,12 +100,14 @@ class CryptographicLedger:
             chain = self._chains.get(production_id)
             if not chain:
                 raise LedgerIntegrityError(f"Ledger for '{production_id}' not initialized. Call genesis first.")
+
             prev_event = chain[-1]
             seq = prev_event.sequence_number + 1
             prev_hash = prev_event.entry_hash
             digest = compute_canonical_digest(payload)
             timestamp = datetime.now(timezone.utc).isoformat()
             entry_hash = compute_entry_hash(prev_hash, digest, timestamp, seq)
+
             event = AuditEvent(
                 event_id=f"evt_{uuid.uuid4().hex}",
                 tenant_id=tenant_id,
@@ -170,11 +138,14 @@ class CryptographicLedger:
             chain = self._chains.get(production_id)
             if not chain:
                 raise LedgerIntegrityError(f"Ledger for '{production_id}' is not initialized.")
+
             target = next((e for e in chain if e.event_id == superseded_event_id), None)
             if not target:
                 raise LedgerIntegrityError(f"Superseded event '{superseded_event_id}' not found in '{production_id}'.")
+
             payload = copy.deepcopy(superseding_payload)
             payload["superseded_event_id"] = superseded_event_id
+
             return self.append_event(
                 tenant_id=tenant_id,
                 production_id=production_id,
@@ -189,6 +160,7 @@ class CryptographicLedger:
             chain = self._chains.get(production_id)
             if not chain:
                 return False, f"Ledger for production '{production_id}' is empty or not found", 0
+
             for i, event in enumerate(chain):
                 if i == 0:
                     if event.sequence_number != 1:
@@ -201,8 +173,10 @@ class CryptographicLedger:
                         return False, f"Non-monotonic sequence number at seq {event.sequence_number}", i
                     if event.previous_event_hash != prev.entry_hash:
                         return False, f"Broken chain link at seq {event.sequence_number}", i
+
                 if event.payload_digest != compute_canonical_digest(event.payload):
                     return False, f"Payload digest mismatch at seq {event.sequence_number}", i
+
                 expected_entry_hash = compute_entry_hash(
                     event.previous_event_hash,
                     event.payload_digest,
@@ -211,6 +185,7 @@ class CryptographicLedger:
                 )
                 if event.entry_hash != expected_entry_hash:
                     return False, f"Entry hash mismatch at seq {event.sequence_number}", i
+
             return True, None, len(chain)
 
     def get_events(
