@@ -8,7 +8,7 @@
 
 import React from 'react';
 import { ShieldCheck } from 'lucide-react';
-import { DecisionState, EvaluatedClaim } from '@/lib/types';
+import { DecisionState, EvaluatedClaim, UserRole } from '@/lib/types';
 import ClaimsTable from './ClaimsTable';
 
 export interface DecisionListComponentProps {
@@ -16,6 +16,7 @@ export interface DecisionListComponentProps {
   selectedClaimKey: string;
   onSelectClaim: (claimKey: string) => void;
   onOpenInGate?: (claimKey: string) => void;
+  userRole?: UserRole;
 }
 
 export const DecisionListComponent: React.FC<DecisionListComponentProps> = ({
@@ -23,6 +24,7 @@ export const DecisionListComponent: React.FC<DecisionListComponentProps> = ({
   selectedClaimKey,
   onSelectClaim,
   onOpenInGate,
+  userRole = UserRole.REVIEWER,
 }) => {
   const carriedCount = claims.filter((c) => c.state === DecisionState.CARRIED_FORWARD).length;
 
@@ -60,6 +62,7 @@ export const DecisionListComponent: React.FC<DecisionListComponentProps> = ({
         selectedClaimKey={selectedClaimKey}
         onSelectClaim={onSelectClaim}
         onOpenInGate={onOpenInGate}
+        userRole={userRole}
       />
     </div>
   );

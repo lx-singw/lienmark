@@ -73,6 +73,19 @@ from backend.core.lifecycle import (
     transition_run,
     RunLifecycleManager,
 )
+from backend.core.rbac import (
+    LienmarkRole,
+    LienmarkPermission,
+    RBACContext,
+    RBACAccessDeniedException,
+    RequireRole,
+    RequirePermission,
+    require_role,
+    require_permission,
+    extract_rbac_context,
+    get_rbac_context,
+    normalize_role_name,
+)
 
 __all__ = [
     "InvalidationEngine",
@@ -138,4 +151,15 @@ __all__ = [
     "validate_transition",
     "transition_run",
     "RunLifecycleManager",
+    "LienmarkRole",
+    "LienmarkPermission",
+    "RBACContext",
+    "RBACAccessDeniedException",
+    "RequireRole",
+    "RequirePermission",
+    "require_role",
+    "require_permission",
+    "extract_rbac_context",
+    "get_rbac_context",
+    "normalize_role_name",
 ]

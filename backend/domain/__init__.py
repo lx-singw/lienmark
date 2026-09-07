@@ -44,6 +44,8 @@ from backend.domain.models import (
     DocumentRecord,
     InvestigationRun,
     RunStatus,
+    SceneContext,
+    ScriptBeat,
 )
 
 __all__ = [
@@ -91,5 +93,7 @@ __all__ = [
     "DocumentRecord",
     "InvestigationRun",
     "RunStatus",
+    "SceneContext",
+    "ScriptBeat",
 ]
 

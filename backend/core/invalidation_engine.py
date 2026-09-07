@@ -145,6 +145,24 @@ class InvalidationEngine:
                 changed_fields.append("context")
                 reason_codes.append("SCRIPT_DIALOGUE_MODIFIED")
 
+            # Check scene / timecode location
+            if base_use.scene_or_timecode != target_use.scene_or_timecode:
+                changed_fields.append("scene_or_timecode")
+                reason_codes.append("SCENE_TIMECODE_ALTERED")
+
+            # Check exploitation scope (intended territory, media, context)
+            if getattr(base_use, "intended_territory", None) != getattr(target_use, "intended_territory", None):
+                changed_fields.append("intended_territory")
+                reason_codes.append("TERRITORY_SCOPE_ALTERED")
+
+            if getattr(base_use, "intended_media", None) != getattr(target_use, "intended_media", None):
+                changed_fields.append("intended_media")
+                reason_codes.append("MEDIA_SCOPE_ALTERED")
+
+            if getattr(base_use, "intended_context", None) != getattr(target_use, "intended_context", None):
+                changed_fields.append("intended_context")
+                reason_codes.append("EXPLOITATION_CONTEXT_ALTERED")
+
             if changed_fields:
                 deltas[key] = CreativeDelta(
                     delta_id=f"delta_{key}",
@@ -243,34 +261,54 @@ class InvalidationEngine:
                 key = dec.stable_lineage_key
                 use = base_map.get(key) or target_map.get(key)
                 ctx_hash = use.context_hash if use else "unchanged"
-                validity_results.append(
-                    DecisionValidity(
-                        decision_id=dec.decision_id,
-                        evaluated_for_version_id=target_version_id,
-                        stable_lineage_key=key,
-                        state=DecisionState.CARRIED_FORWARD,
-                        reason_code="DEPENDENCIES_SATISFIED_UNCHANGED",
-                        changed_dependency_ids=[],
-                        revalidation_action="carry",
-                        explanation=(
-                            f"Clearance carried forward idempotently: version '{base_ver}' evaluated against "
-                            f"itself ('{target_ver}'). Creative context hash ({ctx_hash}) and clearance evidence "
-                            f"for '{key}' are verified identical; zero drift."
-                        ),
-                        creative_delta=CreativeDelta(
-                            delta_id=f"delta_{key}",
-                            before_use_id=use.use_id if use else None,
-                            after_use_id=use.use_id if use else None,
+                ev_snap = canonical_evidence.get(key) or getattr(dec, "evidence_snapshot", None)
+                if dec.status in (DecisionStatus.APPROVED, DecisionStatus.APPROVED_WITH_CONDITION):
+                    validity_results.append(
+                        DecisionValidity(
+                            decision_id=dec.decision_id,
+                            evaluated_for_version_id=target_version_id,
                             stable_lineage_key=key,
-                            change_kind=ChangeKind.UNCHANGED,
-                            materiality="none",
-                            match_confidence=1.0,
-                            changed_fields=[],
-                            reason_codes=["DEPENDENCIES_SATISFIED_UNCHANGED"],
-                        ) if use else None,
-                        evidence_snapshot=canonical_evidence.get(key),
+                            state=DecisionState.CARRIED_FORWARD,
+                            reason_code="DEPENDENCIES_SATISFIED_UNCHANGED",
+                            changed_dependency_ids=[],
+                            revalidation_action="carry",
+                            explanation=(
+                                f"Clearance carried forward idempotently: version '{base_ver}' evaluated against "
+                                f"itself ('{target_ver}'). Creative context hash ({ctx_hash}) and clearance evidence "
+                                f"for '{key}' are verified identical; zero drift."
+                            ),
+                            creative_delta=CreativeDelta(
+                                delta_id=f"delta_{key}",
+                                before_use_id=use.use_id if use else None,
+                                after_use_id=use.use_id if use else None,
+                                stable_lineage_key=key,
+                                change_kind=ChangeKind.UNCHANGED,
+                                materiality="none",
+                                match_confidence=1.0,
+                                changed_fields=[],
+                                reason_codes=["DEPENDENCIES_SATISFIED_UNCHANGED"],
+                            ) if use else None,
+                            evidence_snapshot=ev_snap,
+                        )
                     )
-                )
+                else:
+                    validity_results.append(
+                        DecisionValidity(
+                            decision_id=dec.decision_id,
+                            evaluated_for_version_id=target_version_id,
+                            stable_lineage_key=key,
+                            state=DecisionState.STALE,
+                            reason_code="PRIOR_DECISION_UNAPPROVED",
+                            changed_dependency_ids=[],
+                            revalidation_action="revalidate",
+                            explanation=(
+                                f"Clearance unapproved: prior decision '{dec.decision_id}' has unapproved status "
+                                f"'{dec.status.value if hasattr(dec.status, 'value') else dec.status}'; cannot carry forward."
+                            ),
+                            creative_delta=None,
+                            evidence_snapshot=ev_snap,
+                        )
+                    )
             validity_results.sort(key=lambda r: (r.stable_lineage_key, r.decision_id))
             return validity_results
 
@@ -340,7 +378,7 @@ class InvalidationEngine:
         for dec in sorted_decisions:
             key = dec.stable_lineage_key
             delta = deltas.get(key)
-            evidence = canonical_evidence.get(key)
+            evidence = canonical_evidence.get(key) or getattr(dec, "evidence_snapshot", None)
             base_u = base_map.get(key)
             target_u = target_map.get(key)
 
@@ -507,25 +545,46 @@ class InvalidationEngine:
 
             # Taxonomy State: CARRIED_FORWARD / Reason: DEPENDENCIES_SATISFIED_UNCHANGED
             if delta.change_kind == ChangeKind.UNCHANGED:
-                explanation = (
-                    f"Clearance carried forward: creative context hash ({base_u.context_hash if base_u else 'verified'}) "
-                    f"and external evidence for '{key}' are identical in {target_version_id}; "
-                    f"all statutory clearance dependencies satisfied without modification."
-                )
-                validity_results.append(
-                    DecisionValidity(
-                        decision_id=dec.decision_id,
-                        evaluated_for_version_id=target_version_id,
-                        stable_lineage_key=key,
-                        state=DecisionState.CARRIED_FORWARD,
-                        reason_code="DEPENDENCIES_SATISFIED_UNCHANGED",
-                        changed_dependency_ids=[],
-                        revalidation_action="carry",
-                        creative_delta=delta,
-                        evidence_snapshot=evidence,
-                        explanation=explanation,
+                if dec.status in (DecisionStatus.APPROVED, DecisionStatus.APPROVED_WITH_CONDITION):
+                    explanation = (
+                        f"Clearance carried forward: creative context hash ({base_u.context_hash if base_u else 'verified'}) "
+                        f"and external evidence for '{key}' are identical in {target_version_id}; "
+                        f"all statutory clearance dependencies satisfied without modification."
                     )
-                )
+                    validity_results.append(
+                        DecisionValidity(
+                            decision_id=dec.decision_id,
+                            evaluated_for_version_id=target_version_id,
+                            stable_lineage_key=key,
+                            state=DecisionState.CARRIED_FORWARD,
+                            reason_code="DEPENDENCIES_SATISFIED_UNCHANGED",
+                            changed_dependency_ids=[],
+                            revalidation_action="carry",
+                            creative_delta=delta,
+                            evidence_snapshot=evidence,
+                            explanation=explanation,
+                        )
+                    )
+                else:
+                    explanation = (
+                        f"Clearance unapproved: prior counsel decision '{dec.decision_id}' has unapproved status "
+                        f"'{dec.status.value if hasattr(dec.status, 'value') else dec.status}'; "
+                        f"cannot carry forward unapproved decisions into {target_version_id}."
+                    )
+                    validity_results.append(
+                        DecisionValidity(
+                            decision_id=dec.decision_id,
+                            evaluated_for_version_id=target_version_id,
+                            stable_lineage_key=key,
+                            state=DecisionState.STALE,
+                            reason_code="PRIOR_DECISION_UNAPPROVED",
+                            changed_dependency_ids=[],
+                            revalidation_action="revalidate",
+                            creative_delta=delta,
+                            evidence_snapshot=evidence,
+                            explanation=explanation,
+                        )
+                    )
             else:
                 # Catch-all fail-closed
                 validity_results.append(
@@ -995,6 +1054,7 @@ class InvalidationEngine:
         base_uses: Optional[List[CreativeUse]] = None,
         counsel_checkpoint_manager: Optional[Any] = None,
         supersession_history: Optional[List[Any]] = None,
+        prior_decisions: Optional[List[CounselDecision]] = None,
     ) -> ExceptionsSchedule:
         """
         Generate the version-bound Exceptions Schedule for E&O underwriter review.
@@ -1018,11 +1078,9 @@ class InvalidationEngine:
             if not key or key in reattestations:
                 continue
             ev_version_id = getattr(ev, "target_version_id", None) or getattr(ev, "version_id", None)
-            # Finding 4 (Cross-Version Approval Bleed):
-            # Only match an audit event if ev_version_id == target_version_id (or if version_id is None, only for legacy calls where target_version_id is v8).
+            # Cross-Version Approval Bleed protection:
+            # Only match an audit event if ev_version_id == target_version_id or ev_version_id is None.
             if ev_version_id is not None and ev_version_id != target_version_id:
-                continue
-            if ev_version_id is None and target_version_id != "v8":
                 continue
 
             action_val = getattr(ev, "action", None)
@@ -1050,6 +1108,7 @@ class InvalidationEngine:
 
         use_map = {u.stable_lineage_key: u for u in target_uses}
         base_map = {u.stable_lineage_key: u for u in base_uses} if base_uses else {}
+        prior_dec_map = {d.stable_lineage_key: d for d in (prior_decisions or [])}
 
         carried_count = 0
         reattested_count = 0
@@ -1066,22 +1125,22 @@ class InvalidationEngine:
             if not use:
                 continue
 
-            # Finding 4 (Cross-Version Approval Bleed):
-            # Only match a reattestation if getattr(reattest, "version_id", None) == target_version_id
-            # (or if version_id is None, only for legacy calls where target_version_id is v8).
-            # If a reattestation was recorded for v7 or a different version, DO NOT apply it to target_version_id!
+            # Cross-Version Approval Bleed protection:
+            # Only match a reattestation if version_id matches target_version_id or is None.
             reattest_candidate = reattestations.get(key)
             reattest = None
             if reattest_candidate:
                 r_ver = getattr(reattest_candidate, "version_id", None)
-                if r_ver == target_version_id or (r_ver is None and target_version_id == "v8"):
+                if r_ver is None or r_ver == target_version_id:
                     reattest = reattest_candidate
 
             final_eval_state = val.state.value if hasattr(val.state, "value") else str(val.state)
 
             citations: List[Dict[str, str]] = []
-            if val.evidence_snapshot:
-                snap = val.evidence_snapshot
+            snap = val.evidence_snapshot
+            if not snap and key in prior_dec_map:
+                snap = getattr(prior_dec_map[key], "evidence_snapshot", None)
+            if snap:
                 payload_hash = (
                     getattr(snap, "payload_hash", None)
                     or getattr(snap, "raw_payload_hash", None)
@@ -1160,13 +1219,21 @@ class InvalidationEngine:
             else:
                 counsel_action = val.explanation or "Review required."
 
+            prior_dec = prior_dec_map.get(key)
+            if prior_dec:
+                prior_st = prior_dec.status.value.upper() if hasattr(prior_dec.status, "value") else str(prior_dec.status).upper()
+            elif val.state == DecisionState.NEW:
+                prior_st = "NONE"
+            else:
+                prior_st = "APPROVED"
+
             schedule_items.append(
                 ExceptionsScheduleItem(
                     stable_lineage_key=key,
                     asset_type=use.asset_type,
                     description=use.description,
                     scene_or_timecode=use.scene_or_timecode,
-                    v7_decision_status="NONE" if val.state == DecisionState.NEW else "APPROVED",
+                    v7_decision_status=prior_st,
                     v8_evaluation_state=final_eval_state,
                     invalidation_reason=val.reason_code if val.state != DecisionState.CARRIED_FORWARD else None,
                     counsel_action=counsel_action,
@@ -1566,6 +1633,7 @@ class InvalidationEngine:
         prior_recommendation: Optional[Union[str, Dict[str, Any]]] = None,
         task_provider: str = "parallel",
         notes: Optional[str] = None,
+        target_version_id: Optional[str] = None,
         **kwargs: Any,
     ) -> CounselDecisionResult:
         """
@@ -1623,6 +1691,15 @@ class InvalidationEngine:
         else:
             claim_obj = claim
             claim_id = claim_obj.get("claim_id", f"claim_{uuid.uuid4().hex[:8]}") if is_dict else getattr(claim_obj, "claim_id", f"claim_{uuid.uuid4().hex[:8]}")
+
+        # Validate target_version_id against claim's version_id to prohibit cross-version approval bleed
+        eff_version_id = target_version_id or kwargs.get("target_version_id") or kwargs.get("version_id")
+        claim_ver = claim_obj.get("version_id") if is_dict else getattr(claim_obj, "version_id", None)
+        if eff_version_id and claim_ver and eff_version_id != claim_ver:
+            raise ValueError(
+                f"Version mismatch: counsel decision targeted version '{eff_version_id}', "
+                f"but claim belongs to version '{claim_ver}'. Cross-version approval bleed prohibited."
+            )
 
         # Extract prior recommendation / finding
         prior_rec_val = prior_recommendation or prior_finding
@@ -2076,6 +2153,7 @@ def process_counsel_decision(
     prior_recommendation: Optional[Union[str, Dict[str, Any]]] = None,
     task_provider: str = "parallel",
     notes: Optional[str] = None,
+    target_version_id: Optional[str] = None,
     **kwargs: Any,
 ) -> CounselDecisionResult:
     """
@@ -2093,6 +2171,7 @@ def process_counsel_decision(
         prior_recommendation=prior_recommendation,
         task_provider=task_provider,
         notes=notes,
+        target_version_id=target_version_id,
         **kwargs,
     )
 

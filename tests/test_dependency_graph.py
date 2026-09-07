@@ -9,7 +9,10 @@ import pytest
 from typing import List, Dict
 
 from backend.domain.models import (
+    AtomicRightsClaim,
+    CensusDisposition,
     ChangeKind,
+    ClarificationRequest,
     ContractAgreement,
     CounselDecision,
     CreativeUse,
@@ -19,6 +22,8 @@ from backend.domain.models import (
     EvidenceStance,
     PublicEvidenceSnapshot,
     ReattestationRequest,
+    SceneContext,
+    ScriptBeat,
 )
 from backend.core.dependency_graph import (
     ClearanceDependencyGraph,
@@ -784,3 +789,316 @@ def test_rule_branch_upstream_dependency_stale_cascading_invalidation():
     assert res_v7_map["artwork_poster_framed_cutout"].reason_code == "DEPENDENCIES_SATISFIED_UNCHANGED"
     assert res_v7_map["artwork_trailer_poster_montage"].state == DecisionState.CARRIED_FORWARD
     assert res_v7_map["artwork_trailer_poster_montage"].reason_code == "DEPENDENCIES_SATISFIED_UNCHANGED"
+
+
+# =============================================================================
+# 7. SPRINT 1.2 EXTENDED HARDENING & MULTI-TIER CAUSAL LINEAGE TESTS
+# =============================================================================
+
+def test_multi_tier_causal_mapping_scene_beat_use_claim_clarif_decision():
+    """
+    Sprint 1.2 Requirement 1:
+    Map CreativeUse / AtomicRightsClaim nodes to parent scene contexts, script beats,
+    contract agreements, external evidence snapshots, clarification requests, and counsel decisions.
+    """
+    scene = SceneContext(
+        scene_id="scene_042",
+        version_id="v7",
+        scene_number="42",
+        slugline="INT. DETECTIVE OFFICE - NIGHT",
+        scene_hash="hash_scene_042",
+        stable_lineage_key="scene_42",
+    )
+    beat = ScriptBeat(
+        beat_id="beat_042_01",
+        scene_id="scene_042",
+        version_id="v7",
+        beat_index=1,
+        title="Detective Enters Office",
+        action_text="Protagonist hangs coat on rack next to framed poster.",
+        beat_hash="hash_beat_042_01",
+        stable_lineage_key="beat_42_01",
+    )
+    use = CreativeUse(
+        use_id="use_poster_42",
+        version_id="v7",
+        scene_or_timecode="Scene 42",
+        asset_type="artwork",
+        description="Framed noir detective magazine poster",
+        duration_or_prominence="2s background",
+        context="Hangs on office wall",
+        stable_lineage_key="poster_noir_detective_magazine",
+        context_hash="hash_use_poster_42",
+        metadata={"beat_id": "beat_042_01", "scene_id": "scene_042"},
+    )
+    claim = AtomicRightsClaim(
+        claim_id="claim_poster_copyright_01",
+        occurrence_id="use_poster_42",
+        occurrence_lineage_id="poster_noir_detective_magazine",
+        right_category="copyright",
+        rights_subject="Magazine Publisher",
+        disposition=CensusDisposition.APPROVED,
+    )
+    contract = ContractAgreement(
+        agreement_id="agr_poster_license_01",
+        stable_lineage_key="poster_noir_detective_magazine",
+        licensor="Retro Publishing Archives LLC",
+        licensee="Production Co LLC",
+        scope="Theatrical worldwide",
+        term="Perpetual",
+        agreement_hash="hash_agr_01",
+        is_active=True,
+    )
+    evidence = PublicEvidenceSnapshot(
+        snapshot_id="ev_loc_record_01",
+        use_id="use_poster_42",
+        stable_lineage_key="poster_noir_detective_magazine",
+        query="copyright registration 1939",
+        source_url="https://loc.gov/copyright/1939",
+        source_title="LOC Catalog 1939",
+        excerpt="No renewal on file; public domain",
+        stance=EvidenceStance.SUPPORTING,
+    )
+    clarification = ClarificationRequest(
+        request_id="clarif_poster_01",
+        run_id="run_test",
+        claim_id="use_poster_42",
+        revision_id="v7",
+        stable_lineage_key="poster_noir_detective_magazine",
+        question_text="Confirm artwork is pre-1978 without renewal",
+        status="resolved",
+    )
+    decision = CounselDecision(
+        decision_id="dec_poster_42",
+        use_id="use_poster_42",
+        stable_lineage_key="poster_noir_detective_magazine",
+        applicable_version_id="v7",
+        status=DecisionStatus.APPROVED,
+        rationale="Cleared background artwork via LOC registry and sync license",
+    )
+
+    graph = ClearanceDependencyGraph.build_clearance_graph(
+        base_uses=[use],
+        target_uses=[use],
+        prior_decisions=[decision],
+        evidence_snapshots=[evidence],
+        contracts=[contract],
+        atomic_claims=[claim],
+        scene_contexts=[scene],
+        script_beats=[beat],
+        clarification_requests=[clarification],
+    )
+
+    # 1. Verify Node Registration
+    assert graph.has_node("scene_042")
+    assert graph.has_node("beat_042_01")
+    assert graph.has_node("use_poster_42")
+    assert graph.has_node("claim_poster_copyright_01")
+    assert graph.has_node("agr_poster_license_01")
+    assert graph.has_node("ev_loc_record_01")
+    assert graph.has_node("clarif_poster_01")
+    assert graph.has_node("dec_poster_42")
+
+    # 2. Verify Causal Lineage Edges
+    # beat -> scene
+    assert "scene_042" in graph.get_dependencies("beat_042_01")
+    # use -> beat
+    assert "beat_042_01" in graph.get_dependencies("use_poster_42")
+    # claim -> use
+    assert "use_poster_42" in graph.get_dependencies("claim_poster_copyright_01")
+    # clarification -> use (or claim)
+    assert "use_poster_42" in graph.get_dependencies("clarif_poster_01")
+    # decision -> use, evidence, contract, claim, clarification
+    dec_deps = graph.get_dependencies("dec_poster_42")
+    assert "use_poster_42" in dec_deps
+    assert "ev_loc_record_01" in dec_deps
+    assert "agr_poster_license_01" in dec_deps
+    assert "claim_poster_copyright_01" in dec_deps
+    assert "clarif_poster_01" in dec_deps
+
+    # 3. Verify Transitive Closure
+    ancestors = graph.get_ancestors("dec_poster_42")
+    assert "scene_042" in ancestors
+    assert "beat_042_01" in ancestors
+    assert "use_poster_42" in ancestors
+    assert "claim_poster_copyright_01" in ancestors
+
+
+def test_transitive_invalidation_scene_shift_propagates_to_decision():
+    """
+    Sprint 1.2 Requirement 3:
+    When an upstream scene context shifts, the DAG traverses downstream
+    to invalidate affected decisions into stale status while generating
+    tamper-evident InvalidationNotices.
+    """
+    scene = SceneContext(
+        scene_id="scene_042",
+        version_id="v7",
+        scene_number="42",
+        slugline="INT. DETECTIVE OFFICE - NIGHT",
+        scene_hash="hash_scene_042",
+        stable_lineage_key="scene_42",
+    )
+    beat = ScriptBeat(
+        beat_id="beat_042_01",
+        scene_id="scene_042",
+        version_id="v7",
+        beat_index=1,
+        title="Detective Enters Office",
+        action_text="Protagonist hangs coat on rack next to framed poster.",
+        beat_hash="hash_beat_042_01",
+        stable_lineage_key="beat_42_01",
+    )
+    use = CreativeUse(
+        use_id="use_poster_42",
+        version_id="v7",
+        scene_or_timecode="Scene 42",
+        asset_type="artwork",
+        description="Framed noir detective magazine poster",
+        duration_or_prominence="2s background",
+        context="Hangs on office wall",
+        stable_lineage_key="poster_noir_detective_magazine",
+        context_hash="hash_use_poster_42",
+        metadata={"beat_id": "beat_042_01", "scene_id": "scene_042"},
+    )
+    decision = CounselDecision(
+        decision_id="dec_poster_42",
+        use_id="use_poster_42",
+        stable_lineage_key="poster_noir_detective_magazine",
+        applicable_version_id="v7",
+        status=DecisionStatus.APPROVED,
+        rationale="Cleared background artwork",
+    )
+
+    graph = ClearanceDependencyGraph.build_clearance_graph(
+        base_uses=[use],
+        target_uses=[use],
+        prior_decisions=[decision],
+        scene_contexts=[scene],
+        script_beats=[beat],
+        organization_id="org_studio_alpha",
+    )
+
+    # Trigger upstream scene rewrite
+    notices = graph.propagate_invalidation(
+        changed_nodes={
+            "scene_042": {
+                "reason_code": "SCENE_CONTEXT_MODIFIED",
+                "explanation": "Scene location changed from 1940s office to modern lab.",
+            }
+        },
+        production_id="prod_feature_test",
+        run_id="run_inv_test_01",
+    )
+
+    assert len(notices) == 1
+    notice = notices[0]
+    assert notice.affected_node_id == "dec_poster_42"
+    assert notice.root_cause_node_id == "scene_042"
+    assert notice.root_cause_type == NodeType.SCENE_CONTEXT
+    assert notice.is_direct is False
+    assert notice.hop_count >= 3
+    assert notice.reason_code == "UPSTREAM_DEPENDENCY_STALE"
+    assert notice.invalidation_path[0] == "scene_042"
+    assert notice.invalidation_path[-1] == "dec_poster_42"
+
+    # Verify Cryptographic Tamper-Evidence
+    assert notice.verify_integrity() is True
+    assert len(notice.canonical_payload_digest) == 64
+    assert len(notice.notice_hash) == 64
+
+
+def test_iterative_dfs_deep_chain_acyclicity_no_recursion_error():
+    """
+    Sprint 1.2 Hardening:
+    Verifies that validate_dag_acyclicity uses an iterative call stack,
+    preventing RecursionError even on chains exceeding Python's default
+    recursion limit (1,000 frames).
+    """
+    graph = ClearanceDependencyGraph()
+    chain_length = 1200
+
+    # Build linear chain: node_0 -> node_1 -> node_2 -> ... -> node_1199
+    for i in range(chain_length):
+        graph.add_node(
+            node=f"node_{i:04d}",
+            node_type=NodeType.CUSTOM,
+            stable_lineage_key=f"lineage_{i:04d}",
+        )
+
+    for i in range(chain_length - 1):
+        graph.add_dependency(
+            dependent_id=f"node_{i+1:04d}",
+            dependency_id=f"node_{i:04d}",
+            validate_cycle=False,
+        )
+
+    # Must execute in linear time without RecursionError
+    graph.validate_dag_acyclicity()
+    assert graph.node_count() == chain_length
+    assert graph.edge_count() == chain_length - 1
+
+
+def test_persist_invalidation_notices_polymorphic_signatures_and_hash_chain():
+    """
+    Sprint 1.2 Requirement 3:
+    Verifies discrete subcollection persistence under:
+    /organizations/{org_id}/productions/{prod_id}/runs/{run_id}/invalidation_notices
+    Supports both polymorphic calling conventions and unbroken hash chain continuity.
+    """
+    graph = ClearanceDependencyGraph(organization_id="org_studio_alpha")
+    u = graph.add_node("use_alpha", NodeType.CREATIVE_USE, "lineage_alpha")
+    d1 = graph.add_node("dec_01", NodeType.COUNSEL_DECISION, "lineage_d1")
+    d2 = graph.add_node("dec_02", NodeType.COUNSEL_DECISION, "lineage_d2")
+    graph.add_dependency("dec_01", "use_alpha")
+    graph.add_dependency("dec_02", "use_alpha")
+
+    notices = graph.propagate_invalidation(
+        changed_nodes=["use_alpha"],
+        production_id="prod_test_01",
+        run_id="run_audit_01",
+    )
+    assert len(notices) == 2
+
+    # Verify cryptographic hash chaining
+    assert notices[0].sequence_number == 1
+    assert notices[0].previous_notice_hash == "0" * 64
+    assert notices[0].verify_integrity() is True
+
+    assert notices[1].sequence_number == 2
+    assert notices[1].previous_notice_hash == notices[0].notice_hash
+    assert notices[1].verify_integrity() is True
+
+    # Mock repository
+    class MockTenantRepository:
+        def __init__(self):
+            self.saved_batches = []
+            self.saved_singles = []
+
+        def save_invalidation_notices_batch(self, production_id, run_id, notices):
+            self.saved_batches.append((production_id, run_id, notices))
+            return [n.to_firestore_dict() for n in notices]
+
+    repo = MockTenantRepository()
+
+    # Test Calling Pattern A: (repo, notices, production_id, run_id)
+    persisted_a = graph.persist_invalidation_notices(
+        repository=repo,
+        notices=notices,
+        production_id="prod_test_01",
+        run_id="run_audit_01",
+    )
+    assert len(persisted_a) == 2
+    assert repo.saved_batches[0][0] == "prod_test_01"
+    assert repo.saved_batches[0][1] == "run_audit_01"
+
+    # Test Calling Pattern B: (repo, production_id, run_id, notices)
+    persisted_b = graph.persist_invalidation_notices(
+        repo,
+        "prod_test_01",
+        "run_audit_01",
+        notices,
+    )
+    assert len(persisted_b) == 2
+    assert len(repo.saved_batches) == 2
+

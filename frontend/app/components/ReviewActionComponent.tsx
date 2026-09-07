@@ -29,7 +29,7 @@ import {
   ShieldCheck,
   Volume2,
 } from 'lucide-react';
-import { DecisionState, ReviewQueueItem, SupersessionEvent } from '@/lib/types';
+import { DecisionState, ReviewQueueItem, SupersessionEvent, UserRole, hasClearanceAuthority } from '@/lib/types';
 
 export type ReviewActionTypeChoice = 're_attest' | 'reject' | 'exception';
 
@@ -42,6 +42,7 @@ export interface ReviewActionComponentProps {
   isSubmitting: boolean;
   isPending?: boolean;
   lastConfirmedEvent?: SupersessionEvent | null;
+  userRole?: UserRole;
 }
 
 /**
@@ -94,10 +95,13 @@ export const ReviewActionComponent: React.FC<ReviewActionComponentProps> = ({
   isSubmitting,
   isPending = false,
   lastConfirmedEvent,
+  userRole = UserRole.REVIEWER,
 }) => {
   const [copiedHash, setCopiedHash] = useState<boolean>(false);
   const [serverConfirmed, setServerConfirmed] = useState<boolean>(false);
   const [confirmedAction, setConfirmedAction] = useState<ReviewActionTypeChoice | null>(null);
+
+  const canAdjudicate = hasClearanceAuthority(userRole);
 
   // Extract AI recommendation safely
   const rawRecommendation = activeItem?.system_recommendation;
@@ -240,10 +244,14 @@ export const ReviewActionComponent: React.FC<ReviewActionComponentProps> = ({
           id="counsel-rationale-textarea"
           value={counselRationale}
           onChange={(e) => onRationaleChange(e.target.value)}
-          disabled={isDisabled}
+          disabled={isDisabled || !canAdjudicate}
           rows={3}
           className="w-full rounded-xl border border-slate-700 bg-slate-950/90 p-3 text-xs text-slate-100 placeholder-slate-500 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 disabled:opacity-60 leading-relaxed font-sans transition-colors"
-          placeholder="Enter formal legal analysis, statutory citations, and disposition warranty..."
+          placeholder={
+            canAdjudicate
+              ? "Enter formal legal analysis, statutory citations, and disposition warranty..."
+              : `Clearance rationale entry restricted to Reviewer (Clearance Counsel) principals. Active Role: ${userRole}.`
+          }
         />
       </div>
 
@@ -294,51 +302,73 @@ export const ReviewActionComponent: React.FC<ReviewActionComponentProps> = ({
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-          {/* Action Button 1: '✓ Re-Attest Decision' */}
-          <button
-            type="button"
-            onClick={() => handleExecuteAction('re_attest')}
-            disabled={isDisabled}
-            aria-busy={isSubmitting}
-            className="flex items-center justify-center gap-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-400 disabled:cursor-not-allowed py-3.5 px-5 text-sm font-bold text-white transition-all shadow-lg shadow-emerald-950/50 active:scale-98 focus:outline-none focus:ring-2 focus:ring-emerald-400"
-            aria-label="✓ Re-Attest Decision under Public Domain or License"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin text-emerald-200" aria-hidden="true" />
-                <span>Submitting to Audit Ledger...</span>
-              </>
-            ) : (
-              <>
-                <CheckCircle2 className="h-4 w-4 text-emerald-200" aria-hidden="true" />
-                <span>✓ Re-Attest Decision</span>
-              </>
-            )}
-          </button>
+        {canAdjudicate ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            {/* Action Button 1: '✓ Re-Attest Decision' */}
+            <button
+              type="button"
+              onClick={() => handleExecuteAction('re_attest')}
+              disabled={isDisabled}
+              aria-busy={isSubmitting}
+              className="flex items-center justify-center gap-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-400 disabled:cursor-not-allowed py-3.5 px-5 text-sm font-bold text-white transition-all shadow-lg shadow-emerald-950/50 active:scale-98 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              aria-label="✓ Re-Attest Decision under Public Domain or License"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin text-emerald-200" aria-hidden="true" />
+                  <span>Submitting to Audit Ledger...</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-4 w-4 text-emerald-200" aria-hidden="true" />
+                  <span>✓ Re-Attest Decision</span>
+                </>
+              )}
+            </button>
 
-          {/* Action Button 2: '✕ Designate as Exception' */}
-          <button
-            type="button"
-            onClick={() => handleExecuteAction('exception')}
-            disabled={isDisabled}
-            aria-busy={isSubmitting}
-            className="flex items-center justify-center gap-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:bg-slate-700 disabled:text-slate-400 disabled:cursor-not-allowed py-3.5 px-5 text-sm font-bold text-white transition-all shadow-lg shadow-amber-950/50 active:scale-98 focus:outline-none focus:ring-2 focus:ring-amber-400"
-            aria-label="✕ Designate as Exception on Form E&O Schedule"
+            {/* Action Button 2: '✕ Designate as Exception' */}
+            <button
+              type="button"
+              onClick={() => handleExecuteAction('exception')}
+              disabled={isDisabled}
+              aria-busy={isSubmitting}
+              className="flex items-center justify-center gap-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:bg-slate-700 disabled:text-slate-400 disabled:cursor-not-allowed py-3.5 px-5 text-sm font-bold text-white transition-all shadow-lg shadow-amber-950/50 active:scale-98 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              aria-label="✕ Designate as Exception on Form E&O Schedule"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin text-amber-200" aria-hidden="true" />
+                  <span>Submitting to Audit Ledger...</span>
+                </>
+              ) : (
+                <>
+                  <AlertOctagon className="h-4 w-4 text-amber-200" aria-hidden="true" />
+                  <span>✕ Designate as Exception</span>
+                </>
+              )}
+            </button>
+          </div>
+        ) : (
+          <div
+            className="rounded-xl border border-amber-500/50 bg-amber-950/40 p-4 text-xs space-y-2.5 shadow-md"
+            role="alert"
+            aria-label="Clearance Adjudication Authority Restriction Notice"
           >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin text-amber-200" aria-hidden="true" />
-                <span>Submitting to Audit Ledger...</span>
-              </>
-            ) : (
-              <>
-                <AlertOctagon className="h-4 w-4 text-amber-200" aria-hidden="true" />
-                <span>✕ Designate as Exception</span>
-              </>
-            )}
-          </button>
-        </div>
+            <div className="flex items-center gap-2 text-amber-300 font-bold uppercase tracking-wider text-xs">
+              <Lock className="h-4 w-4 text-amber-400 shrink-0" aria-hidden="true" />
+              <span>Adjudication Authority Restricted: {userRole} Role</span>
+            </div>
+            <p className="text-slate-200 leading-relaxed font-sans text-xs">
+              Affirmative clearance re-attestation, statutory fair use warranties, and E&amp;O exception designations are strictly gated. Under studio clearance governance and ABA Model Rule 5.3, only authenticated <strong>Reviewer</strong> (Clearance Counsel) and <strong>Admin</strong> principals may execute clearance mutations.
+            </p>
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-amber-500/30 text-[11px] font-mono text-amber-300">
+              <span>Active Authority: Read-Only ({userRole})</span>
+              <span className="rounded bg-amber-900/60 px-2 py-0.5 border border-amber-500/40 font-bold">
+                @require_role([&quot;Reviewer&quot;, &quot;Admin&quot;])
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ===================================================================== */}

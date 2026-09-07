@@ -550,6 +550,7 @@ class CreativeUse(BaseModel):
     # Scope Evaluation & Clarification Dispatch Trigger
     scope_status: ScopeStatus = Field(default=ScopeStatus.UNKNOWN, description="Evaluated scope status")
     needs_clarification: bool = Field(default=False, description="Flag indicating clarification is required")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Arbitrary metadata and tracking references")
 
     @model_validator(mode="after")
     def evaluate_scope_fail_closed(self) -> "CreativeUse":
@@ -569,6 +570,38 @@ class CreativeUse(BaseModel):
 
 
 Claim = CreativeUse
+
+
+class SceneContext(BaseModel):
+    """
+    Screenplay scene boundary container for spatial-temporal clearance co-occurrence.
+    """
+    scene_id: str = Field(..., description="Unique scene identifier, e.g. scene_042")
+    version_id: str = Field(default="v7", description="Screenplay revision version, e.g. v7, v8")
+    scene_number: str = Field(default="", description="Normalized scene number, e.g. '42'")
+    slugline: str = Field(..., description="Full slugline, e.g. 'INT. DETECTIVE OFFICE - NIGHT'")
+    setting_type: str = Field(default="INT.", description="INT., EXT., INT/EXT.")
+    location: str = Field(default="", description="e.g. 'DETECTIVE OFFICE'")
+    time_of_day: str = Field(default="", description="e.g. 'NIGHT', 'DAY'")
+    scene_hash: str = Field(..., description="Deterministic hash of scene heading, setting, and text")
+    stable_lineage_key: str = Field(..., description="Persistent lineage key across revisions, e.g. scene_42")
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ScriptBeat(BaseModel):
+    """
+    Narrative sub-unit within a scene grouping dramatic action and dialogue.
+    """
+    beat_id: str = Field(..., description="Unique beat identifier, e.g. beat_042_01")
+    scene_id: str = Field(..., description="Parent scene ID")
+    version_id: str = Field(default="v7", description="Screenplay revision version")
+    beat_index: int = Field(default=0, description="Zero-based sequence order within the scene")
+    title: str = Field(default="", description="Action beat descriptor")
+    action_text: str = Field(default="", description="Action / description lines in this beat")
+    dialogue_snippets: List[str] = Field(default_factory=list)
+    beat_hash: str = Field(..., description="SHA-256 hash of beat action and dialogue")
+    stable_lineage_key: str = Field(..., description="Persistent beat lineage key, e.g. beat_42_entry")
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
 class CreativeOccurrence(BaseModel):
@@ -859,6 +892,7 @@ class CounselDecision(BaseModel):
     dependency_ids: List[str] = Field(default_factory=list)
     system_recommendation: Optional[str] = None
     human_confirmed: bool = True
+    evidence_snapshot: Optional[PublicEvidenceSnapshot] = Field(default=None, description="Persisted public evidence snapshot relied upon")
 
     @property
     def claim_id(self) -> str:

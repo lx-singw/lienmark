@@ -448,6 +448,60 @@ def verify_counsel_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # 1. Registered Counsel Token takes precedence
+    if raw_token in VALID_COUNSEL_REGISTRY:
+        identity = VALID_COUNSEL_REGISTRY[raw_token]
+        return CounselAuthContext(
+            reviewer_name=identity.name,
+            token=raw_token,
+            is_authenticated=True,
+            is_demo=identity.is_fictional_demo,
+            strict_mode_active=strict_enforce,
+            reviewer_identity=identity,
+        )
+
+    # 2. Check request-scoped TenantContext if populated by TenantContextMiddleware (e.g. JWT or API key)
+    tenant = getattr(request.state, "tenant", None) or getattr(request.state, "tenant_context", None)
+    if tenant is not None and hasattr(tenant, "has_role") and tenant.auth_method in ("jwt", "api_key"):
+        is_authorized = (
+            tenant.has_role("authorized_reviewer")
+            or tenant.has_role("admin")
+            or tenant.has_role("counsel")
+            or "authorized_reviewer" in tenant.roles
+            or "admin" in tenant.roles
+            or "counsel" in tenant.roles
+        )
+        if is_authorized:
+            reviewer_name = (
+                tenant.user_id
+                if tenant.user_id and not str(tenant.user_id).startswith("anonymous")
+                else "Sarah Jenkins, Esq."
+            )
+            reviewer_identity = ReviewerIdentity(
+                reviewer_id=tenant.user_id or "counsel_jwt_001",
+                name=reviewer_name,
+                title="Production Clearance Counsel",
+                organization=tenant.organization_id,
+                is_fictional_demo=tenant.is_demo,
+            )
+            return CounselAuthContext(
+                reviewer_name=reviewer_name,
+                token=raw_token,
+                is_authenticated=True,
+                is_demo=tenant.is_demo,
+                strict_mode_active=strict_enforce,
+                reviewer_identity=reviewer_identity,
+            )
+        else:
+            logger.warning(
+                f"RBAC VIOLATION: User '{tenant.user_id}' with roles {tenant.roles} "
+                f"(production_roles: {tenant.production_roles}) attempted to execute clearance action."
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: Clearance actions require 'authorized_reviewer' or 'admin' role. Current role is insufficient.",
+            )
+
     if strict_enforce:
         # STRICT MODE:
         # Strictly reject arbitrary prefix tokens (counsel_demo_*, valid_counsel_*, demo-counsel-*, demo-token-*)

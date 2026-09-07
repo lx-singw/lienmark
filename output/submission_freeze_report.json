@@ -1,6 +1,6 @@
 {
   "status": "SUBMISSION_FROZEN",
-  "timestamp": "2026-09-06T21:21:07.031093+00:00",
+  "timestamp": "2026-09-07T04:12:58.276357+00:00",
   "release_candidate": "RC-1",
   "pinned_commit": "e022a4c8042c9552a307357cc138acfdd8552522",
   "pinned_tree": "dd4d3070fed1cb33f988aebf39dcc1ae5a6d0e35",
@@ -20,13 +20,13 @@
   "gates_evaluated": 8,
   "summary": {
     "all_gates_passed": true,
-    "total_execution_seconds": 0.623,
+    "total_execution_seconds": 0.869,
     "open_p0_defects": 0,
     "checklist_status": "27/27_SATISFIED",
     "total_tests_passing": 508,
     "base_rc_commit": "e022a4c8042c9552a307357cc138acfdd8552522",
-    "head_commit": "3d33f4cfae23f764f8abb08f43dc4c58c0d06387",
-    "head_tree": "fac1cb378c86b15bba187ab1f38eb625e72c9eb2"
+    "head_commit": "396b4065a8fc942f466976f38a320607231a1140",
+    "head_tree": "94d425ed999bf1be9c21d7533b61ce073aff5604"
   },
   "gates": [
     {
@@ -83,7 +83,7 @@
       "team_lead": "Linda Singwane (lx-singw), Lead Systems Architect",
       "contact_email": "singwane.linda.m@gmail.com",
       "jurisdiction": "South Africa (Eligible)",
-      "duration_seconds": 0.057
+      "duration_seconds": 0.054
     },
     {
       "gate_id": "GATE_4_ENGLISH_AND_SUBTITLES",
@@ -99,7 +99,7 @@
         "Verified 100% professional English written entry in devpost_submission.md"
       ],
       "target_duration_seconds": 165.0,
-      "duration_seconds": 0.1
+      "duration_seconds": 0.084
     },
     {
       "gate_id": "GATE_5_RC_PIN_AND_TREE_INTEGRITY",
@@ -117,10 +117,10 @@
       "policy_version": "E&O-2026.1-DEVPOST",
       "base_rc_commit": "e022a4c8042c9552a307357cc138acfdd8552522",
       "base_rc_tree": "dd4d3070fed1cb33f988aebf39dcc1ae5a6d0e35",
-      "head_commit": "3d33f4cfae23f764f8abb08f43dc4c58c0d06387",
-      "head_tree": "fac1cb378c86b15bba187ab1f38eb625e72c9eb2",
+      "head_commit": "396b4065a8fc942f466976f38a320607231a1140",
+      "head_tree": "94d425ed999bf1be9c21d7533b61ce073aff5604",
       "open_p0_defects": 0,
-      "duration_seconds": 0.31
+      "duration_seconds": 0.486
     },
     {
       "gate_id": "GATE_6_COLD_JUDGE_AUDIT",
@@ -132,7 +132,7 @@
         "Zero cold judge discrepancies confirmed",
         "All 7/7 clean-room gates confirmed passing"
       ],
-      "duration_seconds": 0.009
+      "duration_seconds": 0.022
     },
     {
       "gate_id": "GATE_7_QUALITY_GATE_AND_REHEARSAL",
@@ -169,7 +169,7 @@
           "status": "COLD_JUDGE_PASSED"
         }
       },
-      "duration_seconds": 0.053
+      "duration_seconds": 0.112
     },
     {
       "gate_id": "GATE_8_DEVPOST_CHECKLIST_COMPLIANCE",
@@ -396,7 +396,7 @@
           "evidence": "Statutory Notice verified verbatim; AI model containment strictly enforced"
         }
       ],
-      "duration_seconds": 0.02
+      "duration_seconds": 0.036
     }
   ],
   "checklist": [

@@ -311,6 +311,40 @@ class TenantRepository(abc.ABC):
         """Verifies unbroken cryptographic continuity of the audit trail."""
         raise NotImplementedError
 
+    # ─── Invalidation Notices Subcollection ─────────────────────────────────────
+    @abc.abstractmethod
+    def save_invalidation_notice(
+        self, production_id: str, run_id: str, notice: Union[Any, Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Saves a tamper-evident InvalidationNotice under /runs/{run_id}/invalidation_notices/{notice_id}."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def save_invalidation_notices_batch(
+        self, production_id: str, run_id: str, notices: Sequence[Union[Any, Dict[str, Any]]]
+    ) -> List[Dict[str, Any]]:
+        """Atomically/batch persists multiple InvalidationNotices."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_invalidation_notice(
+        self, production_id: str, run_id: str, notice_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """Fetches a specific InvalidationNotice by notice_id."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def list_invalidation_notices(
+        self, production_id: str, run_id: str, affected_lineage_key: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Lists all InvalidationNotices for a run, optionally filtered by affected_lineage_key."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def verify_invalidation_chain(self, production_id: str, run_id: str) -> bool:
+        """Verifies cryptographic continuity and payload integrity of all notices in sequence."""
+        raise NotImplementedError
+
 
 # ============================================================================
 # 4. Thread-Safe InMemory Repository Implementation
@@ -346,6 +380,7 @@ class InMemoryTenantRepository(TenantRepository):
                     "decisions": {},      # key: (production_id, run_id, claim_key)
                     "audit_events": {},   # key: (production_id, run_id) -> list of events
                     "sequencers": {},     # key: (production_id, run_id) -> {"last_sequence": int, "head_hash": str}
+                    "invalidation_notices": {},  # key: (production_id, run_id, notice_id) -> dict
                 }
             return self._global_storage[self.organization_id]
 
@@ -641,6 +676,96 @@ class InMemoryTenantRepository(TenantRepository):
 
             return True
 
+    @enforce_tenant_scope(validate_egress=False)
+    def save_invalidation_notice(
+        self, production_id: str, run_id: str, notice: Union[Any, Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        with self._lock:
+            if hasattr(notice, "to_firestore_dict"):
+                raw = notice.to_firestore_dict()
+                notice_id = notice.notice_id
+            elif hasattr(notice, "model_dump"):
+                raw = notice.model_dump()
+                notice_id = getattr(notice, "notice_id", None) or raw.get("notice_id")
+            else:
+                raw = copy.deepcopy(notice)
+                notice_id = raw.get("notice_id")
+
+            if not notice_id:
+                raise ValueError("InvalidationNotice must contain notice_id")
+
+            store_key = f"{production_id}:{run_id}:{notice_id}"
+            raw["organization_id"] = self.organization_id
+            raw["production_id"] = production_id
+            raw["run_id"] = run_id
+            self._get_org_store()["invalidation_notices"][store_key] = copy.deepcopy(raw)
+            return raw
+
+    @enforce_tenant_scope(validate_egress=False)
+    def save_invalidation_notices_batch(
+        self, production_id: str, run_id: str, notices: Sequence[Union[Any, Dict[str, Any]]]
+    ) -> List[Dict[str, Any]]:
+        with self._lock:
+            saved: List[Dict[str, Any]] = []
+            for notice in notices:
+                saved.append(self.save_invalidation_notice(production_id, run_id, notice))
+            return saved
+
+    @enforce_tenant_scope(validate_egress=False)
+    def get_invalidation_notice(
+        self, production_id: str, run_id: str, notice_id: str
+    ) -> Optional[Dict[str, Any]]:
+        with self._lock:
+            store_key = f"{production_id}:{run_id}:{notice_id}"
+            data = self._get_org_store()["invalidation_notices"].get(store_key)
+            return copy.deepcopy(data) if data else None
+
+    @enforce_tenant_scope(validate_egress=False)
+    def list_invalidation_notices(
+        self, production_id: str, run_id: str, affected_lineage_key: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        with self._lock:
+            prefix = f"{production_id}:{run_id}:"
+            store = self._get_org_store()["invalidation_notices"]
+            items = [copy.deepcopy(v) for k, v in store.items() if k.startswith(prefix)]
+            if affected_lineage_key:
+                items = [n for n in items if n.get("affected_lineage_key") == affected_lineage_key]
+            items.sort(key=lambda n: (n.get("sequence_number", 0), n.get("notice_id", "")))
+            return items
+
+    @enforce_tenant_scope(validate_egress=False)
+    def verify_invalidation_chain(self, production_id: str, run_id: str) -> bool:
+        with self._lock:
+            notices = self.list_invalidation_notices(production_id, run_id)
+            if not notices:
+                return True
+
+            from backend.core.dependency_graph import InvalidationNotice
+
+            expected_prev = "0" * 64
+            for idx, raw_notice in enumerate(notices):
+                seq = raw_notice.get("sequence_number")
+                if seq != idx + 1:
+                    logger.error(f"Invalidation chain sequence break at {idx}: expected {idx + 1}, got {seq}")
+                    return False
+                if raw_notice.get("previous_notice_hash") != expected_prev:
+                    logger.error(f"Invalidation chain previous hash mismatch at sequence {seq}")
+                    return False
+
+                calc_digest = InvalidationNotice.compute_payload_digest(raw_notice)
+                if raw_notice.get("canonical_payload_digest") != calc_digest:
+                    logger.error(f"Invalidation notice canonical digest mismatch at sequence {seq}")
+                    return False
+
+                calc_hash = InvalidationNotice.compute_notice_hash(expected_prev, seq, calc_digest)
+                if raw_notice.get("notice_hash") != calc_hash:
+                    logger.error(f"Invalidation notice hash corruption at sequence {seq}")
+                    return False
+
+                expected_prev = raw_notice.get("notice_hash")
+
+            return True
+
 
 
 # ============================================================================
@@ -931,6 +1056,109 @@ class NativeFirestoreTenantRepository(TenantRepository):
             if evt.get("event_hash") != expected_hash:
                 return False
             expected_parent = evt.get("event_hash")
+
+        return True
+
+    @enforce_tenant_scope(validate_egress=False)
+    def save_invalidation_notice(
+        self, production_id: str, run_id: str, notice: Union[Any, Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        run_ref = self._run_ref(production_id, run_id)
+        if hasattr(notice, "to_firestore_dict"):
+            raw = notice.to_firestore_dict()
+            notice_id = notice.notice_id
+        elif hasattr(notice, "model_dump"):
+            raw = notice.model_dump()
+            notice_id = getattr(notice, "notice_id", None) or raw.get("notice_id")
+        else:
+            raw = copy.deepcopy(notice)
+            notice_id = raw.get("notice_id")
+
+        if not notice_id:
+            raise ValueError("InvalidationNotice must contain notice_id")
+
+        raw["organization_id"] = self.organization_id
+        raw["production_id"] = production_id
+        raw["run_id"] = run_id
+        run_ref.collection("invalidation_notices").document(notice_id).set(raw, merge=True)
+        return raw
+
+    @enforce_tenant_scope(validate_egress=False)
+    def save_invalidation_notices_batch(
+        self, production_id: str, run_id: str, notices: Sequence[Union[Any, Dict[str, Any]]]
+    ) -> List[Dict[str, Any]]:
+        run_ref = self._run_ref(production_id, run_id)
+        batch = self._db.batch()
+        saved: List[Dict[str, Any]] = []
+
+        for notice in notices:
+            if hasattr(notice, "to_firestore_dict"):
+                raw = notice.to_firestore_dict()
+                notice_id = notice.notice_id
+            elif hasattr(notice, "model_dump"):
+                raw = notice.model_dump()
+                notice_id = getattr(notice, "notice_id", None) or raw.get("notice_id")
+            else:
+                raw = copy.deepcopy(notice)
+                notice_id = raw.get("notice_id")
+
+            if not notice_id:
+                raise ValueError("InvalidationNotice must contain notice_id")
+
+            raw["organization_id"] = self.organization_id
+            raw["production_id"] = production_id
+            raw["run_id"] = run_id
+            doc_ref = run_ref.collection("invalidation_notices").document(notice_id)
+            batch.set(doc_ref, raw, merge=True)
+            saved.append(raw)
+
+        batch.commit()
+        return saved
+
+    @enforce_tenant_scope(validate_egress=False)
+    def get_invalidation_notice(
+        self, production_id: str, run_id: str, notice_id: str
+    ) -> Optional[Dict[str, Any]]:
+        snap = self._run_ref(production_id, run_id).collection("invalidation_notices").document(notice_id).get()
+        return snap.to_dict() if snap.exists else None
+
+    @enforce_tenant_scope(validate_egress=False)
+    def list_invalidation_notices(
+        self, production_id: str, run_id: str, affected_lineage_key: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        coll = self._run_ref(production_id, run_id).collection("invalidation_notices")
+        if affected_lineage_key:
+            query = coll.where("affected_lineage_key", "==", affected_lineage_key).order_by("sequence_number")
+        else:
+            query = coll.order_by("sequence_number")
+        snaps = query.stream()
+        return [s.to_dict() for s in snaps if s.exists]
+
+    @enforce_tenant_scope(validate_egress=False)
+    def verify_invalidation_chain(self, production_id: str, run_id: str) -> bool:
+        notices = self.list_invalidation_notices(production_id, run_id)
+        if not notices:
+            return True
+
+        from backend.core.dependency_graph import InvalidationNotice
+
+        expected_prev = "0" * 64
+        for idx, raw_notice in enumerate(notices):
+            seq = raw_notice.get("sequence_number")
+            if seq != idx + 1:
+                return False
+            if raw_notice.get("previous_notice_hash") != expected_prev:
+                return False
+
+            calc_digest = InvalidationNotice.compute_payload_digest(raw_notice)
+            if raw_notice.get("canonical_payload_digest") != calc_digest:
+                return False
+
+            calc_hash = InvalidationNotice.compute_notice_hash(expected_prev, seq, calc_digest)
+            if raw_notice.get("notice_hash") != calc_hash:
+                return False
+
+            expected_prev = raw_notice.get("notice_hash")
 
         return True
 

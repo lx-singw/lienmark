@@ -22,7 +22,7 @@ import {
   Layers,
   ArrowUpDown,
 } from 'lucide-react';
-import { DecisionState, EvaluatedClaim } from '@/lib/types';
+import { DecisionState, EvaluatedClaim, UserRole } from '@/lib/types';
 import ClaimRow from './ClaimRow';
 
 export type ClaimFilterType = 'all' | 'stale' | 'carried' | 'resolved';
@@ -32,6 +32,7 @@ export interface ClaimsTableProps {
   selectedClaimKey: string;
   onSelectClaim: (claimKey: string) => void;
   onOpenInGate?: (claimKey: string) => void;
+  userRole?: UserRole;
   title?: string;
   showFilters?: boolean;
   className?: string;
@@ -42,6 +43,7 @@ export const ClaimsTable: React.FC<ClaimsTableProps> = ({
   selectedClaimKey,
   onSelectClaim,
   onOpenInGate,
+  userRole = UserRole.REVIEWER,
   title = 'Production Rights Clearance Matrix (Script Cut v7 → v8)',
   showFilters = true,
   className = '',
@@ -297,6 +299,7 @@ export const ClaimsTable: React.FC<ClaimsTableProps> = ({
                     isSelected={claim.stable_lineage_key === selectedClaimKey}
                     onSelect={onSelectClaim}
                     onOpenInGate={onOpenInGate}
+                    userRole={userRole}
                   />
                 ))
               )}

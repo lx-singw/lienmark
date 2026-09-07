@@ -8,7 +8,7 @@
  * Authored strictly under Google AntiGravity: Defensive, zero-any TypeScript implementation.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   CheckCircle2,
   AlertTriangle,
@@ -24,8 +24,13 @@ import {
   MapPin,
   FileText,
   Zap,
+  Link as LinkIcon,
+  ShieldCheck,
+  Lock,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
-import { DecisionState, EvaluatedClaim } from '@/lib/types';
+import { DecisionState, EvaluatedClaim, UserRole, hasClearanceAuthority } from '@/lib/types';
 
 export interface ClaimRowProps {
   claim: EvaluatedClaim;
@@ -33,6 +38,8 @@ export interface ClaimRowProps {
   isSelected: boolean;
   onSelect: (claimKey: string) => void;
   onOpenInGate?: (claimKey: string) => void;
+  userRole?: UserRole;
+  onViewProvenance?: (claimKey: string) => void;
 }
 
 /**
@@ -227,10 +234,14 @@ export const ClaimRow: React.FC<ClaimRowProps> = ({
   isSelected,
   onSelect,
   onOpenInGate,
+  userRole = UserRole.REVIEWER,
+  onViewProvenance,
 }) => {
+  const [showProvenance, setShowProvenance] = useState<boolean>(false);
   const isItem11 = claim.stable_lineage_key === 'poster_noir_detective_magazine';
   const isItem12 = claim.stable_lineage_key === 'music_cue_midnight_serenade';
   const cinematicTimecode = formatCinematicTimecode(claim.scene, claim.stable_lineage_key, index);
+  const canAdjudicate = hasClearanceAuthority(userRole);
 
   return (
     <tr
@@ -269,9 +280,9 @@ export const ClaimRow: React.FC<ClaimRowProps> = ({
         </div>
       </td>
 
-      {/* Asset Name & Category Badge Column */}
-      <td className="py-2.5 px-2.5 min-w-[170px]">
-        <div className="flex flex-col gap-0.5">
+      {/* Asset Name, Category Badge & Visual Dependency Indicators Column */}
+      <td className="py-2.5 px-2.5 min-w-[240px]">
+        <div className="flex flex-col gap-1">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="font-semibold text-sm text-white group-hover:text-sky-200 transition-colors">
               {claim.stable_lineage_key.replace(/_/g, ' ')}
@@ -281,6 +292,86 @@ export const ClaimRow: React.FC<ClaimRowProps> = ({
           <span className="text-[11px] text-slate-400 line-clamp-1 font-sans">
             {claim.description}
           </span>
+
+          {/* Visual Dependency Indicator 1: Carried-Forward Provenance Link */}
+          {claim.state === DecisionState.CARRIED_FORWARD && (
+            <div className="mt-0.5">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowProvenance(!showProvenance);
+                  onViewProvenance?.(claim.stable_lineage_key);
+                }}
+                className="inline-flex items-center gap-1 text-[10px] font-mono text-emerald-400 hover:text-emerald-300 underline decoration-emerald-500/50 bg-emerald-950/40 hover:bg-emerald-950/70 px-1.5 py-0.5 rounded border border-emerald-500/30 transition-colors"
+                title="View locked v7 baseline provenance and lineage parity proof"
+                aria-label={`View locked v7 provenance for ${claim.stable_lineage_key}`}
+              >
+                <LinkIcon className="h-2.5 w-2.5 text-emerald-400" aria-hidden="true" />
+                <span>v7 Provenance (dec_v7_{claim.stable_lineage_key.slice(0, 10)})</span>
+                {showProvenance ? (
+                  <ChevronUp className="h-2.5 w-2.5" aria-hidden="true" />
+                ) : (
+                  <ChevronDown className="h-2.5 w-2.5" aria-hidden="true" />
+                )}
+              </button>
+
+              {showProvenance && (
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="mt-1.5 p-2.5 rounded-lg bg-[#0d1627] border border-emerald-500/40 text-[10px] font-mono text-slate-300 space-y-1 shadow-lg animate-in fade-in duration-150"
+                  role="region"
+                  aria-label="Prior Version Provenance Details"
+                >
+                  <div className="flex items-center justify-between text-emerald-300 font-bold border-b border-slate-800 pb-1">
+                    <span className="flex items-center gap-1">
+                      <ShieldCheck className="h-3 w-3 text-emerald-400" aria-hidden="true" />
+                      <span>Locked Baseline Provenance: Script Cut v7</span>
+                    </span>
+                    <span className="text-[9px] bg-emerald-900/60 px-1 rounded text-emerald-200">
+                      $0.00 Expense &middot; 0 Queries
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1 pt-0.5 text-slate-400">
+                    <div>Origin Draft: <strong className="text-slate-200">Cut v7 Locked</strong></div>
+                    <div>Prior Decision ID: <strong className="text-slate-200">dec_v7_{claim.stable_lineage_key.slice(0, 8)}</strong></div>
+                    <div>Prior Counsel: <strong className="text-slate-200">Sarah Jenkins, Esq.</strong></div>
+                    <div>Status: <strong className="text-emerald-300">APPROVED</strong></div>
+                  </div>
+                  <div className="text-[9px] text-slate-400 italic pt-0.5 border-t border-slate-800/60">
+                    Bit-for-bit context hash verified identical across v7 &rarr; v8. Lineage parity locked under statutory doctrine.
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Visual Dependency Indicator 2: Invalidated Claim Shift Explanation */}
+          {claim.state === DecisionState.STALE && (
+            <div
+              className="mt-1 flex items-start gap-1.5 rounded-lg bg-amber-950/60 border border-amber-500/50 p-2 text-[10px] font-mono text-amber-200 shadow-sm"
+              role="alert"
+              aria-label="Invalidated Claim Clearance Shift Explanation"
+            >
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
+              <div className="space-y-0.5">
+                <span className="font-bold text-amber-300 block uppercase tracking-wider text-[9px]">
+                  {isItem11
+                    ? 'Creative Context Shift (Scene 42)'
+                    : isItem12
+                    ? 'External Evidence Shift (Scene 18)'
+                    : 'Clearance Drift Invalidation'}
+                </span>
+                <p className="font-sans text-[11px] text-amber-100/95 leading-snug">
+                  {isItem11
+                    ? '2s background blur → 14s close-up focal dialogue recitation. Prior de minimis fair use defense collapsed; counsel re-attestation required under 17 U.S.C. § 304 public domain doctrine.'
+                    : isItem12
+                    ? 'Vanguard Media Holdings LLC recorded exclusive worldwide sync rights August 2026. Prior cue sheet PD notation invalidated; underwriting exception required.'
+                    : `Invalidated: ${claim.reason_code} &middot; Revalidation action: ${claim.revalidation_action}. Counsel adjudication required.`}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </td>
 
@@ -301,22 +392,32 @@ export const ClaimRow: React.FC<ClaimRowProps> = ({
         {renderClearanceStatusIndicator(claim.state)}
       </td>
 
-      {/* Action / Quick Inspector Link Column */}
+      {/* Action / Quick Inspector Link Column with Role-Gating */}
       <td className="py-2.5 px-2.5 text-right whitespace-nowrap">
         <div className="flex items-center justify-end gap-1.5">
           {claim.state === DecisionState.STALE && onOpenInGate && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenInGate(claim.stable_lineage_key);
-              }}
-              className="inline-flex items-center gap-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 px-2 py-1 text-[10px] font-mono font-bold transition-all focus:outline-none focus:ring-1 focus:ring-amber-400"
-              title="Open directly in Counsel Checkpoint Gate"
-            >
-              <Zap className="h-3 w-3 text-amber-400" aria-hidden="true" />
-              <span>{isItem11 ? 'Re-Attest' : isItem12 ? 'Flag Exception' : 'Adjudicate'}</span>
-            </button>
+            canAdjudicate ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenInGate(claim.stable_lineage_key);
+                }}
+                className="inline-flex items-center gap-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 px-2 py-1 text-[10px] font-mono font-bold transition-all focus:outline-none focus:ring-1 focus:ring-amber-400"
+                title="Open directly in Counsel Checkpoint Gate"
+              >
+                <Zap className="h-3 w-3 text-amber-400" aria-hidden="true" />
+                <span>{isItem11 ? 'Re-Attest' : isItem12 ? 'Flag Exception' : 'Adjudicate'}</span>
+              </button>
+            ) : (
+              <span
+                className="inline-flex items-center gap-1 rounded bg-slate-900/90 border border-slate-800 px-2 py-1 text-[10px] font-mono text-slate-500 cursor-not-allowed"
+                title={`Clearance adjudication action hidden for ${userRole}: Reviewer role required`}
+              >
+                <Lock className="h-3 w-3 text-slate-500" aria-hidden="true" />
+                <span>Reviewer Gated</span>
+              </span>
+            )
           )}
 
           <button

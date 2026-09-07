@@ -72,6 +72,14 @@ from backend.middleware.tenant import (
     get_current_tenant,
     get_current_user,
 )
+from backend.core.rbac import (
+    LienmarkRole,
+    LienmarkPermission,
+    require_role,
+    require_permission,
+    RequireRole,
+    RequirePermission,
+)
 import hashlib
 import hmac
 import uuid
@@ -1169,6 +1177,7 @@ def get_review_queue(target_version: str = "v8", http_req: Request = None):
 
 
 @app.post("/api/review/action")
+@require_role(["Reviewer", "Admin"])
 def submit_review_action(request: ReviewActionRequest, http_req: Request = None):
     """
     Executes a human counsel review action (re_attest, reject, exception),
@@ -1329,6 +1338,7 @@ def get_review_audit_trail(
 @app.post("/api/review/attest")
 @app.post("/api/attorney/override")
 @app.post("/api/attorney-override")
+@require_role(["Reviewer", "Admin"])
 def record_counsel_reattestation(request: ReattestationRequest, http_req: Request = None):
     """Backwards-compatible endpoint for legacy tests and dashboard."""
     auth_ctx = None

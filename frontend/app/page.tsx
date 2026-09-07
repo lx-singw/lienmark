@@ -33,6 +33,7 @@ import {
   EvidenceStance,
   ReviewQueueItem,
   SupersessionEvent,
+  UserRole,
   WorkflowStepTrace,
 } from '@/lib/types';
 import {
@@ -89,6 +90,7 @@ import ExportActionComponent from './components/ExportActionComponent';
 import AuditTrailDrawer from './components/AuditTrailDrawer';
 import ActiveClearanceBlockers from './components/ActiveClearanceBlockers';
 import ClearanceLifecycleGuide from './components/ClearanceLifecycleGuide';
+import RevisionDeltaViewer from './components/diff/RevisionDeltaViewer';
 
 export default function ReviewerDashboardPage() {
   const [isPending, startTransition] = useTransition();
@@ -118,7 +120,8 @@ export default function ReviewerDashboardPage() {
   );
 
   // Active view and selection states
-  const [activeTab, setActiveTab] = useState<'checkpoint' | 'lineage'>('checkpoint');
+  const [activeTab, setActiveTab] = useState<'checkpoint' | 'diff' | 'lineage'>('checkpoint');
+  const [userRole, setUserRole] = useState<UserRole>(UserRole.REVIEWER);
   const [selectedQueueKey, setSelectedQueueKey] = useState<string>(
     'poster_noir_detective_magazine'
   );
@@ -131,8 +134,15 @@ export default function ReviewerDashboardPage() {
   const [isPriorDecisionOpen, setIsPriorDecisionOpen] = useState<boolean>(false);
   const [isAuditDrawerOpen, setIsAuditDrawerOpen] = useState<boolean>(false);
 
-  // Reviewer identity and disposition rationale state
-  const reviewerIdentity = 'Sarah Jenkins, Esq. (Lead Clearance Counsel)';
+  // Reviewer identity bound to active role
+  const reviewerIdentity =
+    userRole === UserRole.REVIEWER
+      ? 'Sarah Jenkins, Esq. (Lead Clearance Counsel)'
+      : userRole === UserRole.PRODUCER
+      ? 'Marcus Vance (Executive Producer)'
+      : userRole === UserRole.ANALYST
+      ? 'Alex Chen (Rights Research Analyst)'
+      : 'Elena Rostova (Studio Legal Systems Administrator)';
   const [counselRationale, setCounselRationale] = useState<string>(
     'Cover art is public domain: US Copyright Office records confirm 1946 registration lapsed without renewal in 1974. Corroborated via LOC catalog.'
   );
@@ -913,6 +923,8 @@ export default function ReviewerDashboardPage() {
           isResettingDemo={isResettingDemo}
           onSeedDemoMode={handleSeedDemoMode}
           currentDemoMode={currentDemoMode}
+          userRole={userRole}
+          onRoleChange={setUserRole}
         />
       </section>
 
@@ -983,6 +995,24 @@ export default function ReviewerDashboardPage() {
                 Resolved
               </span>
             )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('diff')}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-sky-500 ${
+              activeTab === 'diff'
+                ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-sm'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+            aria-selected={activeTab === 'diff'}
+            role="tab"
+          >
+            <GitCompare className="h-4 w-4 text-amber-400" aria-hidden="true" />
+            <span>Revision Delta Viewer (v7 vs v8)</span>
+            <span className="rounded-full bg-sky-500/20 border border-sky-500/40 px-2 py-0.2 text-[11px] font-bold text-sky-300">
+              Side-by-Side
+            </span>
           </button>
 
           <button
@@ -1144,6 +1174,7 @@ export default function ReviewerDashboardPage() {
                       setSelectedQueueKey(key);
                       setSelectedClaimKey(key);
                     }}
+                    userRole={userRole}
                   />
                 </div>
               </div>
@@ -1170,6 +1201,7 @@ export default function ReviewerDashboardPage() {
                     isSubmitting={isSubmittingAction}
                     isPending={isPending}
                     lastConfirmedEvent={lastConfirmedEvent}
+                    userRole={userRole}
                   />
                 </section>
               </div>
@@ -1179,7 +1211,31 @@ export default function ReviewerDashboardPage() {
       )}
 
       {/* ===================================================================== */}
-      {/* VIEW 2: FULL PRODUCTION LINEAGE (12 CLAIMS & EVIDENCE DETAILS)        */}
+      {/* VIEW 2: REVISION DELTA VIEWER (SIDE-BY-SIDE SCRIPT COMPARISON)        */}
+      {/* ===================================================================== */}
+      {activeTab === 'diff' && (
+        <div role="tabpanel" aria-label="Revision Delta Viewer Panel" className="space-y-6">
+          <RevisionDeltaViewer
+            baseVersionLabel="Script Cut v7 Locked"
+            targetVersionLabel={targetVersionId === 'v7' ? 'v7 Locked (Parity)' : 'v8 Revised'}
+            baseContentHash="a1b2c3d4e5f60718293a4b5c6d7e8f90"
+            targetContentHash={
+              targetVersionId === 'v7'
+                ? 'a1b2c3d4e5f60718293a4b5c6d7e8f90'
+                : 'f9e8d7c6b5a43210fedcba9876543210'
+            }
+            selectedLineageKey={selectedClaimKey}
+            onSelectLineageKey={(key) => {
+              setSelectedClaimKey(key);
+              setSelectedQueueKey(key);
+            }}
+            userRole={userRole}
+          />
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* VIEW 3: FULL PRODUCTION LINEAGE (12 CLAIMS & EVIDENCE DETAILS)        */}
       {/* ===================================================================== */}
       {activeTab === 'lineage' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start" role="tabpanel" aria-label="Full Lineage Panel">
@@ -1191,6 +1247,7 @@ export default function ReviewerDashboardPage() {
               selectedClaimKey={selectedClaimKey}
               onSelectClaim={(key) => setSelectedClaimKey(key)}
               onOpenInGate={handleOpenInGate}
+              userRole={userRole}
             />
 
             {/* Clearance Workflow Engine Traces */}
@@ -1249,6 +1306,7 @@ export default function ReviewerDashboardPage() {
                 isSubmitting={isSubmittingAction}
                 isPending={isPending}
                 lastConfirmedEvent={lastConfirmedEvent}
+                userRole={userRole}
               />
             )}
           </div>

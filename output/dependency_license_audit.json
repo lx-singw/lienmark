@@ -1,7 +1,7 @@
 {
   "audit_name": "Lienmark Dependency & Open Source License Compliance Audit",
   "sprint": "Sprint 5B",
-  "timestamp_utc": "2026-09-06T21:20:14.279364+00:00",
+  "timestamp_utc": "2026-09-07T04:12:04.452532+00:00",
   "compliance_status": "PASSED",
   "verdict": "100% OSI-approved permissive licenses (MIT, Apache-2.0, BSD, ISC, PSF). Zero copyleft or non-commercial restrictions verified.",
   "allowed_licenses": [
@@ -22,7 +22,7 @@
     "copyleft_count": 0,
     "non_compliant_count": 0,
     "compliance_percentage": 100.0,
-    "duration_seconds": 0.355
+    "duration_seconds": 0.361
   },
   "backend_dependencies": [
     {

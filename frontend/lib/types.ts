@@ -18,6 +18,24 @@ export const ChangeKind = {
 
 export type ChangeKind = (typeof ChangeKind)[keyof typeof ChangeKind];
 
+export const UserRole = {
+  REVIEWER: 'Reviewer',
+  PRODUCER: 'Producer',
+  ANALYST: 'Analyst',
+  ADMIN: 'Admin',
+} as const;
+
+export type UserRole = (typeof UserRole)[keyof typeof UserRole];
+
+/**
+ * Checks whether a given role has affirmative legal clearance adjudication authority
+ * (re-attesting decisions, designating exceptions, or rejecting clearance).
+ * Strictly restricted to Reviewer (Clearance Counsel) and Admin.
+ */
+export function hasClearanceAuthority(role: UserRole): boolean {
+  return role === UserRole.REVIEWER || role === UserRole.ADMIN;
+}
+
 export const DecisionState = {
   CARRIED_FORWARD: 'carried_forward',
   STALE: 'stale',

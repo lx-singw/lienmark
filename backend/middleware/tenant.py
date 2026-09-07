@@ -592,7 +592,12 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
             if jwt_token:
                 is_counsel_req = (
                     request.headers.get("X-Require-Counsel-Auth", "").lower() in ("true", "1")
-                    or canonical_path == "/api/review/action"
+                    or canonical_path in (
+                        "/api/review/action",
+                        "/api/review/attest",
+                        "/api/attorney/override",
+                        "/api/attorney-override",
+                    )
                 )
                 payload = decode_jwt_token(
                     jwt_token,

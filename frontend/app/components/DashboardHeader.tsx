@@ -19,7 +19,11 @@ import {
   Hash,
   RotateCcw,
   UserCheck,
+  Scale,
+  Search,
+  Lock,
 } from 'lucide-react';
+import { UserRole, hasClearanceAuthority } from '@/lib/types';
 
 export interface DashboardHeaderProps {
   projectName?: string;
@@ -43,6 +47,8 @@ export interface DashboardHeaderProps {
   isResettingDemo?: boolean;
   onSeedDemoMode?: (mode: 'baseline' | 'drifted' | 'resolved') => void;
   currentDemoMode?: string;
+  userRole?: UserRole;
+  onRoleChange?: (role: UserRole) => void;
 }
 
 export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
@@ -67,6 +73,8 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   isResettingDemo = false,
   onSeedDemoMode,
   currentDemoMode = 'drifted',
+  userRole = UserRole.REVIEWER,
+  onRoleChange,
 }) => {
   const shortBaseHash = baseContentHash.slice(0, 8);
   const shortTargetHash = targetContentHash.slice(0, 8);
@@ -138,17 +146,125 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             </span>
           </div>
 
-          {/* Pre-Authenticated Counsel Demo Account Badge */}
-          <div
-            className="inline-flex items-center gap-1.5 rounded-md border border-sky-500/30 bg-sky-950/40 px-2.5 py-1 text-xs font-mono text-sky-300"
-            title="Pre-Authenticated Demo Account: Sarah Jenkins, Esq. (counsel_sjenkins_001)"
-          >
-            <UserCheck className="h-3.5 w-3.5 text-sky-400" aria-hidden="true" />
-            <span>Sarah Jenkins, Esq.</span>
-            <span className="rounded bg-sky-900/60 px-1.5 py-0.2 text-[9px] font-bold text-sky-200 border border-sky-500/40">
-              counsel_sjenkins_001
-            </span>
-          </div>
+          {/* Active Visual Role Badge (Sprint 1.2 RBAC UI Authority) */}
+          {userRole === UserRole.REVIEWER && (
+            <div
+              className="inline-flex items-center gap-1.5 rounded-md border border-sky-500/40 bg-sky-950/50 px-2.5 py-1 text-xs font-mono text-sky-300 shadow-sm"
+              title="Active Role: Reviewer (Sarah Jenkins, Esq. - Lead Clearance Counsel) — Adjudication Authority Active"
+            >
+              <Scale className="h-3.5 w-3.5 text-sky-400" aria-hidden="true" />
+              <span>Sarah Jenkins, Esq.</span>
+              <span className="rounded bg-sky-900/80 px-1.5 py-0.2 text-[9px] font-bold text-sky-200 border border-sky-500/50 uppercase">
+                Reviewer (Counsel)
+              </span>
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" title="Affirmative Adjudication Active" />
+            </div>
+          )}
+
+          {userRole === UserRole.PRODUCER && (
+            <div
+              className="inline-flex items-center gap-1.5 rounded-md border border-purple-500/40 bg-purple-950/50 px-2.5 py-1 text-xs font-mono text-purple-300 shadow-sm"
+              title="Active Role: Producer (Marcus Vance - Executive Producer) — Read-Only Mode (Clearance Gated)"
+            >
+              <Film className="h-3.5 w-3.5 text-purple-400" aria-hidden="true" />
+              <span>Marcus Vance</span>
+              <span className="rounded bg-purple-900/80 px-1.5 py-0.2 text-[9px] font-bold text-purple-200 border border-purple-500/50 uppercase">
+                Producer
+              </span>
+              <span className="rounded bg-amber-950 px-1 py-0.2 text-[8px] text-amber-300 border border-amber-500/40 uppercase font-bold">
+                Read-Only
+              </span>
+            </div>
+          )}
+
+          {userRole === UserRole.ANALYST && (
+            <div
+              className="inline-flex items-center gap-1.5 rounded-md border border-cyan-500/40 bg-cyan-950/50 px-2.5 py-1 text-xs font-mono text-cyan-300 shadow-sm"
+              title="Active Role: Analyst (Alex Chen - Rights Research Analyst) — Read-Only Mode (Clearance Gated)"
+            >
+              <Search className="h-3.5 w-3.5 text-cyan-400" aria-hidden="true" />
+              <span>Alex Chen</span>
+              <span className="rounded bg-cyan-900/80 px-1.5 py-0.2 text-[9px] font-bold text-cyan-200 border border-cyan-500/50 uppercase">
+                Analyst
+              </span>
+              <span className="rounded bg-amber-950 px-1 py-0.2 text-[8px] text-amber-300 border border-amber-500/40 uppercase font-bold">
+                Read-Only
+              </span>
+            </div>
+          )}
+
+          {userRole === UserRole.ADMIN && (
+            <div
+              className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/40 bg-emerald-950/50 px-2.5 py-1 text-xs font-mono text-emerald-300 shadow-sm"
+              title="Active Role: Admin (Elena Rostova - Studio Legal Ops Admin) — Full Supervisory Access"
+            >
+              <ShieldAlert className="h-3.5 w-3.5 text-emerald-400" aria-hidden="true" />
+              <span>Elena Rostova</span>
+              <span className="rounded bg-emerald-900/80 px-1.5 py-0.2 text-[9px] font-bold text-emerald-200 border border-emerald-500/50 uppercase">
+                Admin
+              </span>
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            </div>
+          )}
+
+          {/* Interactive Role Switcher (Sprint 1.2 Role-Gating Testing) */}
+          {onRoleChange && (
+            <div
+              className="inline-flex items-center rounded-lg border border-slate-700 bg-slate-900/90 p-1 text-xs font-mono shadow-sm"
+              role="group"
+              aria-label="Active Principal Role Selector"
+            >
+              <span className="text-slate-400 px-2 py-0.5 text-[11px] font-sans">Role:</span>
+              <button
+                type="button"
+                onClick={() => onRoleChange(UserRole.REVIEWER)}
+                className={`px-2 py-1 rounded text-xs transition-colors focus:outline-none focus:ring-1 focus:ring-sky-400 ${
+                  userRole === UserRole.REVIEWER
+                    ? 'bg-sky-500/25 text-sky-200 font-bold border border-sky-500/40 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Switch to Reviewer role (Sarah Jenkins, Esq. - Clearance Counsel)"
+              >
+                Reviewer
+              </button>
+              <button
+                type="button"
+                onClick={() => onRoleChange(UserRole.PRODUCER)}
+                className={`px-2 py-1 rounded text-xs transition-colors focus:outline-none focus:ring-1 focus:ring-purple-400 ${
+                  userRole === UserRole.PRODUCER
+                    ? 'bg-purple-500/25 text-purple-200 font-bold border border-purple-500/40 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Switch to Producer role (Marcus Vance - Read-Only Clearance Mode)"
+              >
+                Producer
+              </button>
+              <button
+                type="button"
+                onClick={() => onRoleChange(UserRole.ANALYST)}
+                className={`px-2 py-1 rounded text-xs transition-colors focus:outline-none focus:ring-1 focus:ring-cyan-400 ${
+                  userRole === UserRole.ANALYST
+                    ? 'bg-cyan-500/25 text-cyan-200 font-bold border border-cyan-500/40 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Switch to Analyst role (Alex Chen - Read-Only Clearance Mode)"
+              >
+                Analyst
+              </button>
+              <button
+                type="button"
+                onClick={() => onRoleChange(UserRole.ADMIN)}
+                className={`px-2 py-1 rounded text-xs transition-colors focus:outline-none focus:ring-1 focus:ring-emerald-400 ${
+                  userRole === UserRole.ADMIN
+                    ? 'bg-emerald-500/25 text-emerald-200 font-bold border border-emerald-500/40 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Switch to Admin role (Elena Rostova - Full Access)"
+              >
+                Admin
+              </button>
+            </div>
+          )}
 
           {/* Take Quick Selector */}
           {onSeedDemoMode && (
