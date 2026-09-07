@@ -30,8 +30,10 @@ def is_material_package_change(
                 return True
         if key in ("license_data", "license") and val != package.license_data:
             return True
-        if key in ("evidence_data", "evidence") and val != package.evidence_data:
-            return True
+        if key in ("evidence_data", "evidence", "evidence_bundle"):
+            target = package.evidence_data or getattr(package, "evidence_bundle", None)
+            if val != target:
+                return True
         if key in ("entity_names", "entities"):
             if sorted(package.entity_names or []) != sorted(val or []):
                 return True
@@ -69,7 +71,8 @@ def create_superseding_package(
         "proposed_disposition": "NEEDS_REVIEW",
         "entity_names": updated_data.get("entity_names", updated_data.get("entities", old_pkg.entity_names)),
         "license_data": updated_data.get("license_data", updated_data.get("license", old_pkg.license_data)),
-        "evidence_data": updated_data.get("evidence_data", updated_data.get("evidence", old_pkg.evidence_data)),
+        "evidence_data": updated_data.get("evidence_data", old_pkg.evidence_data),
+        "evidence_bundle": updated_data.get("evidence_bundle", getattr(old_pkg, "evidence_bundle", [])),
         "cut_revision": cut_rev or "cut_v1",
         "policy_version": updated_data.get("policy_version", updated_data.get("policy_id", old_pkg.policy_version)),
         "claim_data": updated_data.get("claim_data", old_pkg.claim_data),

@@ -89,6 +89,7 @@ from backend.api.webhooks.storage import storage_webhook_router
 from backend.api.routes.clarifications import clarification_router
 from backend.api.routes.decisions import decision_router
 from backend.api.routes.package_routes import package_router
+from backend.api.routes.policy_outbox_routes import outbox_router
 from backend.api.routes import policies
 from backend.storage.ledger import CryptographicLedger
 
@@ -213,6 +214,7 @@ app.include_router(clarification_router)
 app.include_router(decision_router)
 app.include_router(package_router)
 app.include_router(policies.router)
+app.include_router(outbox_router)
 
 # Global in-memory state for session review
 _latest_run_result: Optional[WorkflowRunResult] = None

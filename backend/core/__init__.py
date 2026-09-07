@@ -183,11 +183,26 @@ from backend.core.dual_review import (
     get_dual_review_coordinator,
     is_material_package_change,
 )
+from backend.core.policy_outbox_types import (
+    CascadeAction,
+    CascadeTargetFilter,
+    ClaimCascadeResult,
+    DispatchExecutionReport,
+    DispatchIntentStatus,
+    PolicyDiffSummary,
+)
+from backend.core.policy_outbox import (
+    PolicyOutboxDispatcher,
+    get_policy_outbox_dispatcher,
+)
 
 __all__ = [
     "ConflictCheckResult", "check_counsel_conflict", "register_counsel_conflict",
     "clear_conflict_registry", "get_declared_conflicts", "DualReviewCoordinator",
     "get_dual_review_coordinator", "is_material_package_change",
+    "CascadeAction", "CascadeTargetFilter", "ClaimCascadeResult",
+    "DispatchExecutionReport", "DispatchIntentStatus", "PolicyDiffSummary",
+    "PolicyOutboxDispatcher", "get_policy_outbox_dispatcher",
     "DualReviewStatus", "PackageApprovalRecord", "DecisionPackage",
     "compute_package_canonical_digest", "create_decision_package",
     "derive_superseded_package", "is_material_package_difference",
