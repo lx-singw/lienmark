@@ -193,10 +193,28 @@ from backend.services.citation_templates import (
     LegalCitationTemplate,
     CitationSuggestionEngine,
 )
+from backend.services.evidence_pack_types import (
+    EvidenceCategory,
+    EvidencePackFileEntry,
+    EvidencePackManifest,
+    VerificationCheckStatus,
+    VerificationCheckResult,
+    VerificationReport,
+    compute_manifest_root_hash,
+)
+from backend.services.evidence_pack_builder import build_evidence_pack
 
 __all__.extend([
     "CitationCategory",
     "LegalCitationTemplate",
     "CitationSuggestionEngine",
+    "EvidenceCategory",
+    "EvidencePackFileEntry",
+    "EvidencePackManifest",
+    "VerificationCheckStatus",
+    "VerificationCheckResult",
+    "VerificationReport",
+    "compute_manifest_root_hash",
+    "build_evidence_pack",
 ])
 

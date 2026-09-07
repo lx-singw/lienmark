@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, model_validator
 
 
 class DualReviewStatus(str, Enum):
@@ -185,30 +185,6 @@ class DecisionPackage(BaseModel):
     supersedes_package_id: Optional[str] = Field(
         default=None, description="Identifier of predecessor package if superseded"
     )
-    license_data: Optional[Dict[str, Any]] = Field(
-        default=None, description="License agreement details"
-    )
-    evidence_data: Optional[Dict[str, Any]] = Field(
-        default=None, description="Evidence bundle details"
-    )
-    policy_version: Optional[str] = Field(
-        default=None, description="Governing policy version"
-    )
-    claim_data: Dict[str, Any] = Field(
-        default_factory=dict, description="Underlying claim data"
-    )
-    license_data: Optional[Dict[str, Any]] = Field(
-        default=None, description="Material licensing data"
-    )
-    evidence_data: Optional[Dict[str, Any]] = Field(
-        default=None, description="Material evidence data"
-    )
-    claim_data: Dict[str, Any] = Field(
-        default_factory=dict, description="Snapshot of claim attributes"
-    )
-    policy_version: Optional[str] = Field(
-        default=None, description="Policy version identifier"
-    )
     policy_digest: Optional[str] = Field(
         default=None, description="Policy digest identifier"
     )
@@ -221,6 +197,7 @@ class DecisionPackage(BaseModel):
     updated_at_utc: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat(),
     )
+    _final_disposition: Optional[Any] = PrivateAttr(default=None)
 
     @model_validator(mode="before")
     @classmethod
@@ -235,12 +212,12 @@ class DecisionPackage(BaseModel):
         return data
 
     @property
-    def disposition(self) -> str:
-        return self.proposed_disposition
+    def disposition(self) -> Any:
+        return self._final_disposition if self._final_disposition is not None else self.proposed_disposition
 
     @disposition.setter
     def disposition(self, val: Any) -> None:
-        self.proposed_disposition = getattr(val, "value", str(val))
+        self._final_disposition = val
 
     def compute_digest(self) -> str:
         """Computes deterministic canonical digest for this package."""
