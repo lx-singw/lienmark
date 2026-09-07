@@ -70,19 +70,23 @@ class DistributedLockManager:
     def acquire_lock(
         self,
         lock_key: str,
-        owner_id: str,
+        owner_id: Optional[str] = None,
         ttl_seconds: float = 30.0,
         metadata: Optional[Dict[str, Any]] = None,
+        tenant_id: Optional[str] = None,
+        timeout_sec: Optional[float] = None,
     ) -> DistributedLockRecord:
         """Atomically acquires a distributed lock or extends lease if reentrant."""
-        if not lock_key or not owner_id:
+        eff_owner = owner_id or (f"worker_{tenant_id}" if tenant_id else f"worker_{uuid.uuid4().hex[:8]}")
+        eff_ttl = timeout_sec if timeout_sec is not None else ttl_seconds
+        if not lock_key or not eff_owner:
             raise ValueError("lock_key and owner_id must be non-empty strings")
-        if ttl_seconds <= 0:
+        if eff_ttl <= 0:
             raise ValueError("ttl_seconds must be positive")
 
         if self._fs_store is not None:
-            return self._fs_store.acquire(lock_key, owner_id, ttl_seconds, metadata)
-        return self._mem_store.acquire(lock_key, owner_id, ttl_seconds, metadata)
+            return self._fs_store.acquire(lock_key, eff_owner, eff_ttl, metadata)
+        return self._mem_store.acquire(lock_key, eff_owner, eff_ttl, metadata)
 
     def renew_lock(
         self,
@@ -100,13 +104,19 @@ class DistributedLockManager:
             return self._fs_store.renew(lock_key, owner_id, extension_seconds)
         return self._mem_store.renew(lock_key, owner_id, extension_seconds)
 
-    def release_lock(self, lock_key: str, owner_id: str) -> bool:
+    def release_lock(self, lock_key_or_record: Any, owner_id: Optional[str] = None) -> bool:
         """Releases lock if owner matches and lock is not expired."""
-        if not lock_key or not owner_id:
+        if hasattr(lock_key_or_record, "lock_key"):
+            key = getattr(lock_key_or_record, "lock_key")
+            owner = owner_id or getattr(lock_key_or_record, "owner_id", "")
+        else:
+            key = str(lock_key_or_record)
+            owner = owner_id or ""
+        if not key or not owner:
             return False
         if self._fs_store is not None:
-            return self._fs_store.release(lock_key, owner_id)
-        return self._mem_store.release(lock_key, owner_id)
+            return self._fs_store.release(key, owner)
+        return self._mem_store.release(key, owner)
 
     def get_lock(self, lock_key: str) -> Optional[DistributedLockRecord]:
         """Returns the currently active lock record, or None if expired or not held."""

@@ -97,6 +97,9 @@ from backend.api.routes.evidence import evidence_router
 from backend.api.routes.ledger import ledger_router
 from backend.api.routes.escalation import escalation_router
 from backend.api.routes.underwriting import underwriting_router
+from backend.middleware.chaos import ChaosMiddleware
+from backend.core.recovery import execute_cold_start_recovery
+from backend.storage.repository import get_tenant_repository
 from backend.storage.ledger import CryptographicLedger
 
 # Initialize structured correlation and secret redaction logging
@@ -213,6 +216,7 @@ app.add_middleware(SessionScopingMiddleware)
 app.add_middleware(TenantContextMiddleware)
 app.add_middleware(CorrelationLoggingMiddleware)
 app.add_middleware(PayloadSizeLimitMiddleware)
+app.add_middleware(ChaosMiddleware)
 
 # Mount Webhook, Clarification, & Decision Routers
 app.include_router(storage_webhook_router)
@@ -227,6 +231,31 @@ app.include_router(evidence_router)
 app.include_router(ledger_router)
 app.include_router(escalation_router)
 app.include_router(underwriting_router)
+
+
+@app.post("/api/recovery/cold-start")
+def trigger_cold_start_recovery(
+    production_id: Optional[str] = Query(None),
+    stale_threshold_sec: float = Query(60.0),
+    http_req: Request = None,
+):
+    """Scans for abandoned runs with stale heartbeats (>60s) and restores execution state."""
+    tenant_ctx = get_tenant_context(http_req) if http_req else None
+    org_id = tenant_ctx.organization_id if tenant_ctx and tenant_ctx.organization_id else "org_default"
+    repo = get_tenant_repository(org_id)
+    ledger = getattr(app.state, "ledger", None)
+    prods = [production_id] if production_id else None
+    results = execute_cold_start_recovery(
+        repo=repo,
+        production_ids=prods,
+        ledger=ledger,
+        stale_threshold_sec=stale_threshold_sec,
+    )
+    return {
+        "status": "SUCCESS",
+        "rehydrated_count": len(results),
+        "results": [r.model_dump() for r in results],
+    }
 
 # Global in-memory state for session review
 _latest_run_result: Optional[WorkflowRunResult] = None

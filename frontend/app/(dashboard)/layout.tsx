@@ -1,6 +1,7 @@
 import React from 'react';
 import { Sidebar } from './components/Sidebar';
 import { TopNav } from './components/TopNav';
+import { OfflineConnectivityBanner } from '@/components/network';
 
 /**
  * Lienmark Dashboard Layout
@@ -14,7 +15,10 @@ export default function DashboardLayout({
   readonly children: React.ReactNode;
 }) {
   return (
-    <div className="flex h-screen w-full bg-[#0B0F17] text-slate-100 overflow-hidden">
+    <div className="flex h-screen w-full bg-[#0B0F17] text-slate-100 overflow-hidden relative">
+      {/* Global Offline Connectivity Watchdog Banner */}
+      <OfflineConnectivityBanner />
+
       {/* 6-Destination Navigation Sidebar */}
       <Sidebar />
 

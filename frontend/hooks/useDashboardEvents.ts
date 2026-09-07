@@ -2,7 +2,8 @@
 
 /**
  * useDashboardEvents Hook
- * Connects to SSE stream with automatic reconnection, heartbeat tracking, and polling fallback.
+ * Connects to SSE stream with 25s heartbeat watchdog, window online re-trigger,
+ * and jittered exponential backoff.
  * Authored strictly under Google AntiGravity: files <= 250 lines, functions <= 40 lines, zero any.
  */
 
@@ -16,20 +17,27 @@ export interface DashboardEvent {
   readonly data?: Record<string, unknown>;
 }
 
-export type StreamConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'error';
+export type StreamConnectionStatus =
+  | 'connecting'
+  | 'connected'
+  | 'reconnecting'
+  | 'disconnected'
+  | 'error';
 
 export interface UseDashboardEventsOptions {
   readonly endpoint?: string;
   readonly enabled?: boolean;
   readonly onEvent?: (event: DashboardEvent) => void;
   readonly maxReconnectAttempts?: number;
+  readonly heartbeatTimeoutMs?: number;
 }
 
 export function useDashboardEvents({
   endpoint = '/api/v1/events',
   enabled = true,
   onEvent,
-  maxReconnectAttempts = 5,
+  maxReconnectAttempts = 8,
+  heartbeatTimeoutMs = 25000,
 }: UseDashboardEventsOptions = {}) {
   const [status, setStatus] = useState<StreamConnectionStatus>('disconnected');
   const [events, setEvents] = useState<ReadonlyArray<DashboardEvent>>([]);
@@ -38,6 +46,7 @@ export function useDashboardEvents({
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectAttemptsRef = useRef<number>(0);
   const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const watchdogTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const cleanup = useCallback(() => {
     if (eventSourceRef.current) {
@@ -48,12 +57,38 @@ export function useDashboardEvents({
       clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
     }
+    if (watchdogTimerRef.current) {
+      clearTimeout(watchdogTimerRef.current);
+      watchdogTimerRef.current = null;
+    }
   }, []);
 
+  const scheduleReconnect = useCallback((reconnectFn: () => void) => {
+    if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+      setStatus('reconnecting');
+      reconnectAttemptsRef.current += 1;
+      const baseDelay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 20000);
+      const jitter = Math.floor(Math.random() * 1000);
+      reconnectTimerRef.current = setTimeout(reconnectFn, baseDelay + jitter);
+    } else {
+      setStatus('disconnected');
+    }
+  }, [maxReconnectAttempts]);
+
+  const resetHeartbeatWatchdog = useCallback((reconnectFn: () => void) => {
+    if (watchdogTimerRef.current) clearTimeout(watchdogTimerRef.current);
+    watchdogTimerRef.current = setTimeout(() => {
+      console.warn('[useDashboardEvents] 25s SSE heartbeat watchdog expired. Re-establishing link...');
+      cleanup();
+      scheduleReconnect(reconnectFn);
+    }, heartbeatTimeoutMs);
+  }, [cleanup, scheduleReconnect, heartbeatTimeoutMs]);
+
   const handleIncomingMessage = useCallback(
-    (event: MessageEvent) => {
+    (event: MessageEvent, reconnectFn: () => void) => {
+      resetHeartbeatWatchdog(reconnectFn);
+      if (!event.data || event.data.startsWith(':')) return;
       try {
-        if (!event.data || event.data.startsWith(':')) return;
         const parsed = JSON.parse(event.data) as DashboardEvent;
         const normalized: DashboardEvent = {
           id: parsed.id || `evt_${Date.now()}_${Math.random().toString(16).slice(2, 6)}`,
@@ -62,7 +97,6 @@ export function useDashboardEvents({
           timestamp: parsed.timestamp || new Date().toISOString(),
           data: parsed.data,
         };
-
         setEvents((prev) => [normalized, ...prev.slice(0, 99)]);
         setLastEventAt(normalized.timestamp);
         onEvent?.(normalized);
@@ -70,14 +104,14 @@ export function useDashboardEvents({
         console.warn('[useDashboardEvents] Failed to parse SSE event data:', err);
       }
     },
-    [onEvent]
+    [onEvent, resetHeartbeatWatchdog]
   );
 
   const connect = useCallback(() => {
     if (!enabled || typeof window === 'undefined') return;
     cleanup();
-
     setStatus('connecting');
+
     try {
       const es = new EventSource(endpoint);
       eventSourceRef.current = es;
@@ -85,48 +119,48 @@ export function useDashboardEvents({
       es.onopen = () => {
         setStatus('connected');
         reconnectAttemptsRef.current = 0;
+        resetHeartbeatWatchdog(connect);
       };
 
-      es.onmessage = handleIncomingMessage;
+      es.onmessage = (evt) => handleIncomingMessage(evt, connect);
 
       es.onerror = () => {
-        es.close();
-        eventSourceRef.current = null;
-
-        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
-          setStatus('reconnecting');
-          reconnectAttemptsRef.current += 1;
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 15000);
-          reconnectTimerRef.current = setTimeout(connect, delay);
-        } else {
-          setStatus('disconnected');
-        }
+        cleanup();
+        scheduleReconnect(connect);
       };
     } catch {
       setStatus('error');
     }
-  }, [enabled, endpoint, maxReconnectAttempts, cleanup, handleIncomingMessage]);
+  }, [enabled, endpoint, cleanup, scheduleReconnect, resetHeartbeatWatchdog, handleIncomingMessage]);
 
   useEffect(() => {
-    if (enabled) {
+    if (!enabled || typeof window === 'undefined') return;
+    const handleOnline = () => {
+      reconnectAttemptsRef.current = 0;
       connect();
-    } else {
+    };
+
+    window.addEventListener('online', handleOnline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [enabled, connect]);
+
+  useEffect(() => {
+    if (enabled) connect();
+    else {
       cleanup();
       setStatus('disconnected');
     }
     return cleanup;
   }, [enabled, connect, cleanup]);
 
-  const clearEvents = useCallback(() => {
-    setEvents([]);
-  }, []);
-
   return {
     status,
     events,
     lastEventAt,
     isConnected: status === 'connected',
-    clearEvents,
+    clearEvents: useCallback(() => setEvents([]), []),
     reconnect: connect,
   };
 }

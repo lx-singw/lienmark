@@ -8,6 +8,7 @@ Authored strictly under Google AntiGravity for Agentic Cinema compliance.
 
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 import time
@@ -16,6 +17,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional, Union, Tuple, Set
 from enum import Enum
+
+EXTERNAL_QUERY_SEMAPHORE = asyncio.Semaphore(10)
 
 from pydantic import BaseModel, Field
 
@@ -178,13 +181,14 @@ async def revalidate_evidence_tool(
                 stance_enum = s
                 break
 
-    snapshot: PublicEvidenceSnapshot = await parallel.search(
-        query=query,
-        use_id=f"use_{asset_key}",
-        stable_lineage_key=asset_key,
-        objective=objective,
-        expected_stance=stance_enum,
-    )
+    async with EXTERNAL_QUERY_SEMAPHORE:
+        snapshot: PublicEvidenceSnapshot = await parallel.search(
+            query=query,
+            use_id=f"use_{asset_key}",
+            stable_lineage_key=asset_key,
+            objective=objective,
+            expected_stance=stance_enum,
+        )
 
     return {
         "snapshot_id": snapshot.snapshot_id,
