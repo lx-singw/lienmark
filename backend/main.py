@@ -93,6 +93,9 @@ from backend.api.routes.policy_outbox_routes import outbox_router
 from backend.api.routes import policies
 from backend.api.routes.dashboard import dashboard_router
 from backend.api.routes.events import events_router
+from backend.api.routes.evidence import evidence_router
+from backend.api.routes.ledger import ledger_router
+from backend.api.routes.escalation import escalation_router
 from backend.storage.ledger import CryptographicLedger
 
 # Initialize structured correlation and secret redaction logging
@@ -219,6 +222,9 @@ app.include_router(policies.router)
 app.include_router(outbox_router)
 app.include_router(dashboard_router)
 app.include_router(events_router)
+app.include_router(evidence_router)
+app.include_router(ledger_router)
+app.include_router(escalation_router)
 
 # Global in-memory state for session review
 _latest_run_result: Optional[WorkflowRunResult] = None

@@ -1,7 +1,7 @@
 ---
 name: architecture-review
 description: >-
-  Produce and gate a pre-flight architecture plan before any code is written.
+  Produce and gate a pre-flight architecture plan before any code is written (Primary/Root Agent only).
   Use when planning non-trivial code modifications, new features, or architectural changes,
   or when the user requests /architecture_review.
 ---
@@ -9,6 +9,8 @@ description: >-
 # Architecture Review Skill
 
 Produce and gate a pre-flight architecture plan before any code is written.
+
+> **CRITICAL FOR SUBAGENTS**: If you are a subagent, DO NOT run this workflow. You have already been granted execution approval by your parent agent. Proceed directly to implementation and testing.
 
 ## Workflow Instructions
 
