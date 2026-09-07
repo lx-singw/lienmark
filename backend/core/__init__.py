@@ -94,6 +94,41 @@ from backend.core.projector import (
     InvalidEventError,
     compute_state_digest,
 )
+from backend.core.conflict_types import (
+    ArbitrationResult,
+    ClaimStatusAssertion,
+    ConflictStance,
+    DualLayerConflictInfo,
+    EvidenceFinding,
+    RightsLayer,
+    SourceAuthorityTier,
+    StancePairEvaluation,
+)
+from backend.core.conflict_heuristics import ConflictHeuristics
+from backend.core.conflict_arbiter import (
+    CorroborationEngine,
+    ConflictArbiter,
+    arbitrate_claim_conflicts,
+)
+from backend.core.statutory_rules import (
+    eval_public_domain,
+    eval_de_minimis,
+    eval_fair_use_scorecard,
+)
+from backend.core.statutory_types import (
+    StatutoryEra,
+    FairUseOutcome,
+    FocalProminence,
+    PublicDomainEvaluation,
+    DeMinimisEvaluation,
+    FairUseFactors,
+    FairUseEvaluation,
+    StatutoryRuleError,
+    InvalidPublicationYearError,
+    InvalidDurationError,
+    InvalidProminenceError,
+    InvalidFactorScoreError,
+)
 
 __all__ = [
     "InvalidationEngine",
@@ -176,4 +211,31 @@ __all__ = [
     "ProjectorError",
     "InvalidEventError",
     "compute_state_digest",
+    "ArbitrationResult",
+    "ClaimStatusAssertion",
+    "ConflictStance",
+    "DualLayerConflictInfo",
+    "EvidenceFinding",
+    "RightsLayer",
+    "SourceAuthorityTier",
+    "StancePairEvaluation",
+    "ConflictHeuristics",
+    "CorroborationEngine",
+    "ConflictArbiter",
+    "arbitrate_claim_conflicts",
+    "eval_public_domain",
+    "eval_de_minimis",
+    "eval_fair_use_scorecard",
+    "StatutoryEra",
+    "FairUseOutcome",
+    "FocalProminence",
+    "PublicDomainEvaluation",
+    "DeMinimisEvaluation",
+    "FairUseFactors",
+    "FairUseEvaluation",
+    "StatutoryRuleError",
+    "InvalidPublicationYearError",
+    "InvalidDurationError",
+    "InvalidProminenceError",
+    "InvalidFactorScoreError",
 ]

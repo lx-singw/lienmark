@@ -30,6 +30,27 @@ from backend.services.hasher import (
     compute_semantic_digest,
 )
 
+from backend.services.evidence_archiver_types import (
+    CitationLivenessStatus,
+    CitationRequest,
+    EvidenceArchiverConfig,
+    EvidenceArchiverError,
+    EvidenceSnapshot,
+    InvalidCitationUrlError,
+    LivenessCheckError,
+    LivenessVerificationResult,
+    SnapshotHttpHeaders,
+    SnapshotStorageError,
+    compute_payload_digest,
+    CITATION_LIVE,
+    CITATION_LIVE_RESTRICTED,
+    CITATION_DEAD_404,
+    CITATION_ERROR,
+    CITATION_TIMEOUT,
+)
+from backend.services.snapshot_store import SnapshotStore
+from backend.services.evidence_archiver import EvidenceArchiver
+
 __all__ = [
     "ParallelSearchService",
     "GeminiService",
@@ -59,7 +80,54 @@ __all__ = [
     "StreamingHasher",
     "normalize_screenplay_text",
     "compute_semantic_digest",
+    "EvidenceArchiver",
+    "SnapshotStore",
+    "CitationLivenessStatus",
+    "CitationRequest",
+    "EvidenceArchiverConfig",
+    "EvidenceArchiverError",
+    "EvidenceSnapshot",
+    "InvalidCitationUrlError",
+    "LivenessCheckError",
+    "LivenessVerificationResult",
+    "SnapshotHttpHeaders",
+    "SnapshotStorageError",
+    "compute_payload_digest",
+    "CITATION_LIVE",
+    "CITATION_LIVE_RESTRICTED",
+    "CITATION_DEAD_404",
+    "CITATION_ERROR",
+    "CITATION_TIMEOUT",
+    "CircuitBreaker",
+    "circuit_breaker",
+    "get_circuit_breaker",
+    "reset_all_circuit_breakers",
+    "CircuitState",
+    "CircuitBreakerConfig",
+    "CircuitBreakerTelemetry",
+    "CircuitBreakerError",
+    "CircuitBreakerOpenError",
+    "CircuitBreakerProbeError",
+    "StateTransitionRecord",
+    "is_qualifying_failure",
 ]
+
+from backend.services.circuit_breaker_types import (
+    CircuitBreakerConfig,
+    CircuitBreakerError,
+    CircuitBreakerOpenError,
+    CircuitBreakerProbeError,
+    CircuitBreakerTelemetry,
+    CircuitState,
+    StateTransitionRecord,
+    is_qualifying_failure,
+)
+from backend.services.circuit_breaker import (
+    CircuitBreaker,
+    circuit_breaker,
+    get_circuit_breaker,
+    reset_all_circuit_breakers,
+)
 
 from backend.core.counsel_checkpoint import (
     CounselCheckpointManager,
