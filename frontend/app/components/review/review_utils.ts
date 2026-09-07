@@ -1,93 +1,20 @@
 /**
- * Lienmark Counsel Review Utilities & Formatting Rules (Sprint 4.3)
- * Provides directive shortcuts, citation templates, validation, and badge styling.
+ * Lienmark Counsel Review Utilities & Formatting Rules (Sprint 5.2)
+ * Provides directive shortcuts, citation templates, dual review guards, validation, and badge styling.
  * Authored strictly under Google AntiGravity: zero-any TypeScript, files <= 250 lines, functions <= 40 lines.
  */
 
 import {
   CitationTemplateUI,
   CounselActionType,
+  DecisionPackageUI,
   DecisionPayload,
-  DirectiveShortcut,
+  DualReviewStatusUI,
   ReviewValidationResult,
 } from './review_types';
 
-export const DIRECTIVE_SHORTCUTS: ReadonlyArray<DirectiveShortcut> = [
-  {
-    id: 'master_recording_owner',
-    label: 'Master Recording Owner',
-    text: 'Check master recording owner',
-    category: 'Music Rights',
-  },
-  {
-    id: 'foreign_distribution_holdback',
-    label: 'Foreign Holdback',
-    text: 'Verify foreign distribution holdback',
-    category: 'Distribution',
-  },
-  {
-    id: 'ascap_1972_live',
-    label: 'ASCAP 1972 Live Adaptation',
-    text: 'Re-search ASCAP for 1972 live adaptation',
-    category: 'Music Rights',
-  },
-  {
-    id: 'fair_use_transformative',
-    label: 'Fair Use 4-Factor',
-    text: 'Confirm transformative use and market substitution under Campbell v. Acuff-Rose',
-    category: 'Copyright',
-  },
-  {
-    id: 'trademark_de_minimis',
-    label: 'Trademark De Minimis',
-    text: 'Investigate incidental background focal exposure duration under 15 U.S.C. § 1125',
-    category: 'Trademark',
-  },
-  {
-    id: 'public_domain_pre_1929',
-    label: 'Pre-1929 Public Domain',
-    text: 'Verify pre-1929 initial publication date and absence of renewed derivative claims',
-    category: 'Public Domain',
-  },
-];
-
-export const DEFAULT_CITATION_TEMPLATES: ReadonlyArray<CitationTemplateUI> = [
-  {
-    id: 'fair_use_107',
-    category: 'Copyright',
-    title: 'Fair Use Defense (17 U.S.C. § 107)',
-    statute: '17 U.S.C. § 107',
-    text: '17 U.S.C. § 107 Fair Use: Evaluated under four statutory factors: (1) purpose and character of use is transformative commentary; (2) nature of copyrighted work; (3) substantiality of portion used in relation to whole is strictly fleeting; (4) zero negative effect upon the potential market for original work.',
-  },
-  {
-    id: 'sync_master_clause_4a',
-    category: 'Music Rights',
-    title: 'Sync & Master License (Clause 4(a))',
-    statute: 'Standard Sync/Master Form Cl. 4(a)',
-    text: 'Clause 4(a) Audiovisual Synchronization: Grantor confirms irrevocable, worldwide synchronization and master recording exploitation rights in all media now known or hereafter devised, in perpetuity, with warranties of non-infringement fully executed.',
-  },
-  {
-    id: 'lanham_act_43a',
-    category: 'Trademark',
-    title: 'Lanham Act De Minimis (15 U.S.C. § 1125)',
-    statute: '15 U.S.C. § 1125(a)',
-    text: '15 U.S.C. § 1125(a): Incidental and out-of-focus background placement creates no likelihood of consumer confusion, false endorsement, or trademark tarnishment pursuant to Second Circuit Rogers v. Grimaldi standard.',
-  },
-  {
-    id: 'public_domain_304',
-    category: 'Public Domain',
-    title: 'Public Domain Status (17 U.S.C. § 304)',
-    statute: '17 U.S.C. § 304 / Sonny Bono CTEA',
-    text: '17 U.S.C. § 304: Work published prior to January 1, 1929 has permanently entered the United States public domain; unrestricted exploitation permitted without statutory royalties or license requirements.',
-  },
-  {
-    id: 'incidental_ephemeral_112',
-    category: 'General Clearance',
-    title: 'Ephemeral Reproduction (17 U.S.C. § 112)',
-    statute: '17 U.S.C. § 112',
-    text: '17 U.S.C. § 112: Transient reproduction solely for technical broadcast assembly and non-standalone display qualifies for statutory exemption from direct copyright liability.',
-  },
-];
+export { DIRECTIVE_SHORTCUTS, DEFAULT_CITATION_TEMPLATES } from './citation_templates';
+import { DEFAULT_CITATION_TEMPLATES } from './citation_templates';
 
 export function formatCounselAction(action: CounselActionType): {
   label: string;
@@ -145,6 +72,107 @@ export function formatReviewTimestamp(isoString: string): string {
   } catch {
     return isoString;
   }
+}
+
+export function truncateDigest(digest: string, head = 8, tail = 6): string {
+  if (!digest) return 'N/A';
+  const clean = digest.trim();
+  if (!clean) return 'N/A';
+  if (clean.length <= head + tail) return clean;
+  return `${clean.slice(0, head)}...${clean.slice(-tail)}`;
+}
+
+export function formatDualReviewStatus(status: DualReviewStatusUI): {
+  label: string;
+  badgeClass: string;
+  stepIndex: number;
+  description: string;
+} {
+  switch (status) {
+    case 'pending_first_review':
+      return {
+        label: 'Pending Primary Review',
+        badgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+        stepIndex: 0,
+        description: 'Awaiting primary counsel review and clearance attestation.',
+      };
+    case 'first_review_approved':
+      return {
+        label: 'First Review Approved',
+        badgeClass: 'bg-sky-500/20 text-sky-300 border-sky-500/40',
+        stepIndex: 1,
+        description: 'Primary review passed. Pending distinct supervising counsel second review.',
+      };
+    case 'final_approved':
+      return {
+        label: 'Dual Approved',
+        badgeClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+        stepIndex: 2,
+        description: 'Dual review complete. Cryptographically locked to ledger.',
+      };
+    case 'stale_invalidated':
+      return {
+        label: 'Stale / Invalidation Detected',
+        badgeClass: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+        stepIndex: -1,
+        description: 'Decision package is stale. Material evidence or policy changed. Both reviews required again.',
+      };
+    case 'rejected':
+      return {
+        label: 'Package Rejected',
+        badgeClass: 'bg-red-600/20 text-red-300 border-red-500/40',
+        stepIndex: -1,
+        description: 'Claim disposition rejected by counsel; re-investigation directed.',
+      };
+  }
+}
+
+export function canPerformSecondReview(
+  packageData: DecisionPackageUI,
+  currentReviewerId: string
+): { allowed: boolean; reason?: string } {
+  if (packageData.status === 'stale_invalidated') {
+    return {
+      allowed: false,
+      reason: 'Decision package is stale. Material evidence or policy changed. Both reviews required again.',
+    };
+  }
+  if (packageData.status === 'final_approved') {
+    return { allowed: false, reason: 'Decision package has already received final dual approval.' };
+  }
+  if (packageData.status === 'rejected') {
+    return { allowed: false, reason: 'Decision package has been rejected.' };
+  }
+  if (packageData.status === 'pending_first_review') {
+    return { allowed: false, reason: 'Primary counsel review must be completed before secondary review.' };
+  }
+  const primaryId = packageData.primaryApproval?.reviewerId?.trim().toLowerCase();
+  const currentId = currentReviewerId.trim().toLowerCase();
+  if (primaryId && currentId && primaryId === currentId) {
+    return { allowed: false, reason: 'Second review requires a distinct authorized counsel.' };
+  }
+  return { allowed: true };
+}
+
+export function validateDualReviewApproval(
+  packageData: DecisionPackageUI,
+  currentReviewerId: string,
+  conflictAttested: boolean
+): { isValid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  if (!conflictAttested) {
+    errors.push('Conflict-of-interest affirmative attestation is strictly required.');
+  }
+  if (packageData.status === 'stale_invalidated') {
+    errors.push('Decision package is stale. Material evidence or policy changed. Both reviews required again.');
+  }
+  if (packageData.status === 'first_review_approved') {
+    const secondCheck = canPerformSecondReview(packageData, currentReviewerId);
+    if (!secondCheck.allowed && secondCheck.reason) {
+      errors.push(secondCheck.reason);
+    }
+  }
+  return { isValid: errors.length === 0, errors };
 }
 
 export function validateDirectiveText(

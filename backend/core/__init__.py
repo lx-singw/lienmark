@@ -156,8 +156,42 @@ from backend.core.policy_rules import (
     RULE_GRANT_VERIFICATION,
 )
 from backend.core.policy_engine import StudioPolicyEngine, get_policy_engine
+from backend.core.decision_package_types import (
+    DualReviewStatus,
+    PackageApprovalRecord,
+    DecisionPackage,
+)
+from backend.core.decision_package import (
+    compute_package_canonical_digest,
+    create_decision_package,
+    derive_superseded_package,
+    is_material_package_difference,
+    apply_package_approval,
+    reject_package,
+    invalidate_package,
+)
+
+from backend.core.conflict_checker import (
+    ConflictCheckResult,
+    check_counsel_conflict,
+    register_counsel_conflict,
+    clear_conflict_registry,
+    get_declared_conflicts,
+)
+from backend.core.dual_review import (
+    DualReviewCoordinator,
+    get_dual_review_coordinator,
+    is_material_package_change,
+)
 
 __all__ = [
+    "ConflictCheckResult", "check_counsel_conflict", "register_counsel_conflict",
+    "clear_conflict_registry", "get_declared_conflicts", "DualReviewCoordinator",
+    "get_dual_review_coordinator", "is_material_package_change",
+    "DualReviewStatus", "PackageApprovalRecord", "DecisionPackage",
+    "compute_package_canonical_digest", "create_decision_package",
+    "derive_superseded_package", "is_material_package_difference",
+    "apply_package_approval", "reject_package", "invalidate_package",
     "InvalidationEngine", "evaluate_version_delta", "ClearanceDependencyGraph", "DependencyGraph",
     "NodeType", "DependencyKind", "DependencyNode", "DependencyEdge",
     "InvalidationNotice", "ClearanceGraphError", "CycleDetectedError", "NodeNotFoundError",

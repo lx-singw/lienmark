@@ -8,7 +8,7 @@ Authored strictly under Google AntiGravity: files <= 250 lines, functions <= 40 
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -151,5 +151,78 @@ class AttemptLineageResponse(BaseModel):
         default_factory=list,
         description="Chronologically sorted list of prior attempt records",
     )
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class CreatePackageRequest(BaseModel):
+    """Request payload to create or retrieve an active decision package for a claim."""
+
+    cut_revision: str = Field(default="cut_v1", description="Source script cut revision")
+    proposed_disposition: str = Field(default="CLEARED", description="Proposed clearance disposition")
+    conditions: List[str] = Field(default_factory=list, description="Binding clearance conditions")
+    evidence_bundle: List[Dict[str, Any]] = Field(
+        default_factory=list, description="Evidence documents and licenses",
+    )
+    policy_version: Optional[str] = Field(default=None, description="Governing policy version")
+    policy_digest: Optional[str] = Field(default=None, description="Policy content digest")
+    intended_scope: Dict[str, Any] = Field(
+        default_factory=dict, description="Intended exploitation scope",
+    )
+    entity_names: List[str] = Field(
+        default_factory=list, description="Entity names for conflict screening",
+    )
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ApprovePackageRequest(BaseModel):
+    """Request payload to submit primary or secondary approval on a decision package."""
+
+    conflict_attestation: bool = Field(
+        ..., description="Mandatory attestation: reviewer has no conflict of interest",
+    )
+    notes: Optional[str] = Field(default=None, description="Optional reviewer commentary")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class PackageApprovalResponse(BaseModel):
+    """Single approval record in the response."""
+
+    approval_id: str = Field(..., description="Unique approval record identifier")
+    reviewer_id: str = Field(..., description="Authenticated reviewer principal ID")
+    reviewer_name: str = Field(..., description="Reviewer display name")
+    reviewer_role: str = Field(..., description="Reviewer's authorized role")
+    is_primary_or_secondary: str = Field(..., description="'primary' or 'secondary' tier")
+    conflict_attestation: bool = Field(..., description="Conflict-of-interest attestation")
+    timestamp_utc: str = Field(..., description="ISO 8601 UTC timestamp of approval")
+    notes: Optional[str] = Field(default=None, description="Reviewer commentary")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class DecisionPackageResponse(BaseModel):
+    """Response envelope for a decision package and its approval lineage."""
+
+    package_id: str = Field(..., description="Unique decision package identifier")
+    version: int = Field(..., ge=1, description="Package version number")
+    claim_id: str = Field(..., description="Bound claim identifier")
+    status: str = Field(..., description="Dual-review workflow status")
+    canonical_digest: str = Field(..., description="SHA-256 canonical package digest")
+    proposed_disposition: str = Field(..., description="Proposed clearance disposition")
+    conditions: List[str] = Field(default_factory=list, description="Binding conditions")
+    policy_version: Optional[str] = Field(default=None, description="Governing policy version")
+    primary_approval: Optional[PackageApprovalResponse] = Field(
+        default=None, description="Primary counsel approval record",
+    )
+    secondary_approval: Optional[PackageApprovalResponse] = Field(
+        default=None, description="Secondary counsel approval record",
+    )
+    supersedes_package_id: Optional[str] = Field(
+        default=None, description="ID of superseded predecessor package",
+    )
+    created_at_utc: str = Field(..., description="ISO 8601 UTC creation timestamp")
+    updated_at_utc: str = Field(..., description="ISO 8601 UTC last-updated timestamp")
 
     model_config = ConfigDict(extra="forbid")

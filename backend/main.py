@@ -88,6 +88,7 @@ from backend.storage.firestore_client import StaleRunCommitError
 from backend.api.webhooks.storage import storage_webhook_router
 from backend.api.routes.clarifications import clarification_router
 from backend.api.routes.decisions import decision_router
+from backend.api.routes.package_routes import package_router
 from backend.api.routes import policies
 from backend.storage.ledger import CryptographicLedger
 
@@ -210,6 +211,7 @@ app.add_middleware(PayloadSizeLimitMiddleware)
 app.include_router(storage_webhook_router)
 app.include_router(clarification_router)
 app.include_router(decision_router)
+app.include_router(package_router)
 app.include_router(policies.router)
 
 # Global in-memory state for session review
