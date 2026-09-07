@@ -903,7 +903,7 @@ export interface SupersessionEvent {
   event_hash: string;
   timestamp: string;
   actor_type?: ActorType | string;
-  reviewer?: ReviewerIdentity | any;
+  reviewer?: ReviewerIdentity | Record<string, unknown>;
   reviewer_name?: string;
   reviewer_title?: string;
   is_fictional_demo_reviewer?: boolean;

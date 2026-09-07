@@ -9,6 +9,7 @@ import {
   ActorType,
   AuditTrailResponse,
   ClearanceBriefing,
+  CounselDecision,
   DecisionState,
   DecisionStatus,
   DriftEvaluationResult,
@@ -17,6 +18,7 @@ import {
   FixturesResponse,
   HealthCheckResponse,
   HealthResponse,
+  PriorDecisionDetails,
   ReattestationRequest,
   ReattestationResponse,
   ReviewActionRequest,
@@ -40,6 +42,46 @@ import {
   recordGoldenSupersessionEvent,
   resetGoldenAuditTrail,
 } from './fixtures_data';
+
+interface RawSupersessionPayload {
+  readonly status?: string;
+  readonly action?: ReviewActionType;
+  readonly new_status?: string;
+  readonly new_state?: string;
+  readonly resulting_status?: string;
+  readonly resulting_state?: string;
+  readonly prior_status?: DecisionStatus;
+  readonly prior_state?: DecisionState;
+  readonly stable_lineage_key?: string;
+  readonly lineage_key?: string;
+  readonly counsel_rationale?: string;
+  readonly rationale?: string;
+  readonly reviewer_name?: string;
+  readonly reviewer_title?: string;
+  readonly reviewer?: { name?: string; title?: string; is_fictional_demo?: boolean };
+  readonly parent_event_hash?: string;
+  readonly parent_hash?: string;
+  readonly event_hash?: string;
+  readonly audit_event_hash?: string;
+  readonly event_id?: string;
+  readonly prior_decision_id?: string;
+  readonly new_decision_id?: string;
+  readonly superseding_decision_id?: string;
+  readonly new_decision?: CounselDecision | { decision_id?: string } | null;
+  readonly prior_decision?: CounselDecision | PriorDecisionDetails | null;
+  readonly decision?: CounselDecision | null;
+  readonly actor_type?: ActorType;
+  readonly is_fictional_demo_reviewer?: boolean;
+  readonly timestamp?: string;
+  readonly system_recommendation?: string;
+  readonly run_id?: string;
+  readonly target_version_id?: string;
+  readonly changed_dependencies?: string[];
+  readonly evidence_citations?: Array<Record<string, string>>;
+  readonly metadata?: Record<string, unknown>;
+  readonly event?: RawSupersessionPayload;
+  readonly supersession_event?: RawSupersessionPayload;
+}
 
 // ============================================================================
 // Structured Error Taxonomy
@@ -472,11 +514,12 @@ export class LienmarkApiClient {
    * POST /api/review/action
    * Submits clearance counsel adjudication ('re_attest', 'reject', 'exception') and records supersession event.
    */
+
   /**
    * Normalizes raw API review action envelope or event payload into a complete SupersessionEvent conforming to types.ts.
    */
   private normalizeSupersessionEvent(
-    raw: any,
+    raw: RawSupersessionPayload | null | undefined,
     payload: ReviewActionRequest
   ): SupersessionEvent {
     // Backend returns envelope: { status, action, event, supersession_event, decision, ... }
@@ -600,7 +643,11 @@ export class LienmarkApiClient {
       changed_dependencies: eventObj?.changed_dependencies || raw?.changed_dependencies || [],
       evidence_citations: eventObj?.evidence_citations || raw?.evidence_citations || [],
       prior_decision: eventObj?.prior_decision || raw?.prior_decision || null,
-      new_decision: eventObj?.new_decision || raw?.new_decision || raw?.decision || null,
+      new_decision:
+        (eventObj?.new_decision as CounselDecision) ||
+        (raw?.new_decision as CounselDecision) ||
+        (raw?.decision as CounselDecision) ||
+        null,
       metadata: eventObj?.metadata || raw?.metadata || {},
     };
 

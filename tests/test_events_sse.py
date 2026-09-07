@@ -129,47 +129,42 @@ async def test_sse_disconnect_cleanup_no_leaks():
     assert broadcaster.active_subscriber_count(tid) == 0
 
 
+async def _run_tenant_isolated_broadcast(broadcaster, tid_a: str, tid_b: str):
+    """Helper worker to broadcast tenant-specific events and close."""
+    while (
+        broadcaster.active_subscriber_count(tid_a) == 0
+        or broadcaster.active_subscriber_count(tid_b) == 0
+    ):
+        await asyncio.sleep(0.01)
+
+    d_a = await broadcast_event(tid_a, "alpha_alert", {"secret": "alpha_classified"})
+    assert d_a == 1
+    d_b = await broadcast_event(tid_b, "beta_alert", {"secret": "beta_classified"})
+    assert d_b == 1
+    await asyncio.sleep(0.02)
+    await broadcaster.close_all()
+
+
 @pytest.mark.asyncio
 async def test_sse_cross_tenant_isolation():
     """Security invariant: Tenant A's broadcast never leaks to Tenant B's stream."""
-    tid_a = "org_tenant_alpha"
-    tid_b = "org_tenant_beta"
+    tid_a, tid_b = "org_tenant_alpha", "org_tenant_beta"
     token_a = create_test_jwt(tenant_id=tid_a, roles=["reviewer"])
     token_b = create_test_jwt(tenant_id=tid_b, roles=["reviewer"])
     broadcaster = get_broadcaster()
 
-    async def broadcast_worker():
-        while (
-            broadcaster.active_subscriber_count(tid_a) == 0
-            or broadcaster.active_subscriber_count(tid_b) == 0
-        ):
-            await asyncio.sleep(0.01)
-
-        # Broadcast only to Tenant A
-        d_a = await broadcast_event(tid_a, "alpha_alert", {"secret": "alpha_classified"})
-        assert d_a == 1
-
-        # Broadcast only to Tenant B
-        d_b = await broadcast_event(tid_b, "beta_alert", {"secret": "beta_classified"})
-        assert d_b == 1
-
-        await asyncio.sleep(0.02)
-        await broadcaster.close_all()
-
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
-        b_task = asyncio.create_task(broadcast_worker())
+        b_task = asyncio.create_task(_run_tenant_isolated_broadcast(broadcaster, tid_a, tid_b))
         req_a = ac.get("/api/v1/events", headers={"Authorization": f"Bearer {token_a}"})
         req_b = ac.get("/api/v1/events", headers={"Authorization": f"Bearer {token_b}"})
         res_a, res_b = await asyncio.gather(req_a, req_b)
         await b_task
 
-        # Tenant A stream contains alpha secret, strictly NOT beta secret
         assert "event: alpha_alert" in res_a.text
         assert "alpha_classified" in res_a.text
         assert "beta_classified" not in res_a.text
 
-        # Tenant B stream contains beta secret, strictly NOT alpha secret
         assert "event: beta_alert" in res_b.text
         assert "beta_classified" in res_b.text
         assert "alpha_classified" not in res_b.text

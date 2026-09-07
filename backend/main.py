@@ -97,8 +97,10 @@ from backend.api.routes.evidence import evidence_router
 from backend.api.routes.ledger import ledger_router
 from backend.api.routes.escalation import escalation_router
 from backend.api.routes.underwriting import underwriting_router
+from backend.api.routes.readiness import readiness_router
 from backend.middleware.chaos import ChaosMiddleware
 from backend.core.recovery import execute_cold_start_recovery
+from backend.config.settings import settings
 from backend.storage.repository import get_tenant_repository
 from backend.storage.ledger import CryptographicLedger
 
@@ -231,6 +233,7 @@ app.include_router(evidence_router)
 app.include_router(ledger_router)
 app.include_router(escalation_router)
 app.include_router(underwriting_router)
+app.include_router(readiness_router)
 
 
 @app.post("/api/recovery/cold-start")
@@ -275,8 +278,6 @@ def get_session_reattestations(session_id: Optional[str] = None) -> Dict[str, Re
 
 
 @app.get("/health")
-@app.get("/healthz")
-@app.get("/readyz")
 @app.get("/api/health")
 def health_check():
     parallel_key = os.getenv("PARALLEL_API_KEY", "")
@@ -571,6 +572,12 @@ def reset_demo_state(
     Resets the caller's session only via counsel_checkpoint_manager.reset_session_run(session_id).
     In Judge Demo environment (ENVIRONMENT=demo), unauthenticated environment-wide resets are rejected with HTTP 403 Forbidden.
     """
+    if settings.is_production or settings.is_staging:
+        raise HTTPException(
+            status_code=403,
+            detail="Demo state reset is strictly forbidden in staging and production environments.",
+        )
+
     global _counsel_reattestations
     effective_scope = scope
     if payload and isinstance(payload, dict):

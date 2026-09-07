@@ -3,11 +3,15 @@ settings.py
 
 Lienmark Environment and System Configuration.
 Loads environment variables and enforces validation for GCP, Gemini, Parallel, and Firestore settings.
+Authored strictly under Google AntiGravity: files <= 250 lines, functions <= 40 lines.
 """
+
+from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import List, Optional, Tuple
+
 
 @dataclass
 class Settings:
@@ -46,6 +50,53 @@ class Settings:
     service_timeout_seconds: float = field(default_factory=lambda: float(os.getenv("SERVICE_TIMEOUT_SECONDS", "5.0")))
     max_service_retries: int = field(default_factory=lambda: int(os.getenv("MAX_SERVICE_RETRIES", "3")))
     max_payload_size_bytes: int = field(default_factory=lambda: int(os.getenv("MAX_PAYLOAD_SIZE_BYTES", str(1024 * 1024))))
+
+    @property
+    def is_production(self) -> bool:
+        """Evaluates whether current execution environment is production."""
+        return self.environment.lower() in ("production", "prod")
+
+    @property
+    def is_staging(self) -> bool:
+        """Evaluates whether current execution environment is staging."""
+        return self.environment.lower() in ("staging", "stage")
+
+    @property
+    def JWT_SECRET_KEY(self) -> str:
+        """Returns active JWT secret key from environment."""
+        return os.getenv("JWT_SECRET_KEY", "lienmark-jwt-secret-dev-2026")
+
+    def validate_production_readiness(self) -> Tuple[bool, List[str]]:
+        """
+        Validates operational cutover readiness for production/staging environments.
+        Enforces INV-S73-02: fail-closed if secrets are default, tenant strict mode disabled,
+        or spend limits unconfigured.
+        """
+        issues: List[str] = []
+        is_prod_or_stage = self.is_production or self.is_staging
+
+        session_secret = os.getenv("SESSION_SECRET_KEY", "").strip()
+        if not session_secret or session_secret == "lienmark-session-secret-salt-2026":
+            if is_prod_or_stage:
+                issues.append("SESSION_SECRET_KEY must be configured with a non-default cryptographic secret in production/staging.")
+
+        jwt_secret = self.JWT_SECRET_KEY.strip()
+        if not jwt_secret or jwt_secret == "lienmark-jwt-secret-dev-2026":
+            if is_prod_or_stage:
+                issues.append("JWT_SECRET_KEY must be configured with a non-default cryptographic secret in production/staging.")
+
+        tenant_strict = os.getenv("TENANT_STRICT_MODE", "").lower() in ("true", "1")
+        if is_prod_or_stage and not tenant_strict:
+            issues.append("TENANT_STRICT_MODE must be enabled in production/staging environments.")
+
+        if self.max_api_spend_usd <= 0.0 or self.max_api_spend_usd > 10000.0:
+            issues.append(f"MAX_API_SPEND_USD must be set to a positive bounded limit (current: {self.max_api_spend_usd}).")
+
+        if is_prod_or_stage and self.demo_mode:
+            issues.append("DEMO_MODE must be disabled in production/staging.")
+
+        return len(issues) == 0, issues
+
 
 # Singleton instance
 settings = Settings()

@@ -43,9 +43,11 @@ export const AuditTrailItem: React.FC<AuditTrailItemProps> = ({
     event.actor_type === ActorType.AI_SYSTEM_RECOMMENDATION ||
     event.action === 'REVALIDATE';
 
-  const reviewerName =
+  const reviewerName: string =
     event.reviewer_name ||
-    (typeof event.reviewer === 'object' && event.reviewer !== null ? event.reviewer.name : null) ||
+    (typeof event.reviewer === 'object' && event.reviewer !== null && 'name' in event.reviewer && typeof event.reviewer.name === 'string'
+      ? event.reviewer.name
+      : '') ||
     (typeof event.reviewer === 'string' ? event.reviewer : 'Sarah Jenkins, Esq.');
 
   const parentHashValue =

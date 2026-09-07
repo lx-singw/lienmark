@@ -68,33 +68,34 @@ def test_inbox_empty_state_returns_zero_items_not_mock():
     assert data["summary"]["p0_count"] == 0
 
 
+def _seed_sample_blockers(repo, tid: str, pid: str, rid: str):
+    """Helper to seed critical claim and medium clarification blockers."""
+    repo.save_claim(pid, rid, {
+        "stable_lineage_key": "cue_hero_theme", "description": "Hero Theme Song",
+        "asset_type": "music_sync", "duration_or_prominence": "30s focal scene",
+        "status": "NEEDS_REVIEW",
+    })
+    repo.save_decision(pid, rid, {
+        "decision_id": "dec_cue_01", "stable_lineage_key": "cue_hero_theme",
+        "state": "STALE", "rationale": "Commercial synchronization license expired.",
+    })
+    get_clarification_store().save_clarification(
+        ClarificationRequest(
+            request_id="clrf_brand_01", run_id=rid, production_id=pid,
+            claim_id="prop_watch", stable_lineage_key="prop_watch",
+            question_text="Brand release needed from prop master.",
+            status="pending",
+        ),
+        tenant_id=tid, production_id=pid,
+    )
+
+
 def test_inbox_aggregates_blockers_and_sorts_by_severity():
     """Verifies aggregation of stale claims, clarifications, and budget alerts with P0-P3 sorting."""
     tid = "org_paramount_01"
     repo = get_tenant_repository(tid)
     _seed_prod_run(repo, tid, "prod_p1", "Project Paramount")
-
-    # 1. Critical Claim Blocker (focal prominence -> P0)
-    repo.save_claim("prod_p1", "run_prod_p1", {
-        "stable_lineage_key": "cue_hero_theme", "description": "Hero Theme Song",
-        "asset_type": "music_sync", "duration_or_prominence": "30s focal scene",
-        "status": "NEEDS_REVIEW",
-    })
-    repo.save_decision("prod_p1", "run_prod_p1", {
-        "decision_id": "dec_cue_01", "stable_lineage_key": "cue_hero_theme",
-        "state": "STALE", "rationale": "Commercial synchronization license expired.",
-    })
-
-    # 2. Medium Clarification Blocker (P2)
-    get_clarification_store().save_clarification(
-        ClarificationRequest(
-            request_id="clrf_brand_01", run_id="run_prod_p1", production_id="prod_p1",
-            claim_id="prop_watch", stable_lineage_key="prop_watch",
-            question_text="Brand release needed from prop master.",
-            status="pending",
-        ),
-        tenant_id=tid, production_id="prod_p1",
-    )
+    _seed_sample_blockers(repo, tid, "prod_p1", "run_prod_p1")
 
     token = create_test_jwt(tenant_id=tid, roles=["reviewer"])
     res = client.get("/api/v1/dashboard/inbox", headers={"Authorization": f"Bearer {token}"})
@@ -104,7 +105,6 @@ def test_inbox_aggregates_blockers_and_sorts_by_severity():
     assert data["summary"]["total_active_blockers"] == 2
     assert data["summary"]["p0_count"] == 1
     assert data["summary"]["p2_count"] == 1
-    # P0 must precede P2
     assert data["items"][0]["severity"] == "P0_CRITICAL"
     assert data["items"][0]["quick_action"] == "review_claim"
     assert data["items"][1]["severity"] == "P2_MEDIUM"
