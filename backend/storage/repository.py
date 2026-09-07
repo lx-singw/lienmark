@@ -619,7 +619,7 @@ class InMemoryTenantRepository(TenantRepository):
             clean_payload["organization_id"] = self.organization_id
             clean_payload["sequence_number"] = next_seq
             clean_payload["parent_event_hash"] = parent_hash
-            clean_payload["timestamp"] = datetime.now(timezone.utc).isoformat()
+            clean_payload["timestamp"] = clean_payload.get("timestamp") or datetime.now(timezone.utc).isoformat()
 
             # Deterministic SHA-256 calculation
             serialized = json.dumps(clean_payload, sort_keys=True, separators=(",", ":"))

@@ -585,6 +585,9 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
                 elif scheme == "api-key" and not extracted_api_key:
                     extracted_api_key = credential
 
+        if not jwt_token and "token" in request.query_params:
+            jwt_token = request.query_params.get("token")
+
         resolved_ctx: Optional[TenantContext] = None
 
         try:

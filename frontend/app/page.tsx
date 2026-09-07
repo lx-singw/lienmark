@@ -290,7 +290,7 @@ export default function ReviewerDashboardPage() {
           if (queueRes.success && queueRes.data) {
             setReviewQueue(queueRes.data);
           }
-          if (auditRes.success && auditRes.data && auditRes.data.length > 0) {
+          if (auditRes.success && Array.isArray(auditRes.data)) {
             setAuditTrail(auditRes.data);
           }
         }
