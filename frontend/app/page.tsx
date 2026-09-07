@@ -24,6 +24,7 @@ import {
   GitCompare,
   Volume2,
   VolumeX,
+  Building2,
 } from 'lucide-react';
 
 import {
@@ -106,6 +107,7 @@ import {
   AgreementMatchPayload,
   ResumptionSession,
 } from './components/hitl';
+import { StudioPolicyEditor } from './components/governance';
 
 export default function ReviewerDashboardPage() {
   const [isPending, startTransition] = useTransition();
@@ -136,6 +138,7 @@ export default function ReviewerDashboardPage() {
 
   // Active view and selection states
   const [activeTab, setActiveTab] = useState<'checkpoint' | 'diff' | 'lineage'>('checkpoint');
+  const [showPolicyEditor, setShowPolicyEditor] = useState<boolean>(false);
   const [userRole, setUserRole] = useState<UserRole>(UserRole.REVIEWER);
   const [selectedQueueKey, setSelectedQueueKey] = useState<string>(
     'poster_noir_detective_magazine'
@@ -1252,15 +1255,38 @@ export default function ReviewerDashboardPage() {
 
                 {/* 4. Modular Decision List Component (12 Claims Table Matrix) */}
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
                       <Layers className="h-4 w-4 text-sky-400" aria-hidden="true" />
                       <span>Script Cut v8 Rights Clearance Matrix (12 Assets)</span>
                     </h3>
-                    <span className="text-[11px] font-mono text-slate-500">
-                      Click row to inspect in 4D panel
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowPolicyEditor(!showPolicyEditor)}
+                        className="inline-flex items-center gap-1.5 text-[11px] font-mono font-bold text-purple-300 bg-purple-950/60 border border-purple-500/40 px-2.5 py-1 rounded hover:bg-purple-900/60 transition-colors"
+                      >
+                        <Building2 className="h-3.5 w-3.5 text-purple-400" />
+                        <span>{showPolicyEditor ? 'Hide Studio Policy' : 'Studio Policy Governance'}</span>
+                      </button>
+                      <span className="text-[11px] font-mono text-slate-500">
+                        Click row to inspect in 4D panel
+                      </span>
+                    </div>
                   </div>
+                  {showPolicyEditor && (
+                    <StudioPolicyEditor
+                      productionId="proj_blockbuster_cinema"
+                      orgId="org_paramount_global"
+                      isAdmin={userRole === UserRole.ADMIN}
+                      onCommitOverride={(ovr) => {
+                        setToast({
+                          type: 'success',
+                          message: `✓ Admin Policy Override committed to ledger (${ovr.ledgerEventId}).`,
+                        });
+                      }}
+                    />
+                  )}
                   <DecisionListComponent
                     claims={claims}
                     selectedClaimKey={selectedClaimKey}
@@ -1275,6 +1301,7 @@ export default function ReviewerDashboardPage() {
                     userRole={userRole}
                     activeClarifications={clarificationRequests}
                     onOpenClarification={handleOpenClarification}
+                    onOpenOverride={() => setShowPolicyEditor(true)}
                   />
                 </div>
               </div>

@@ -15,6 +15,7 @@ import { ConfidentialityBadge } from './intake/ConfidentialityBadge';
 import { validateConfidentiality } from './intake/intake_utils';
 import { ClarificationBadge, ClaimResumptionStatus } from './hitl';
 import { formatCinematicTimecode, renderAssetCategoryBadge, renderClearanceStatusIndicator } from './claims/claim_formatters';
+import { PolicyConflictBadge } from './governance/PolicyConflictBadge';
 
 export { formatCinematicTimecode, renderAssetCategoryBadge, renderClearanceStatusIndicator };
 
@@ -69,6 +70,19 @@ interface DetailsProps {
   onViewProvenance?: (k: string) => void;
   activeRes?: ClaimResumptionStatus;
   onOpenClarification?: (k: string) => void;
+  onOpenOverride?: (k: string) => void;
+}
+
+function renderPolicyBadge(claim: EvaluatedClaim, onOpenOverride?: (k: string) => void): React.ReactNode {
+  if (!claim.policyConflict && !claim.requiresSpecialWaiver) return null;
+  return (
+    <PolicyConflictBadge
+      hasConflict={claim.policyConflict}
+      requiresSpecialWaiver={claim.requiresSpecialWaiver}
+      violations={claim.policyViolations}
+      onOpenWaiverModal={onOpenOverride ? () => onOpenOverride(claim.stable_lineage_key) : undefined}
+    />
+  );
 }
 
 function renderClaimDetails(p: DetailsProps): React.ReactNode {
@@ -80,6 +94,7 @@ function renderClaimDetails(p: DetailsProps): React.ReactNode {
         <span className="font-semibold text-sm text-white group-hover:text-sky-200">{p.claim.stable_lineage_key.replace(/_/g, ' ')}</span>
         {renderAssetCategoryBadge(p.claim.asset_type)}
         <ConfidentialityBadge wordCount={p.wordCount} />
+        {renderPolicyBadge(p.claim, p.onOpenOverride)}
         {p.attemptNumber && p.attemptNumber > 1 && (
           <span className="font-mono text-[9px] rounded bg-amber-950/80 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 font-bold">
             Attempt {p.attemptNumber}
@@ -193,7 +208,7 @@ export const ClaimRow: React.FC<ClaimRowProps> = ({
         </div>
       </td>
       <td className="py-2.5 px-2.5 min-w-[240px]">
-        {renderClaimDetails({ claim, wordCount: confidentiality.wordCount, attemptNumber, showProvenance, setShowProvenance, onViewProvenance, activeRes, onOpenClarification })}
+        {renderClaimDetails({ claim, wordCount: confidentiality.wordCount, attemptNumber, showProvenance, setShowProvenance, onViewProvenance, activeRes, onOpenClarification, onOpenOverride })}
       </td>
       <td className="py-2.5 px-2.5 hidden 2xl:table-cell text-xs text-slate-300 max-w-[200px]">
         <div className="space-y-0.5"><div className="font-mono text-[11px] text-slate-200 truncate">{claim.prominence}</div><div className="text-[10px] font-mono text-slate-500 truncate">Reason: {claim.reason_code}</div></div>

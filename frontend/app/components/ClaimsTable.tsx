@@ -33,6 +33,7 @@ export interface ClaimsTableProps {
   activeClarifications?: ReadonlyArray<ClarificationRequestUI>;
   activeClarificationKeys?: ReadonlyArray<string>;
   onOpenClarification?: (claimKey: string) => void;
+  onOpenOverride?: (claimKey: string) => void;
 }
 
 export const ClaimsTable: React.FC<ClaimsTableProps> = ({
@@ -47,6 +48,7 @@ export const ClaimsTable: React.FC<ClaimsTableProps> = ({
   activeClarifications = [],
   activeClarificationKeys = [],
   onOpenClarification,
+  onOpenOverride,
 }) => {
   const [activeFilter, setActiveFilter] = useState<ClaimFilterType>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -207,6 +209,7 @@ export const ClaimsTable: React.FC<ClaimsTableProps> = ({
                       Boolean(claim.has_active_clarification)
                     }
                     onOpenClarification={onOpenClarification}
+                    onOpenOverride={onOpenOverride}
                   />
                 ))
               )}

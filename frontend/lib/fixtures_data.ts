@@ -561,6 +561,15 @@ export function getGoldenDriftEvaluationResult(): DriftEvaluationResult {
         latency_ms: 91,
         call_id: 'prl_call_wardrobe_fedora_brand',
       },
+      requiresSpecialWaiver: true,
+      policyViolations: [
+        {
+          ruleCode: 'RULE-TRADEMARK-FAIRUSE-EXCLUSION',
+          severity: 'warning',
+          message: 'Commercial trademark depiction requires studio fair-use certification.',
+          remedy: 'Verify brand product placement release or request Admin Waiver.',
+        },
+      ],
     },
     {
       stable_lineage_key: 'music_incidental_radio_static',
@@ -610,6 +619,16 @@ export function getGoldenDriftEvaluationResult(): DriftEvaluationResult {
       state: DecisionState.STALE,
       reason_code: 'EXTERNAL_EVIDENCE_SHIFT',
       revalidation_action: 'revalidate',
+      policyConflict: true,
+      requiresSpecialWaiver: true,
+      policyViolations: [
+        {
+          ruleCode: 'RULE-THEATRICAL-PERPETUAL-SYNC',
+          severity: 'critical',
+          message: 'Worldwide theatrical perpetual sync requirement violated by EU term dispute.',
+          remedy: 'Execute buyout sync license addendum or obtain Admin Policy Override.',
+        },
+      ],
       evidence: {
         provider: 'Parallel',
         source_title: 'ASCAP ACE Repertory & Billboard Rights Bulletin',

@@ -519,6 +519,14 @@ export interface EvaluatedClaim {
   evidence: ClaimEvidence | null;
   has_active_clarification?: boolean;
   resumption_status?: 'waiting_for_info' | 'agreement_matched' | 'ready_for_review';
+  policyConflict?: boolean;
+  requiresSpecialWaiver?: boolean;
+  policyViolations?: Array<{
+    ruleCode: string;
+    severity: 'critical' | 'warning' | 'info';
+    message: string;
+    remedy: string;
+  }>;
 }
 
 export interface ClearanceBriefing {

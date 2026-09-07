@@ -129,6 +129,21 @@ from backend.core.statutory_types import (
     InvalidProminenceError,
     InvalidFactorScoreError,
 )
+from backend.core.policy_types import (
+    LicensingScope,
+    TerritoryScope,
+    StudioProfileType,
+    StudioPolicyConfig,
+    ProductionPolicyOverride,
+    PolicyViolation,
+    PolicyEvaluationResult,
+)
+from backend.core.policy_rules import (
+    get_preset_profile_policy,
+    resolve_effective_policy,
+    evaluate_claim_against_policy,
+)
+from backend.core.policy_engine import StudioPolicyEngine, get_policy_engine
 
 __all__ = [
     "InvalidationEngine",
@@ -238,4 +253,16 @@ __all__ = [
     "InvalidDurationError",
     "InvalidProminenceError",
     "InvalidFactorScoreError",
+    "LicensingScope",
+    "TerritoryScope",
+    "StudioProfileType",
+    "StudioPolicyConfig",
+    "ProductionPolicyOverride",
+    "PolicyViolation",
+    "PolicyEvaluationResult",
+    "get_preset_profile_policy",
+    "resolve_effective_policy",
+    "evaluate_claim_against_policy",
+    "StudioPolicyEngine",
+    "get_policy_engine",
 ]

@@ -1,10 +1,34 @@
 """
-studio_policy_engine.py
+backend/orchestration/studio_policy_engine.py
 
-Lienmark architecture module.
+Lienmark Studio Policy Engine module.
+Sprint 5.1 - Studio Policy Inheritance & Statutory Clearance Invariants.
+Authored strictly under Google AntiGravity: files <= 250 lines, functions <= 40 lines.
 """
 
-import os
+from backend.core.policy_engine import (
+    StudioPolicyEngine,
+    get_policy_engine,
+)
+from backend.core.policy_types import (
+    LicensingScope,
+    PolicyEvaluationResult,
+    PolicyViolation,
+    ProductionPolicyOverride,
+    StudioPolicyConfig,
+    StudioProfileType,
+    TerritoryScope,
+)
 
-def init():
-    pass
+__all__ = [
+    "StudioPolicyEngine",
+    "get_policy_engine",
+    "StudioPolicyConfig",
+    "ProductionPolicyOverride",
+    "PolicyEvaluationResult",
+    "PolicyViolation",
+    "StudioProfileType",
+    "LicensingScope",
+    "TerritoryScope",
+]
+

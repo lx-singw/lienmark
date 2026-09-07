@@ -196,6 +196,12 @@ class CryptographicLedger:
             chain = self._chains.get(production_id, [])
             return [e for e in chain if e.sequence_number >= start_seq][:limit]
 
+    def get_production_events(
+        self, production_id: str, start_seq: int = 1, limit: int = 100
+    ) -> List[AuditEvent]:
+        """Retrieves audit events for production; alias for get_events."""
+        return self.get_events(production_id, start_seq, limit)
+
     def update_event(self, *args: Any, **kwargs: Any) -> None:
         """Modifying ledger entries is strictly prohibited by cryptographic audit policy."""
         raise LedgerTamperError("Cryptographic ledger entries are immutable and cannot be updated.")

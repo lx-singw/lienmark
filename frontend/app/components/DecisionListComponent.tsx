@@ -21,6 +21,7 @@ export interface DecisionListComponentProps {
   activeClarifications?: ReadonlyArray<ClarificationRequestUI>;
   activeClarificationKeys?: ReadonlyArray<string>;
   onOpenClarification?: (claimKey: string) => void;
+  onOpenOverride?: (claimKey: string) => void;
 }
 
 export const DecisionListComponent: React.FC<DecisionListComponentProps> = ({
@@ -32,6 +33,7 @@ export const DecisionListComponent: React.FC<DecisionListComponentProps> = ({
   activeClarifications,
   activeClarificationKeys,
   onOpenClarification,
+  onOpenOverride,
 }) => {
   const carriedCount = claims.filter((c) => c.state === DecisionState.CARRIED_FORWARD).length;
 
@@ -73,6 +75,7 @@ export const DecisionListComponent: React.FC<DecisionListComponentProps> = ({
         activeClarifications={activeClarifications}
         activeClarificationKeys={activeClarificationKeys}
         onOpenClarification={onOpenClarification}
+        onOpenOverride={onOpenOverride}
       />
     </div>
   );
