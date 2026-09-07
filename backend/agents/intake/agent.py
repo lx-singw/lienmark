@@ -1,8 +1,8 @@
 """
 Lienmark Intake Agent.
 Multimodal legal clearance intake orchestrator utilizing Google GenAI SDK (gemini-2.5-flash)
-with Leaky Bucket rate limiting, defensive schema repair retries, and offline fallback.
-Authored strictly under Google AntiGravity for Agentic Cinema compliance.
+with structural parameter separation, Layer 3 anomaly gating, rate limiting, and offline fallback.
+Authored strictly under Google AntiGravity: files <= 250 lines, functions <= 40 lines.
 """
 
 import os
@@ -15,8 +15,6 @@ from backend.agents.intake.claim_types import (
     ExtractedClaim,
     ClaimExtractionOutput,
     MultimodalIntakeInput,
-    IntakeExtractionError,
-    SchemaValidationRetryExhaustedError,
 )
 from backend.agents.intake.rate_limiter import LeakyBucketTokenLimiter
 from backend.agents.intake.prompts import (
@@ -24,16 +22,17 @@ from backend.agents.intake.prompts import (
     build_intake_extraction_prompt,
     build_schema_repair_retry_prompt,
 )
+from backend.agents.intake.sanitizer import wrap_untrusted_payload
+from backend.agents.intake.injection_detector import scan_script_for_injections
+from backend.agents.intake.trap_handler import reconcile_extracted_claims
+from backend.core.anomaly_detector import reconcile_anomalies_into_claims
 from backend.core.schema_repair import repair_json_output
 
 logger = logging.getLogger("lienmark.intake.agent")
 
 
 class IntakeAgent:
-    """
-    Multimodal Intake Agent for Script and Asset Clearance.
-    Operates in live Google GenAI mode or offline deterministic fallback mode.
-    """
+    """Multimodal Intake Agent for Script and Asset Clearance."""
 
     def __init__(
         self,
@@ -48,11 +47,8 @@ class IntakeAgent:
         self.rate_limiter = rate_limiter or LeakyBucketTokenLimiter()
 
         raw_key = api_key if api_key is not None else os.environ.get("GEMINI_API_KEY", "")
-        has_valid_key = bool(
-            raw_key
-            and not any(raw_key.lower().startswith(p) for p in ("mock", "sandbox", "test"))
-        )
-        self.is_offline = use_fallback or not has_valid_key
+        has_valid = bool(raw_key and not any(raw_key.lower().startswith(p) for p in ("mock", "sandbox", "test")))
+        self.is_offline = use_fallback or not has_valid
 
         self.client = None
         if not self.is_offline:
@@ -60,38 +56,23 @@ class IntakeAgent:
                 from google import genai
                 self.client = genai.Client(api_key=raw_key)
             except Exception as e:
-                logger.warning(
-                    f"Failed to initialize google.genai.Client: {e}. Defaulting to offline mode."
-                )
+                logger.warning(f"Failed to init google.genai: {e}. Defaulting to offline.")
                 self.is_offline = True
 
     async def extract_claims(
         self,
         intake_input: Union[str, MultimodalIntakeInput],
     ) -> ClaimExtractionOutput:
-        """
-        Main entry point: extracts clearance claims with rate limiting and schema repair.
-        """
-        if isinstance(intake_input, MultimodalIntakeInput):
-            input_obj = intake_input
-        else:
-            input_obj = MultimodalIntakeInput(content=str(intake_input))
-
+        """Main entry point: extracts clearance claims with rate limiting and schema repair."""
+        input_obj = intake_input if isinstance(intake_input, MultimodalIntakeInput) else MultimodalIntakeInput(content=str(intake_input))
         if self.is_offline or self.client is None:
             return self._deterministic_fallback(input_obj)
-
         return await self._extract_via_genai(input_obj)
 
-    async def _execute_generation_attempt(
-        self,
-        prompt: str,
-        config: Any,
-    ) -> str:
+    async def _execute_generation_attempt(self, prompt: str, config: Any) -> str:
         """Helper to invoke client model asynchronously and return response text."""
         response = await self.client.aio.models.generate_content(
-            model=self.model_name,
-            contents=prompt,
-            config=config,
+            model=self.model_name, contents=prompt, config=config,
         )
         return response.text or ""
 
@@ -103,14 +84,31 @@ class IntakeAgent:
         validated.total_claims_count = len(validated.claims)
         return validated
 
+    def _apply_adversarial_and_anomaly_gates(
+        self, claims: List[ExtractedClaim], script_text: str, scene_cue: str
+    ) -> List[ExtractedClaim]:
+        """Applies Layer 2 injection trapping and Layer 3 statistical anomaly gating."""
+        injections = scan_script_for_injections(script_text)
+        reconciled = reconcile_extracted_claims(claims, injections)
+
+        scenes = len(re.findall(r"^(?:INT|EXT|INT/EXT|EXT/INT)[\.\s]", script_text, re.MULTILINE | re.IGNORECASE))
+        words = len(script_text.split())
+        ip_claims = [c for c in reconciled if c.category != ClaimCategory.OTHER]
+        if not ip_claims and (scenes >= 5 or words >= 500):
+            reconciled = reconcile_anomalies_into_claims(
+                reconciled, scene_count=scenes, word_count=words, scene_ref=scene_cue or "Script Intake",
+            )
+        return reconciled
+
     async def _extract_via_genai(
         self,
         input_obj: MultimodalIntakeInput,
     ) -> ClaimExtractionOutput:
-        """Executes live structured extraction via google.genai with repair retries."""
+        """Executes live extraction with structural parameter separation and anomaly gating."""
         from google.genai import types
 
-        base_prompt = build_intake_extraction_prompt(input_obj.content, input_obj.scene_cue)
+        sanitized = wrap_untrusted_payload(input_obj.content)
+        base_prompt = build_intake_extraction_prompt(sanitized.wrapped_payload, input_obj.scene_cue)
         est_tokens = self.rate_limiter.estimate_tokens(base_prompt)
         await self.rate_limiter.acquire(estimated_tokens=est_tokens)
 
@@ -125,20 +123,18 @@ class IntakeAgent:
         raw_text = ""
         for attempt in range(self.max_repair_retries + 1):
             try:
-                cur_prompt = (
-                    base_prompt
-                    if attempt == 0
-                    else build_schema_repair_retry_prompt(raw_text, last_error)
-                )
+                cur_prompt = base_prompt if attempt == 0 else build_schema_repair_retry_prompt(raw_text, last_error)
                 raw_text = await self._execute_generation_attempt(cur_prompt, config)
-                return self._parse_and_validate_attempt(raw_text)
+                parsed = self._parse_and_validate_attempt(raw_text)
+                gated = self._apply_adversarial_and_anomaly_gates(parsed.claims, input_obj.content, input_obj.scene_cue or "SCENE 1")
+                parsed.claims = gated
+                parsed.total_claims_count = len(gated)
+                return parsed
             except Exception as e:
                 last_error = str(e)
-                logger.warning(
-                    f"Intake extraction schema validation error on attempt {attempt}: {e}"
-                )
+                logger.warning(f"Intake extraction schema error on attempt {attempt}: {e}")
 
-        logger.error("Schema repair retries exhausted; switching to deterministic fallback.")
+        logger.error("Schema repair retries exhausted; switching to fallback.")
         return self._deterministic_fallback(input_obj)
 
     def _match_patterns(self, text: str, scene: str) -> List[ExtractedClaim]:
@@ -163,20 +159,13 @@ class IntakeAgent:
             match = re.search(pattern, text)
             if match:
                 val = match.group(0)
-                start_pos = max(0, match.start() - 30)
-                end_pos = min(len(text), match.end() + 30)
-                desc = desc_template if "Clair de Lune" in desc_template or "Apollo" in desc_template or "Coca-Cola" in desc_template else f"Reference to {val}"[:80]
-                claims.append(
-                    ExtractedClaim(
-                        claim_id=f"clm_{cat.value}_{idx:03d}",
-                        category=cat,
-                        scene_or_timecode=scene,
-                        extracted_description=desc,
-                        context_snippet=text[start_pos:end_pos].strip(),
-                        confidence=0.9,
-                        needs_clarification=False,
-                    )
-                )
+                start_pos, end_pos = max(0, match.start() - 30), min(len(text), match.end() + 30)
+                desc = desc_template if any(k in desc_template for k in ("Clair de Lune", "Apollo", "Coca-Cola")) else f"Reference to {val}"[:80]
+                claims.append(ExtractedClaim(
+                    claim_id=f"clm_{cat.value}_{idx:03d}", category=cat, scene_or_timecode=scene,
+                    extracted_description=desc, context_snippet=text[start_pos:end_pos].strip(),
+                    confidence=0.9, needs_clarification=False,
+                ))
                 idx += 1
         return claims
 
@@ -184,41 +173,28 @@ class IntakeAgent:
         self,
         input_obj: MultimodalIntakeInput,
     ) -> ClaimExtractionOutput:
-        """Deterministic offline fallback for CI/CD and offline tests."""
+        """Deterministic offline fallback with adversarial trapping and anomaly gating."""
         text = input_obj.content
-        scene_match = re.search(
-            r"^(?:INT|EXT|INT/EXT|EXT/INT)[\.\s][^\n]+",
-            text,
-            re.MULTILINE | re.IGNORECASE,
-        )
+        scene_match = re.search(r"^(?:INT|EXT|INT/EXT|EXT/INT)[\.\s][^\n]+", text, re.MULTILINE | re.IGNORECASE)
         scene = input_obj.scene_cue or (scene_match.group(0).strip() if scene_match else "SCENE 1")
-        claims = self._match_patterns(text, scene)
+        matched_claims = self._match_patterns(text, scene)
+        gated = self._apply_adversarial_and_anomaly_gates(matched_claims, text, scene)
 
-        if not claims and text.strip():
-            claims.append(
-                ExtractedClaim(
-                    claim_id="clm_other_001",
-                    category=ClaimCategory.OTHER,
-                    scene_or_timecode=scene,
-                    extracted_description="General scene action description",
-                    context_snippet=text[:100].strip(),
-                    confidence=0.75,
-                )
-            )
+        if not gated and text.strip():
+            gated.append(ExtractedClaim(
+                claim_id="clm_other_001", category=ClaimCategory.OTHER, scene_or_timecode=scene,
+                extracted_description="General scene action description", context_snippet=text[:100].strip(),
+                confidence=0.75,
+            ))
 
         return ClaimExtractionOutput(
-            claims=claims,
-            document_id=scene,
-            extraction_model="offline_deterministic_fallback",
-            total_claims_count=len(claims),
+            claims=gated, document_id=scene, extraction_model="offline_deterministic_fallback",
+            total_claims_count=len(gated),
         )
 
     def as_adk_tool(self) -> Any:
         """Exposes this agent as a Google ADK FunctionTool for adk_pipeline.py."""
         from google.adk.tools import FunctionTool
-
-        return FunctionTool(
-            func=lambda script_text, scene=None: self.extract_claims(
-                MultimodalIntakeInput(content=script_text, scene_cue=scene)
-            )
-        )
+        return FunctionTool(func=lambda script_text, scene=None: self.extract_claims(
+            MultimodalIntakeInput(content=script_text, scene_cue=scene)
+        ))

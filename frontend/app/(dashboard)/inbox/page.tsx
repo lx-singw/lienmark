@@ -24,11 +24,16 @@ interface RawInboxItem {
   readonly severity?: string;
   readonly stable_lineage_key?: string;
   readonly created_at?: string;
+  readonly flagged_reason?: string;
   readonly metadata?: {
     readonly scene?: string;
     readonly timecode?: string;
     readonly options?: ReadonlyArray<string>;
     readonly requested_amount?: string;
+    readonly flagged_reason?: string;
+    readonly raw_snippet?: string;
+    readonly matched_rules?: ReadonlyArray<string>;
+    readonly confidence_score?: number;
   };
 }
 
@@ -49,6 +54,16 @@ function mapRawItem(raw: RawInboxItem): TriageItem {
       ? 'medium'
       : 'low';
 
+  const flaggedReason = raw.flagged_reason || raw.metadata?.flagged_reason;
+  const anomalyPayload = raw.metadata?.raw_snippet
+    ? {
+        rawSnippet: raw.metadata.raw_snippet,
+        matchedRules: raw.metadata.matched_rules,
+        confidenceScore: raw.metadata.confidence_score,
+        sceneRef: raw.metadata.scene || raw.metadata.timecode,
+      }
+    : undefined;
+
   return {
     id: raw.inbox_id || raw.id || 'inb_item',
     type,
@@ -61,6 +76,8 @@ function mapRawItem(raw: RawInboxItem): TriageItem {
     sceneOrTimecode: raw.metadata?.scene || raw.metadata?.timecode,
     options: raw.metadata?.options,
     requestedAmount: raw.metadata?.requested_amount,
+    flaggedReason,
+    anomalyPayload,
   };
 }
 

@@ -1,7 +1,9 @@
 /**
  * Inbox Triage Types
- * Authored strictly under Google AntiGravity: zero any, typed models.
+ * Authored strictly under Google AntiGravity: files <= 250 lines, functions <= 40 lines, zero any.
  */
+
+import { SecurityFlag, AnomalyPayload } from '@/components/security';
 
 export type TriageType = 'claim' | 'clarification' | 'budget';
 export type TriageSeverity = 'blocker' | 'high' | 'medium' | 'low';
@@ -21,4 +23,7 @@ export interface TriageItem {
   readonly requestedAmount?: string;
   readonly lineageKey?: string;
   readonly createdAt: string;
+  readonly flaggedReason?: string;
+  readonly securityFlag?: SecurityFlag;
+  readonly anomalyPayload?: AnomalyPayload;
 }

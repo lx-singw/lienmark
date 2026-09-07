@@ -1,8 +1,8 @@
 """
 sanitizer.py
 
-Input sanitization, Trojan Source Unicode Bidi stripping, and XML boundary
-encapsulation for untrusted screenplay documents in the Intake pipeline.
+Input sanitization, multi-encoding normalization, expanded Trojan Source Unicode
+Bidi stripping, and delimiter breakout tag escaping for untrusted screenplay documents.
 Strictly authored under Google AntiGravity for Agentic Cinema compliance.
 """
 
@@ -10,17 +10,26 @@ from __future__ import annotations
 
 import re
 import secrets
+import unicodedata
 from typing import Tuple
 from pydantic import BaseModel, Field
 
-# Matches Unicode bidirectional override & embedding control characters (Trojan Source)
-# as well as zero-width non-rendering characters often used to conceal injection keywords.
+# Matches expanded Unicode bidirectional override & embedding control characters,
+# directional isolates, zero-width joiners, invisible operators, and interlinear annotations.
 BIDI_AND_STEGANO_PATTERN = re.compile(
-    r"[\u200B-\u200D\uFEFF\u202A-\u202E\u2066-\u2069\u200E\u200F\u061C]"
+    r"[\u200B-\u200F\uFEFF\u202A-\u202E\u2060-\u2069\u061C\uFFF9-\uFFFB]"
 )
 
 # Unprintable ASCII control characters (excluding newline \n, carriage return \r, tab \t)
 CONTROL_CHARS_PATTERN = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]")
+
+# Common delimiter breakout patterns targeted by prompt injection exploits
+BREAKOUT_DELIMITERS = [
+    re.compile(r"</?system[^>]*>", re.IGNORECASE),
+    re.compile(r"</?user[^>]*>", re.IGNORECASE),
+    re.compile(r"</?assistant[^>]*>", re.IGNORECASE),
+    re.compile(r"\[/?INST\]", re.IGNORECASE),
+]
 
 
 class SanitizedPayload(BaseModel):
@@ -38,13 +47,21 @@ class SanitizedPayload(BaseModel):
     )
 
 
+def normalize_encoding(text: str) -> str:
+    """Normalizes Unicode text via NFKC decomposition to neutralize homoglyphs."""
+    if not text:
+        return ""
+    return unicodedata.normalize("NFKC", text)
+
+
 def strip_bidi_and_control_chars(text: str) -> Tuple[str, int]:
     """
-    Strips Unicode bidirectional override characters, zero-width spaces,
-    and non-standard ASCII control characters that could conceal prompt injections.
+    Normalizes multi-encoding representation, then strips Unicode bidirectional
+    override characters, zero-width spaces, and unprintable ASCII control codes.
     """
-    initial_len = len(text)
-    cleaned = BIDI_AND_STEGANO_PATTERN.sub("", text)
+    normalized = normalize_encoding(text)
+    initial_len = len(normalized)
+    cleaned = BIDI_AND_STEGANO_PATTERN.sub("", normalized)
     cleaned = CONTROL_CHARS_PATTERN.sub("", cleaned)
     stripped = initial_len - len(cleaned)
     return cleaned, stripped
@@ -52,13 +69,19 @@ def strip_bidi_and_control_chars(text: str) -> Tuple[str, int]:
 
 def escape_xml_fences(text: str, tag: str = "untrusted_script_payload") -> str:
     """
-    Escapes all opening and closing XML tags matching the containment boundary
-    to prevent delimiter injection or premature fence escaping.
+    Escapes opening and closing containment boundary tags and common
+    delimiter breakout patterns to prevent boundary escaping.
     """
     closing_regex = re.compile(rf"</\s*{re.escape(tag)}\s*>", re.IGNORECASE)
     opening_regex = re.compile(rf"<\s*{re.escape(tag)}[^>]*>", re.IGNORECASE)
     escaped = closing_regex.sub(f"&lt;/{tag}&gt;", text)
-    return opening_regex.sub(f"&lt;{tag}&gt;", escaped)
+    escaped = opening_regex.sub(f"&lt;{tag}&gt;", escaped)
+    for pattern in BREAKOUT_DELIMITERS:
+        escaped = pattern.sub(
+            lambda m: m.group(0).replace("<", "&lt;").replace(">", "&gt;"),
+            escaped,
+        )
+    return escaped
 
 
 def wrap_untrusted_payload(
