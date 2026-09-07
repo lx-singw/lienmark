@@ -22,9 +22,7 @@ description: Produce and gate a pre-flight architecture plan before any code is 
     architecture, an unfamiliar part of the codebase, security/concurrency/data-
     migration stakes) — stop here and run `/deep_analysis` first, then return to
     step 3 with its output. Routine, well-understood tasks skip this.
-8. Stop. Output exactly: "Please review the architecture plan above. Reply with
-   'APPROVED' to execute or specify changes."
-9. Do not call any file-writing tool until the user's next message contains explicit
-   approval.
+8. **User Approval Gate (Primary / Parent Agent Only)**: When operating as the primary agent interacting directly with the user, stop. Output exactly: "Please review the architecture plan above. Reply with 'APPROVED' to execute or specify changes." Do not call any file-writing tool until the user's next message contains explicit approval.
+9. **Subagent Autonomous Execution Exemption**: Subagents dispatched by a parent agent do NOT halt for user approval and must NEVER send unexecuted plans back to the parent. Once dispatched, subagents formulate their plan and **execute it immediately** (make edits, run tests, verify). Subagents report back only completed execution results, diff stats, and test logs.
 10. If, during implementation, a file outside this plan turns out to be necessary,
-    stop, show only the delta to steps 3–4, and repeat step 8 before continuing.
+    stop, show only the delta to steps 3–4, and re-confirm before continuing (primary agent re-requests user approval; subagent checks within its parent-assigned scope).

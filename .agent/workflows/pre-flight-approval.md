@@ -14,6 +14,12 @@ If, mid-implementation, you discover you need to touch a file that was not in th
 approved file tree: **stop immediately**, show only the delta (new file tree entries +
 updated flow), and re-request approval before continuing. Do not quietly expand scope.
 
+## Subagent Autonomous Execution Rule (Parent-Gated, Worker-Executed)
+- **Inherited Approval**: When a parent agent spawns or dispatches a subagent to carry out an implementation or refactoring task, the subagent **inherits execution approval** from the parent agent.
+- **Plan and Execute Immediately**: Subagents MUST create their internal plan and **immediately execute it** (write files, modify code, run tests) without stopping to ask the parent or user for approval, and without returning unexecuted plans.
+- **Do Not Send Plans Back to Parent**: Subagents must NEVER send raw implementation plans or unexecuted code back to the parent agent. Subagents report back only after execution is complete, providing concise diff metrics, verification logs, and status.
+- **Scope Boundary**: Subagents remain strictly bounded to the files and components explicitly assigned to them by the parent agent.
+
 Exception: trivial, single-file, clearly-scoped requests (e.g. "fix this typo," "add a
 console.log here") do not need the full checklist — use judgment, but when in doubt,
 show the plan.

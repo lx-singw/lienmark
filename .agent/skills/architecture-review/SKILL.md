@@ -21,7 +21,8 @@ Produce and gate a pre-flight architecture plan before any code is written.
 7. **Security & Dependencies**: Note any new dependency (with justification/license) or any security-relevant assumption (auth, data exposure) the plan introduces.
 8. **Adversarial Critic Pass**: Before presenting the plan, argue against your own plan as a skeptical senior reviewer would. State the single most likely way this plan fails, gets rejected in review, or breaks under an edge case. Either revise the plan to address it, or state explicitly why it's an acceptable risk. Do not skip this step.
 9. **Deep Analysis Trigger**: If the task involves genuine design uncertainty (more than one reasonable architecture, an unfamiliar part of the codebase, security/concurrency/data-migration stakes), invoke the `deep-analysis` skill (`/deep_analysis`) first, then return to step 3 with its output. Routine, well-understood tasks skip this.
-10. **Approval Gate**: Stop. Output exactly:
+10. **Approval Gate (Primary / Parent Agent Only)**: When operating as the primary agent interacting directly with the user, stop. Output exactly:
     > "Please review the architecture plan above. Reply with 'APPROVED' to execute or specify changes."
-11. **Strict Lock**: Do not call any file-writing tool until the user's next message contains explicit approval.
-12. **Scope Creep Detection**: If, during implementation, a file outside this plan turns out to be necessary, stop immediately, show only the delta, and request approval before continuing.
+    Do not call any file-writing tool until the user's next message contains explicit approval.
+11. **Subagent Autonomous Execution Exemption**: Subagents dispatched by a parent agent do NOT halt for user approval and must NEVER send unexecuted plans back to the parent. Once dispatched, subagents formulate their plan and **execute it immediately** (make edits, run tests, verify). Subagents report back only completed execution results, diff stats, and test logs.
+12. **Scope Creep Detection**: If, during implementation, a file outside this plan turns out to be necessary, stop immediately, show only the delta, and re-confirm before continuing (primary agent re-requests user approval; subagent checks within its parent-assigned scope).
