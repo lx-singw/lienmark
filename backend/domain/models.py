@@ -674,6 +674,7 @@ class AtomicRightsClaim(BaseModel):
     evidence_availability: EvidenceAvailability = Field(default=EvidenceAvailability.AVAILABLE)
     archived_recommendations: List[Dict[str, Any]] = Field(default_factory=list, description="Archived prior findings / recommendations")
     counsel_directive: Optional[str] = Field(None, description="Active counsel directive or investigation constraint")
+    attempt_number: int = Field(default=1, description="Current investigation attempt number")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Arbitrary claim metadata")
 
 

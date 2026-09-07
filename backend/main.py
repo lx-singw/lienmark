@@ -87,6 +87,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from backend.storage.firestore_client import StaleRunCommitError
 from backend.api.webhooks.storage import storage_webhook_router
 from backend.api.routes.clarifications import clarification_router
+from backend.api.routes.decisions import decision_router
 
 # Initialize structured correlation and secret redaction logging
 configure_security_logging()
@@ -202,9 +203,10 @@ app.add_middleware(TenantContextMiddleware)
 app.add_middleware(CorrelationLoggingMiddleware)
 app.add_middleware(PayloadSizeLimitMiddleware)
 
-# Mount Webhook & Clarification Routers
+# Mount Webhook, Clarification, & Decision Routers
 app.include_router(storage_webhook_router)
 app.include_router(clarification_router)
+app.include_router(decision_router)
 
 # Global in-memory state for session review
 _latest_run_result: Optional[WorkflowRunResult] = None

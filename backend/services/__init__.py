@@ -188,4 +188,15 @@ from backend.services.document_matcher_scoring import (
     evaluate_dual_key_match,
 )
 from backend.services.document_matcher import DocumentMatcherService
+from backend.services.citation_templates import (
+    CitationCategory,
+    LegalCitationTemplate,
+    CitationSuggestionEngine,
+)
+
+__all__.extend([
+    "CitationCategory",
+    "LegalCitationTemplate",
+    "CitationSuggestionEngine",
+])
 

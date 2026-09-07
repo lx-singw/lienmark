@@ -6,6 +6,24 @@ Sprint 3.1 & 3.2: Parallel Search Integration, Subgoals & Multi-Hop Planning DAG
 Authored strictly under Google AntiGravity architectural guidelines.
 """
 
+from backend.agents.research.directed_research import (
+    DirectedQueryReformulator,
+    DirectedResearchCoordinator,
+)
+from backend.agents.research.directed_research_sanitizer import (
+    DirectiveSanitizer,
+)
+from backend.agents.research.directed_research_types import (
+    DirectedResearchError,
+    DirectedSearchRequest,
+    DirectedSearchResult,
+    DirectedSearchStatus,
+    DirectedSearchTimeoutError,
+    DirectiveConstraint,
+    DirectiveConstraintType,
+    DirectiveSanitizationError,
+    SanitizedDirective,
+)
 from backend.agents.research.discovery_handler import DiscoveryHandler
 from backend.agents.research.discovery_types import (
     DiscoveryHandlerError,
@@ -82,6 +100,17 @@ from backend.agents.research.subgoal_types import (
 __all__ = [
     "AssetClass",
     "CycleDetectedError",
+    "DirectedQueryReformulator",
+    "DirectedResearchCoordinator",
+    "DirectedResearchError",
+    "DirectedSearchRequest",
+    "DirectedSearchResult",
+    "DirectedSearchStatus",
+    "DirectedSearchTimeoutError",
+    "DirectiveConstraint",
+    "DirectiveConstraintType",
+    "DirectiveSanitizer",
+    "DirectiveSanitizationError",
     "DiscoveryHandler",
     "DiscoveryHandlerError",
     "DiscoveryValidationError",
@@ -110,6 +139,7 @@ __all__ = [
     "QueryBuilderError",
     "QueryPlanNode",
     "ReadinessStatus",
+    "SanitizedDirective",
     "SearchQueryRequest",
     "SecondaryIPType",
     "SteeringState",
