@@ -7,6 +7,15 @@ from backend.services.revalidation_planner import (
     MinimalBudgetViolationError,
 )
 
+from backend.services.storage_watcher_types import (
+    FolderScopeResult,
+    IngestionStatus,
+    StorageEvent,
+    WatcherConfig,
+    parse_and_validate_gcs_path,
+)
+from backend.services.storage_watcher import StorageWatcherService
+
 __all__ = [
     "ParallelSearchService",
     "GeminiService",
@@ -21,6 +30,12 @@ __all__ = [
     "CounselCheckpointEngine",
     "CounselCheckpointService",
     "counsel_checkpoint_manager",
+    "FolderScopeResult",
+    "IngestionStatus",
+    "StorageEvent",
+    "WatcherConfig",
+    "parse_and_validate_gcs_path",
+    "StorageWatcherService",
 ]
 
 from backend.core.counsel_checkpoint import (

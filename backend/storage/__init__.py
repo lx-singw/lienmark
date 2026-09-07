@@ -25,6 +25,15 @@ from backend.storage.ledger import (
     LedgerTamperError,
     LedgerIntegrityError,
 )
+from backend.storage.locks import (
+    DistributedLock,
+    DistributedLockRecord,
+    DistributedLockManager,
+    get_distributed_lock_manager,
+    LockAcquisitionError,
+    LockExpiredError,
+    LockReleaseError,
+)
 
 __all__ = [
     "TenantRepository",
@@ -47,4 +56,11 @@ __all__ = [
     "CryptographicLedger",
     "LedgerTamperError",
     "LedgerIntegrityError",
+    "DistributedLock",
+    "DistributedLockRecord",
+    "DistributedLockManager",
+    "get_distributed_lock_manager",
+    "LockAcquisitionError",
+    "LockExpiredError",
+    "LockReleaseError",
 ]
