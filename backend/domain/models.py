@@ -510,6 +510,9 @@ class ClarificationRequest(BaseModel):
     selected_option: Optional[str] = Field(None, description="Selected option chosen by responder")
     resolved_by: Optional[str] = Field(None, description="User ID or actor ID who resolved this request")
     responder_role: Optional[str] = Field(None, description="Authorized role of responder")
+    resolution_channel: Optional[str] = Field(None, description="Channel that resolved request, e.g. folder_arrival_autonomous")
+    candidate_document_ref: Optional[str] = Field(None, description="Detected candidate document reference")
+    match_confidence: Optional[float] = Field(None, description="Confidence score for candidate document match")
 
 
 class CreativeUse(BaseModel):

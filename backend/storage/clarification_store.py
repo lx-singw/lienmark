@@ -7,7 +7,6 @@ Authored strictly under Google AntiGravity: files <= 250 lines, functions <= 40 
 
 from __future__ import annotations
 
-import copy
 import logging
 import threading
 from datetime import datetime, timezone
@@ -29,29 +28,14 @@ def _append_to_ledger_defensively(
     payload: Dict[str, Any],
 ) -> Optional[AuditEvent]:
     """Appends an event to the ledger, initializing genesis if chain is missing."""
+    kwargs = {"tenant_id": tenant_id, "production_id": production_id, "actor_id": actor_id}
     try:
-        return ledger.append_event(
-            tenant_id=tenant_id,
-            production_id=production_id,
-            actor_id=actor_id,
-            action_type=action_type,
-            payload=payload,
-        )
+        return ledger.append_event(**kwargs, action_type=action_type, payload=payload)
     except Exception as initial_exc:
-        logger.debug(f"Initial ledger append failed ({initial_exc}); attempting genesis initialization.")
+        logger.debug(f"Ledger append failed ({initial_exc}); attempting genesis.")
         try:
-            ledger.initialize_production_ledger(
-                tenant_id=tenant_id,
-                production_id=production_id,
-                actor_id=actor_id,
-            )
-            return ledger.append_event(
-                tenant_id=tenant_id,
-                production_id=production_id,
-                actor_id=actor_id,
-                action_type=action_type,
-                payload=payload,
-            )
+            ledger.initialize_production_ledger(**kwargs)
+            return ledger.append_event(**kwargs, action_type=action_type, payload=payload)
         except Exception as retry_exc:
             logger.error(f"Failed to record audit event in ledger: {retry_exc}")
             return None
@@ -126,6 +110,23 @@ class ClarificationStore:
                     results.append(clrf.model_copy(deep=True))
             return sorted(results, key=lambda c: c.created_at)
 
+    def list_open_clarifications(
+        self,
+        tenant_id: str,
+        production_id: Optional[str] = None,
+    ) -> List[ClarificationRequest]:
+        """Lists pending or unresolved clarifications for a tenant and production."""
+        with self._lock:
+            results: List[ClarificationRequest] = []
+            for clrf in self._records.values():
+                if clrf.tenant_id != tenant_id:
+                    continue
+                if production_id and clrf.production_id != production_id:
+                    continue
+                if clrf.status.lower() not in ("resolved", "cancelled", "expired"):
+                    results.append(clrf.model_copy(deep=True))
+            return sorted(results, key=lambda c: c.created_at)
+
     def _apply_resolution(
         self,
         clrf: ClarificationRequest,
@@ -135,6 +136,7 @@ class ClarificationStore:
         resp_text: Optional[str],
         doc_id: Optional[str],
         sel_opt: Optional[str],
+        resolution_channel: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Applies response values to clarification and builds audit payload."""
         clrf.status = "resolved"
@@ -147,6 +149,8 @@ class ClarificationStore:
             clrf.attached_document_ref = doc_id
         if sel_opt is not None:
             clrf.selected_option = sel_opt
+        if resolution_channel is not None:
+            clrf.resolution_channel = resolution_channel
 
         return {
             "action": "CLARIFICATION_RESOLVED",
@@ -159,6 +163,7 @@ class ClarificationStore:
             "responder_role": role,
             "resolved_at": timestamp,
             "actor_id": actor_id,
+            "resolution_channel": resolution_channel,
         }
 
     def resolve_clarification(
@@ -170,6 +175,7 @@ class ClarificationStore:
         response_text: Optional[str] = None,
         attached_document_id: Optional[str] = None,
         selected_option: Optional[str] = None,
+        resolution_channel: Optional[str] = None,
     ) -> Tuple[ClarificationRequest, Optional[AuditEvent]]:
         """Resolves a clarification, marks timestamp/actor, and emits cryptographic audit event."""
         with self._lock:
@@ -181,7 +187,8 @@ class ClarificationStore:
 
             ts = datetime.now(timezone.utc).isoformat()
             payload = self._apply_resolution(
-                clrf, actor_id, responder_role, ts, response_text, attached_document_id, selected_option
+                clrf, actor_id, responder_role, ts, response_text,
+                attached_document_id, selected_option, resolution_channel,
             )
             audit_event = _append_to_ledger_defensively(
                 ledger=self._ledger,
@@ -192,6 +199,25 @@ class ClarificationStore:
                 payload=payload,
             )
             return clrf.model_copy(deep=True), audit_event
+
+    def flag_candidate_document(
+        self,
+        request_id: str,
+        tenant_id: str,
+        candidate_document_ref: str,
+        match_confidence: float,
+    ) -> ClarificationRequest:
+        """Flags clarification as candidate_document_detected requiring human confirmation."""
+        with self._lock:
+            clrf = self._records.get(request_id)
+            if not clrf:
+                raise KeyError(f"Clarification request '{request_id}' not found.")
+            if clrf.tenant_id != tenant_id:
+                raise PermissionError(f"Cross-tenant access forbidden for request '{request_id}'.")
+            clrf.status = "candidate_document_detected"
+            clrf.candidate_document_ref = candidate_document_ref
+            clrf.match_confidence = match_confidence
+            return clrf.model_copy(deep=True)
 
     def clear_store(self) -> None:
         """Clears in-memory records (primarily for test fixture cleanup)."""

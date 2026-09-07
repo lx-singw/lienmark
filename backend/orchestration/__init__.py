@@ -39,6 +39,24 @@ from backend.orchestration.suspension import (
     CheckpointExpiredError,
     InvalidResumeTokenError,
 )
+from backend.orchestration.resumption_types import (
+    ResumptionStatus,
+    NextStageType,
+    ResolutionPayload,
+    ResumedAgentMemory,
+    NextStageDispatch,
+    ResumptionResult,
+    is_claim_active_in_revision,
+    verify_checkpoint_token,
+    verify_checkpoint_ttl,
+    ResumptionError,
+    CheckpointFreshnessError,
+    ClaimSupersededError,
+    UpstreamInvariantViolation,
+)
+from backend.orchestration.resumption import (
+    ResumptionCoordinator,
+)
 
 __all__ = [
     "LienmarkWorkflow",
@@ -66,4 +84,18 @@ __all__ = [
     "InvalidStateTransitionError",
     "CheckpointExpiredError",
     "InvalidResumeTokenError",
+    "ResumptionCoordinator",
+    "ResumptionStatus",
+    "NextStageType",
+    "ResolutionPayload",
+    "ResumedAgentMemory",
+    "NextStageDispatch",
+    "ResumptionResult",
+    "is_claim_active_in_revision",
+    "verify_checkpoint_token",
+    "verify_checkpoint_ttl",
+    "ResumptionError",
+    "CheckpointFreshnessError",
+    "ClaimSupersededError",
+    "UpstreamInvariantViolation",
 ]

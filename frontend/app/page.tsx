@@ -94,9 +94,17 @@ import RevisionDeltaViewer from './components/diff/RevisionDeltaViewer';
 import {
   ClarifyingQuestionModal,
   ClarificationBannerAlert,
+  AgreementArrivalNotification,
+  ResumptionProgressStepper,
+  AgreementViewerModal,
   GOLDEN_CLARIFICATION_REQUESTS,
+  GOLDEN_AGREEMENT_MATCH,
+  GOLDEN_RESUMPTION_SESSION,
+  ClaimResumptionStatus,
   ClarificationRequestUI,
   ClarificationResponsePayload,
+  AgreementMatchPayload,
+  ResumptionSession,
 } from './components/hitl';
 
 export default function ReviewerDashboardPage() {
@@ -165,6 +173,15 @@ export default function ReviewerDashboardPage() {
   );
   const [activeClarificationModalKey, setActiveClarificationModalKey] = useState<string | null>(null);
   const [isClarificationBannerDismissed, setIsClarificationBannerDismissed] = useState<boolean>(false);
+
+  // Sprint 4.2 HITL Resumption & Agreement States
+  const [agreementNotification, setAgreementNotification] = useState<AgreementMatchPayload | null>(
+    GOLDEN_AGREEMENT_MATCH
+  );
+  const [isAgreementNotificationDismissed, setIsAgreementNotificationDismissed] = useState<boolean>(false);
+  const [showResumptionStepper, setShowResumptionStepper] = useState<boolean>(false);
+  const [isAgreementViewerOpen, setIsAgreementViewerOpen] = useState<boolean>(false);
+  const [resumptionSession, setResumptionSession] = useState<ResumptionSession>(GOLDEN_RESUMPTION_SESSION);
 
   const handleOpenClarification = useCallback((claimKey: string) => {
     setActiveClarificationModalKey(claimKey);
@@ -947,6 +964,35 @@ export default function ReviewerDashboardPage() {
         isDismissed={isClarificationBannerDismissed}
       />
 
+      {/* Sprint 4.2 Autonomous Agreement Match Arrival Alert */}
+      {agreementNotification && (
+        <AgreementArrivalNotification
+          agreement={agreementNotification}
+          isDismissed={isAgreementNotificationDismissed}
+          onDismiss={() => setIsAgreementNotificationDismissed(true)}
+          onViewAgreement={() => setIsAgreementViewerOpen(true)}
+          onViewResumption={() => setShowResumptionStepper((prev) => !prev)}
+        />
+      )}
+
+      {/* Sprint 4.2 Live Resumption Progress Stepper */}
+      {showResumptionStepper && (
+        <ResumptionProgressStepper
+          session={resumptionSession}
+          onOpenAgreementViewer={() => setIsAgreementViewerOpen(true)}
+          onSignOff={() => {
+            setClaims((prev) =>
+              prev.map((c) =>
+                c.stable_lineage_key === 'music_cue_midnight_serenade'
+                  ? { ...c, resumption_status: ClaimResumptionStatus.READY_FOR_REVIEW }
+                  : c
+              )
+            );
+            handleOpenInGate('music_cue_midnight_serenade');
+          }}
+        />
+      )}
+
       {/* 1. Modular Header Component (Pitch Beat 2: Version 7 Baseline) */}
       <section id="pitch-beat-2" data-pitch-beat="2" className="scroll-mt-6">
         <DashboardHeader
@@ -1397,6 +1443,32 @@ export default function ReviewerDashboardPage() {
         onClose={handleCloseClarification}
         onSubmit={handleSubmitClarification}
         onEscalate={handleEscalateClarification}
+      />
+
+      {/* 10. Sprint 4.2 HITL Agreement Viewer Modal */}
+      <AgreementViewerModal
+        isOpen={isAgreementViewerOpen}
+        agreement={agreementNotification ?? GOLDEN_AGREEMENT_MATCH}
+        onClose={() => setIsAgreementViewerOpen(false)}
+        onCounselConfirm={(ag) => {
+          setClaims((prev) =>
+            prev.map((c) =>
+              c.stable_lineage_key === ag.claimKey
+                ? {
+                    ...c,
+                    state: DecisionState.RE_ATTESTED,
+                    reason_code: 'AUTONOMOUS_AGREEMENT_VERIFIED_SYNC',
+                    revalidation_action: 're_attest',
+                    resumption_status: ClaimResumptionStatus.READY_FOR_REVIEW,
+                  }
+                : c
+            )
+          );
+          setToast({
+            type: 'success',
+            message: `✓ Unblocked & Re-Attested ${ag.assetCue} via verified ${ag.filename}.`,
+          });
+        }}
       />
     </div>
   );

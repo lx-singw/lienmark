@@ -154,3 +154,38 @@ from backend.core.counsel_checkpoint import (
     counsel_checkpoint_manager,
 )
 
+from backend.services.agreement_verifier_types import (
+    TerritoryScope,
+    MediaScope,
+    TermScope,
+    RightType,
+    VerificationStatus,
+    SignatureParty,
+    ExecutionValidity,
+    GrantScopeAnalysis,
+    VerificationCitation,
+    ProductionRequirements,
+    AgreementDocumentInput,
+    AgreementVerificationResult,
+)
+from backend.services.agreement_verifier import AgreementVerifier
+
+from backend.services.document_matcher_types import (
+    AgreementParties,
+    AgreementType,
+    DocumentArrivalEvent,
+    ExtractedAgreementMetadata,
+    MatchingDecision,
+    MatchResult,
+    MatchScoreBreakdown,
+    parse_agreement_path,
+)
+from backend.services.agreement_parser import AgreementParser, compute_file_hash
+from backend.services.document_matcher_scoring import (
+    compute_parties_similarity,
+    compute_text_similarity,
+    compute_type_similarity,
+    evaluate_dual_key_match,
+)
+from backend.services.document_matcher import DocumentMatcherService
+

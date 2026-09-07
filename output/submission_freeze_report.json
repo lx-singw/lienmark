@@ -1,6 +1,6 @@
 {
   "status": "SUBMISSION_FROZEN",
-  "timestamp": "2026-09-07T10:25:22.819234+00:00",
+  "timestamp": "2026-09-07T10:48:58.372596+00:00",
   "release_candidate": "RC-1",
   "pinned_commit": "e022a4c8042c9552a307357cc138acfdd8552522",
   "pinned_tree": "dd4d3070fed1cb33f988aebf39dcc1ae5a6d0e35",
@@ -20,13 +20,13 @@
   "gates_evaluated": 8,
   "summary": {
     "all_gates_passed": true,
-    "total_execution_seconds": 0.836,
+    "total_execution_seconds": 0.79,
     "open_p0_defects": 0,
     "checklist_status": "27/27_SATISFIED",
     "total_tests_passing": 508,
     "base_rc_commit": "e022a4c8042c9552a307357cc138acfdd8552522",
-    "head_commit": "8e7e1df978009fda9c7fb43c09050ac74f57cd42",
-    "head_tree": "d15d2e4b67d67719fe3681cd47c099bb7938a8e8"
+    "head_commit": "d3693e0c2740e306dd64510eb4f66f51e7e0817c",
+    "head_tree": "9b564c0f5f3ff390b20a517f6a21935ce4e3ba00"
   },
   "gates": [
     {
@@ -53,7 +53,7 @@
       ],
       "total_sections": 13,
       "passed_sections": 13,
-      "duration_seconds": 0.035
+      "duration_seconds": 0.03
     },
     {
       "gate_id": "GATE_2_PARALLEL_TRACK_SELECTION",
@@ -66,7 +66,7 @@
         "ParallelSearchService verified with live endpoint https://api.parallel.ai/v1/search",
         "Parallel research agent client module verified"
       ],
-      "duration_seconds": 0.063
+      "duration_seconds": 0.061
     },
     {
       "gate_id": "GATE_3_TEAM_ROSTER_ELIGIBILITY",
@@ -83,7 +83,7 @@
       "team_lead": "Linda Singwane (lx-singw), Lead Systems Architect",
       "contact_email": "singwane.linda.m@gmail.com",
       "jurisdiction": "South Africa (Eligible)",
-      "duration_seconds": 0.068
+      "duration_seconds": 0.067
     },
     {
       "gate_id": "GATE_4_ENGLISH_AND_SUBTITLES",
@@ -99,7 +99,7 @@
         "Verified 100% professional English written entry in devpost_submission.md"
       ],
       "target_duration_seconds": 165.0,
-      "duration_seconds": 0.098
+      "duration_seconds": 0.113
     },
     {
       "gate_id": "GATE_5_RC_PIN_AND_TREE_INTEGRITY",
@@ -117,10 +117,10 @@
       "policy_version": "E&O-2026.1-DEVPOST",
       "base_rc_commit": "e022a4c8042c9552a307357cc138acfdd8552522",
       "base_rc_tree": "dd4d3070fed1cb33f988aebf39dcc1ae5a6d0e35",
-      "head_commit": "8e7e1df978009fda9c7fb43c09050ac74f57cd42",
-      "head_tree": "d15d2e4b67d67719fe3681cd47c099bb7938a8e8",
+      "head_commit": "d3693e0c2740e306dd64510eb4f66f51e7e0817c",
+      "head_tree": "9b564c0f5f3ff390b20a517f6a21935ce4e3ba00",
       "open_p0_defects": 0,
-      "duration_seconds": 0.465
+      "duration_seconds": 0.419
     },
     {
       "gate_id": "GATE_6_COLD_JUDGE_AUDIT",
@@ -132,7 +132,7 @@
         "Zero cold judge discrepancies confirmed",
         "All 7/7 clean-room gates confirmed passing"
       ],
-      "duration_seconds": 0.012
+      "duration_seconds": 0.01
     },
     {
       "gate_id": "GATE_7_QUALITY_GATE_AND_REHEARSAL",
@@ -169,7 +169,7 @@
           "status": "COLD_JUDGE_PASSED"
         }
       },
-      "duration_seconds": 0.068
+      "duration_seconds": 0.064
     },
     {
       "gate_id": "GATE_8_DEVPOST_CHECKLIST_COMPLIANCE",
@@ -396,7 +396,7 @@
           "evidence": "Statutory Notice verified verbatim; AI model containment strictly enforced"
         }
       ],
-      "duration_seconds": 0.026
+      "duration_seconds": 0.027
     }
   ],
   "checklist": [

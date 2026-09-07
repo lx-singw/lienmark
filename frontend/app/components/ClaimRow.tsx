@@ -25,18 +25,15 @@ import { ProvenancePanel } from './claims/ProvenancePanel';
 import { ShiftExplanationAlert } from './claims/ShiftExplanationAlert';
 import { ConfidentialityBadge } from './intake/ConfidentialityBadge';
 import { validateConfidentiality } from './intake/intake_utils';
-import { ClarificationBadge } from './hitl';
+import { ClarificationBadge, ClaimResumptionStatus } from './hitl';
 import {
   formatCinematicTimecode,
   renderAssetCategoryBadge,
   renderClearanceStatusIndicator,
 } from './claims/claim_formatters';
 
-export {
-  formatCinematicTimecode,
-  renderAssetCategoryBadge,
-  renderClearanceStatusIndicator,
-};
+export { formatCinematicTimecode, renderAssetCategoryBadge, renderClearanceStatusIndicator };
+
 
 export interface ClaimRowProps {
   claim: EvaluatedClaim;
@@ -48,6 +45,7 @@ export interface ClaimRowProps {
   onViewProvenance?: (claimKey: string) => void;
   hasActiveClarification?: boolean;
   onOpenClarification?: (claimKey: string) => void;
+  resumptionStatus?: ClaimResumptionStatus;
 }
 
 export const ClaimRow: React.FC<ClaimRowProps> = ({
@@ -60,6 +58,7 @@ export const ClaimRow: React.FC<ClaimRowProps> = ({
   onViewProvenance,
   hasActiveClarification = false,
   onOpenClarification,
+  resumptionStatus,
 }) => {
   const [showProvenance, setShowProvenance] = useState<boolean>(false);
   const isItem11 = claim.stable_lineage_key === 'poster_noir_detective_magazine' || claim.stable_lineage_key.includes('noir_detective');
@@ -68,6 +67,10 @@ export const ClaimRow: React.FC<ClaimRowProps> = ({
   const canAdjudicate = hasClearanceAuthority(userRole);
   const confidentiality = validateConfidentiality(claim.description);
   const isWaitingForInfo = hasActiveClarification || Boolean(claim.has_active_clarification);
+  const activeResumptionStatus: ClaimResumptionStatus | undefined =
+    resumptionStatus ??
+    (claim.resumption_status as ClaimResumptionStatus | undefined) ??
+    (isWaitingForInfo ? ClaimResumptionStatus.WAITING_FOR_INFO : undefined);
 
   return (
     <tr
@@ -112,8 +115,9 @@ export const ClaimRow: React.FC<ClaimRowProps> = ({
             </span>
             {renderAssetCategoryBadge(claim.asset_type)}
             <ConfidentialityBadge wordCount={confidentiality.wordCount} />
-            {isWaitingForInfo && (
+            {activeResumptionStatus && (
               <ClarificationBadge
+                status={activeResumptionStatus}
                 isInteractive={Boolean(onOpenClarification)}
                 onClick={() => onOpenClarification?.(claim.stable_lineage_key)}
               />
@@ -157,13 +161,20 @@ export const ClaimRow: React.FC<ClaimRowProps> = ({
       </td>
 
       <td className="py-2.5 px-2.5 whitespace-nowrap">
-        {isWaitingForInfo ? (
+        {activeResumptionStatus ? (
           <div className="flex flex-col gap-1">
             <ClarificationBadge
+              status={activeResumptionStatus}
               isInteractive={Boolean(onOpenClarification)}
               onClick={() => onOpenClarification?.(claim.stable_lineage_key)}
             />
-            <span className="text-[10px] font-mono text-amber-400/80">Pending Clarification</span>
+            <span className="text-[10px] font-mono text-slate-400">
+              {activeResumptionStatus === ClaimResumptionStatus.AGREEMENT_MATCHED
+                ? 'Contract Matched'
+                : activeResumptionStatus === ClaimResumptionStatus.READY_FOR_REVIEW
+                ? 'Ready for Review'
+                : 'Pending Clarification'}
+            </span>
           </div>
         ) : (
           renderClearanceStatusIndicator(claim.state)

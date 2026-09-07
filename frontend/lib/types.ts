@@ -518,6 +518,7 @@ export interface EvaluatedClaim {
   revalidation_action: string;
   evidence: ClaimEvidence | null;
   has_active_clarification?: boolean;
+  resumption_status?: 'waiting_for_info' | 'agreement_matched' | 'ready_for_review';
 }
 
 export interface ClearanceBriefing {

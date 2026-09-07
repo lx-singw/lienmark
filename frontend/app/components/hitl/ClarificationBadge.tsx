@@ -1,28 +1,49 @@
 'use client';
 
 /**
- * Lienmark HITL Waiting For Information Badge
- * Pulsing amber status indicator for claims with active human-in-the-loop clarifications.
+ * Lienmark HITL Clearance & Resumption Status Badge
+ * Renders high-visibility studio status badges with animated transitions:
+ * - [WAITING FOR INFO] (pulsing amber)
+ * - [AGREEMENT MATCHED] (glowing emerald)
+ * - [READY FOR REVIEW] (glowing teal/cyan)
  * Authored strictly under Google AntiGravity: Defensive, zero-any TypeScript implementation.
  */
 
 import React from 'react';
-import { HelpCircle } from 'lucide-react';
+import { HelpCircle, FileCheck, ShieldCheck } from 'lucide-react';
+import { ClaimResumptionStatus } from './resumption_types';
+import { getResumptionBadgeTheme } from './resumption_utils';
 
 export interface ClarificationBadgeProps {
+  readonly status?: ClaimResumptionStatus;
   readonly onClick?: () => void;
   readonly isInteractive?: boolean;
   readonly className?: string;
 }
 
+function renderBadgeIcon(iconName: 'help' | 'match' | 'shield'): React.ReactElement {
+  switch (iconName) {
+    case 'match':
+      return <FileCheck className="h-3 w-3 text-emerald-400 flex-shrink-0 animate-pulse" aria-hidden="true" />;
+    case 'shield':
+      return <ShieldCheck className="h-3 w-3 text-teal-300 flex-shrink-0" aria-hidden="true" />;
+    case 'help':
+    default:
+      return <HelpCircle className="h-3 w-3 text-amber-400 flex-shrink-0" aria-hidden="true" />;
+  }
+}
+
 export const ClarificationBadge: React.FC<ClarificationBadgeProps> = ({
+  status = ClaimResumptionStatus.WAITING_FOR_INFO,
   onClick,
   isInteractive = false,
   className = '',
 }) => {
-  const badgeClasses = `inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold font-mono text-amber-200 bg-amber-950/90 border border-amber-500/80 shadow-md animate-pulse ${
+  const theme = getResumptionBadgeTheme(status);
+
+  const badgeClasses = `inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold font-mono border transition-all duration-300 ${theme.badgeClass} ${
     isInteractive
-      ? 'cursor-pointer hover:bg-amber-900 hover:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 transition-colors'
+      ? 'cursor-pointer hover:scale-105 hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-emerald-400'
       : ''
   } ${className}`;
 
@@ -35,11 +56,11 @@ export const ClarificationBadge: React.FC<ClarificationBadgeProps> = ({
           onClick();
         }}
         className={badgeClasses}
-        title="Active HITL Clarification Pending: Click to inspect or submit response"
-        aria-label="Active HITL Clarification: Waiting For Info. Click to open modal."
+        title={`Status: ${theme.label}. Click to inspect details or take action.`}
+        aria-label={`Status: ${theme.label}. Click to inspect.`}
       >
-        <HelpCircle className="h-3 w-3 text-amber-400 flex-shrink-0" aria-hidden="true" />
-        <span>[WAITING FOR INFO]</span>
+        {renderBadgeIcon(theme.iconName)}
+        <span>{theme.label}</span>
       </button>
     );
   }
@@ -47,11 +68,11 @@ export const ClarificationBadge: React.FC<ClarificationBadgeProps> = ({
   return (
     <span
       className={badgeClasses}
-      title="Clearance Gated: Waiting for human-in-the-loop clarification"
-      aria-label="Status: Waiting For Information"
+      title={`Clearance Status: ${theme.label}`}
+      aria-label={`Status: ${theme.label}`}
     >
-      <HelpCircle className="h-3 w-3 text-amber-400 flex-shrink-0" aria-hidden="true" />
-      <span>[WAITING FOR INFO]</span>
+      {renderBadgeIcon(theme.iconName)}
+      <span>{theme.label}</span>
     </span>
   );
 };
