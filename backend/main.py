@@ -89,6 +89,7 @@ from backend.api.webhooks.storage import storage_webhook_router
 from backend.api.routes.clarifications import clarification_router
 from backend.api.routes.decisions import decision_router
 from backend.api.routes import policies
+from backend.storage.ledger import CryptographicLedger
 
 # Initialize structured correlation and secret redaction logging
 configure_security_logging()
@@ -189,6 +190,7 @@ app = FastAPI(
     description="Deterministic clearance drift detection and E&O underwriter change control.",
     version="1.0.0",
 )
+app.state.ledger = CryptographicLedger()
 
 app.add_middleware(
     CORSMiddleware,

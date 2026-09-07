@@ -12,9 +12,12 @@ from backend.core.policy_engine import (
 )
 from backend.core.policy_types import (
     LicensingScope,
+    PolicyActionRequirement,
     PolicyEvaluationResult,
     PolicyViolation,
     ProductionPolicyOverride,
+    RuleEvaluationItem,
+    RuleEvaluationStatus,
     StudioPolicyConfig,
     StudioProfileType,
     TerritoryScope,
@@ -30,5 +33,8 @@ __all__ = [
     "StudioProfileType",
     "LicensingScope",
     "TerritoryScope",
+    "RuleEvaluationStatus",
+    "PolicyActionRequirement",
+    "RuleEvaluationItem",
 ]
 

@@ -32,8 +32,17 @@ from backend.core.policy_types import (
     StudioProfileType,
     TerritoryScope,
 )
+import shutil
 from backend.core.rbac import LienmarkRole
 from backend.storage.ledger import CryptographicLedger
+
+
+@pytest.fixture(autouse=True)
+def clean_policies():
+    """Isolates disk persistence state between test executions."""
+    shutil.rmtree("output/policies", ignore_errors=True)
+    yield
+    shutil.rmtree("output/policies", ignore_errors=True)
 
 
 def test_studio_policy_config_model_validation():
@@ -157,7 +166,8 @@ def test_evaluate_claim_against_policy_territory_variations():
 
 def test_studio_policy_engine_crud_and_caching():
     """Verify StudioPolicyEngine default creation, caching, and custom update."""
-    engine = StudioPolicyEngine()
+    ledger = CryptographicLedger()
+    engine = StudioPolicyEngine(ledger=ledger)
     org_id = "org_lionsgate"
 
     # Default policy created on demand

@@ -20,12 +20,15 @@ client = TestClient(app)
 @pytest.fixture(autouse=True)
 def clean_engine():
     """Ensures a clean state for the policy engine between tests."""
+    import shutil
+    shutil.rmtree("output/policies", ignore_errors=True)
     engine = get_policy_engine()
     engine._studio_policies.clear()
     engine._production_overrides.clear()
     yield
     engine._studio_policies.clear()
     engine._production_overrides.clear()
+    shutil.rmtree("output/policies", ignore_errors=True)
 
 
 def test_get_studio_policy_unconfigured_default():

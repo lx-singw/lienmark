@@ -111,10 +111,19 @@ class StudioPolicyResponse(BaseModel):
 class ProductionOverrideRequest(BaseModel):
     """Payload for submitting production policy overrides signed off by Admin."""
 
-    admin_actor_id: str = Field(..., min_length=1, description="Admin principal user identifier")
-    admin_actor_name: str = Field(..., min_length=1, description="Admin principal display name")
+    admin_actor_id: Optional[str] = Field(
+        default=None,
+        description="Optional caller-supplied actor ID (disregarded in favor of server-side principal)",
+    )
+    admin_actor_name: Optional[str] = Field(
+        default=None,
+        description="Optional caller-supplied actor display name",
+    )
     rationale: str = Field(..., min_length=1, description="Business or legal rationale for policy override")
-    actor_role: str = Field(..., min_length=1, description="Role of principal authorizing the override")
+    actor_role: Optional[str] = Field(
+        default=None,
+        description="Optional caller-supplied actor role (disregarded in favor of server-side role)",
+    )
     overridden_media_scopes: Optional[List[str]] = Field(
         default=None,
         description="Optional scope override for this production",
@@ -157,7 +166,7 @@ class ProductionOverrideResponse(BaseModel):
 
 
 class PolicyEvaluationResponse(BaseModel):
-    """Outcome envelope returning PolicyEvaluationResult for a claim."""
+    """Outcome envelope returning PolicyEvaluationResult for a claim with 4-state alignment."""
 
     result: PolicyEvaluationResult = Field(..., description="Underlying policy evaluation outcome")
     is_compliant: bool = Field(..., description="True if no blocking policy violations exist")
@@ -165,6 +174,26 @@ class PolicyEvaluationResponse(BaseModel):
     effective_policy_id: str = Field(..., description="Identifier of effective policy evaluated against")
     requires_special_waiver: bool = Field(default=False, description="True if an executive or legal waiver is required")
     claim_id: Optional[str] = Field(default=None, description="Evaluated claim identifier")
+    evaluation_state: str = Field(
+        default="compliant",
+        description="Canonical 4-state outcome: 'compliant', 'override_applied', 'waiver_required', 'exception'",
+    )
+    decision_state: str = Field(
+        default="carried_forward",
+        description="Lifecycle alignment state: 'carried_forward', 're_attested', 'stale', 'exception'",
+    )
+    state: str = Field(
+        default="compliant",
+        description="Active 4-state evaluation state alias",
+    )
+    required_actions: List[str] = Field(
+        default_factory=list,
+        description="List of specific legal or operational actions required to clear or resolve claim",
+    )
+    provenance: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Evaluation provenance metadata including tenant, production, policy ID, and timestamp",
+    )
 
     model_config = ConfigDict(extra="ignore")
 
@@ -179,6 +208,10 @@ class PolicyEvaluationResponse(BaseModel):
             data.setdefault("violations", r_dict.get("violations", []))
             data.setdefault("effective_policy_id", r_dict.get("effective_policy_id", ""))
             data.setdefault("requires_special_waiver", r_dict.get("requires_special_waiver", False))
+            if "evaluation_state" in r_dict and "evaluation_state" not in data:
+                data["evaluation_state"] = r_dict["evaluation_state"]
+            if "required_actions" in r_dict and "required_actions" not in data:
+                data["required_actions"] = r_dict["required_actions"]
         return data
 
 

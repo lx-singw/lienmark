@@ -58,6 +58,18 @@ from backend.storage.checkpoint_store import (
     CheckpointStore,
     get_checkpoint_store,
 )
+from backend.storage.policy_store_types import (
+    PolicyChangeDispatchIntent,
+    PolicyConcurrencyError,
+    PolicyStoreError,
+    PolicyStoreMode,
+    PolicyVersionRecord,
+)
+from backend.storage.policy_store_local import LocalPolicyStore
+from backend.storage.policy_store import (
+    PolicyStore,
+    get_policy_store,
+)
 
 __all__ = [
     "TenantRepository",
@@ -105,5 +117,14 @@ __all__ = [
     "LocalCheckpointStore",
     "CheckpointStore",
     "get_checkpoint_store",
+    "PolicyChangeDispatchIntent",
+    "PolicyConcurrencyError",
+    "PolicyStoreError",
+    "PolicyStoreMode",
+    "PolicyVersionRecord",
+    "LocalPolicyStore",
+    "PolicyStore",
+    "get_policy_store",
 ]
+
 

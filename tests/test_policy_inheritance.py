@@ -29,11 +29,19 @@ from backend.core import (
     get_preset_profile_policy,
     resolve_effective_policy,
 )
+import shutil
 from backend.core.rbac import LienmarkRole
 from backend.storage.ledger import CryptographicLedger
 
-
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def clean_policies():
+    """Isolates disk persistence state between test executions."""
+    shutil.rmtree("output/policies", ignore_errors=True)
+    yield
+    shutil.rmtree("output/policies", ignore_errors=True)
 
 
 def test_1_rbac_override_rejection_without_admin_role():
@@ -73,7 +81,8 @@ def test_1_rbac_override_rejection_without_admin_role():
 
 def test_2_multi_tier_cascade_across_five_child_productions():
     """Test 2: Studio org default automatically cascades across 5 distinct child productions."""
-    engine = StudioPolicyEngine()
+    ledger = CryptographicLedger()
+    engine = StudioPolicyEngine(ledger=ledger)
     org_id = "org_paramount_pictures"
     prods = [f"prod-{i}" for i in range(1, 6)]
 
