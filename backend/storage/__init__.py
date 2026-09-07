@@ -34,6 +34,14 @@ from backend.storage.locks import (
     LockExpiredError,
     LockReleaseError,
 )
+from backend.storage.document_store_types import (
+    CrossTenantAccessViolation,
+    DeduplicationError,
+    DedupLookupResult,
+    DocumentNotFoundError,
+    IngestedDocumentRecord,
+)
+from backend.storage.document_store import DocumentStore
 
 __all__ = [
     "TenantRepository",
@@ -63,4 +71,11 @@ __all__ = [
     "LockAcquisitionError",
     "LockExpiredError",
     "LockReleaseError",
+    "CrossTenantAccessViolation",
+    "DeduplicationError",
+    "DedupLookupResult",
+    "DocumentNotFoundError",
+    "IngestedDocumentRecord",
+    "DocumentStore",
 ]
+
