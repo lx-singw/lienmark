@@ -50,8 +50,26 @@ from backend.services.evidence_archiver_types import (
 )
 from backend.services.snapshot_store import SnapshotStore
 from backend.services.evidence_archiver import EvidenceArchiver
+from backend.services.notifier_types import (
+    NotificationEventType,
+    DeliveryStatus,
+    NotificationDeliveryRecord,
+    NotificationDispatchResult,
+)
+from backend.services.notifier import (
+    ClarificationNotifier,
+    get_notifier,
+    set_notifier,
+)
 
 __all__ = [
+    "ClarificationNotifier",
+    "get_notifier",
+    "set_notifier",
+    "NotificationEventType",
+    "DeliveryStatus",
+    "NotificationDeliveryRecord",
+    "NotificationDispatchResult",
     "ParallelSearchService",
     "GeminiService",
     "DeltaAnalysisResult",

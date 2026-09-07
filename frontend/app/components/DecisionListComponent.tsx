@@ -10,6 +10,7 @@ import React from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { DecisionState, EvaluatedClaim, UserRole } from '@/lib/types';
 import ClaimsTable from './ClaimsTable';
+import { ClarificationRequestUI } from './hitl';
 
 export interface DecisionListComponentProps {
   claims: ReadonlyArray<EvaluatedClaim>;
@@ -17,6 +18,9 @@ export interface DecisionListComponentProps {
   onSelectClaim: (claimKey: string) => void;
   onOpenInGate?: (claimKey: string) => void;
   userRole?: UserRole;
+  activeClarifications?: ReadonlyArray<ClarificationRequestUI>;
+  activeClarificationKeys?: ReadonlyArray<string>;
+  onOpenClarification?: (claimKey: string) => void;
 }
 
 export const DecisionListComponent: React.FC<DecisionListComponentProps> = ({
@@ -25,6 +29,9 @@ export const DecisionListComponent: React.FC<DecisionListComponentProps> = ({
   onSelectClaim,
   onOpenInGate,
   userRole = UserRole.REVIEWER,
+  activeClarifications,
+  activeClarificationKeys,
+  onOpenClarification,
 }) => {
   const carriedCount = claims.filter((c) => c.state === DecisionState.CARRIED_FORWARD).length;
 
@@ -63,6 +70,9 @@ export const DecisionListComponent: React.FC<DecisionListComponentProps> = ({
         onSelectClaim={onSelectClaim}
         onOpenInGate={onOpenInGate}
         userRole={userRole}
+        activeClarifications={activeClarifications}
+        activeClarificationKeys={activeClarificationKeys}
+        onOpenClarification={onOpenClarification}
       />
     </div>
   );

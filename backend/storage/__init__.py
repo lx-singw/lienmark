@@ -42,6 +42,22 @@ from backend.storage.document_store_types import (
     IngestedDocumentRecord,
 )
 from backend.storage.document_store import DocumentStore
+from backend.storage.checkpoint_types import (
+    AgentStateVector,
+    CheckpointExpiredError,
+    CheckpointMetadata,
+    CheckpointNotFoundError,
+    CheckpointStorageError,
+    CorruptedResumeTokenError,
+    CrossTenantCheckpointViolation,
+    ExecutionCheckpoint,
+    InvalidCheckpointStateError,
+)
+from backend.storage.checkpoint_store_local import LocalCheckpointStore
+from backend.storage.checkpoint_store import (
+    CheckpointStore,
+    get_checkpoint_store,
+)
 
 __all__ = [
     "TenantRepository",
@@ -77,5 +93,17 @@ __all__ = [
     "DocumentNotFoundError",
     "IngestedDocumentRecord",
     "DocumentStore",
+    "AgentStateVector",
+    "CheckpointExpiredError",
+    "CheckpointMetadata",
+    "CheckpointNotFoundError",
+    "CheckpointStorageError",
+    "CorruptedResumeTokenError",
+    "CrossTenantCheckpointViolation",
+    "ExecutionCheckpoint",
+    "InvalidCheckpointStateError",
+    "LocalCheckpointStore",
+    "CheckpointStore",
+    "get_checkpoint_store",
 ]
 

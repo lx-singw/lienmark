@@ -91,6 +91,13 @@ import AuditTrailDrawer from './components/AuditTrailDrawer';
 import ActiveClearanceBlockers from './components/ActiveClearanceBlockers';
 import ClearanceLifecycleGuide from './components/ClearanceLifecycleGuide';
 import RevisionDeltaViewer from './components/diff/RevisionDeltaViewer';
+import {
+  ClarifyingQuestionModal,
+  ClarificationBannerAlert,
+  GOLDEN_CLARIFICATION_REQUESTS,
+  ClarificationRequestUI,
+  ClarificationResponsePayload,
+} from './components/hitl';
 
 export default function ReviewerDashboardPage() {
   const [isPending, startTransition] = useTransition();
@@ -151,6 +158,43 @@ export default function ReviewerDashboardPage() {
   // Director's HUD & Studio Audio states
   const [currentBeat, setCurrentBeat] = useState<number>(1);
   const [soundMuted, setSoundMutedState] = useState<boolean>(false);
+
+  // HITL Clarification state
+  const [clarificationRequests, setClarificationRequests] = useState<ClarificationRequestUI[]>(
+    () => [...GOLDEN_CLARIFICATION_REQUESTS]
+  );
+  const [activeClarificationModalKey, setActiveClarificationModalKey] = useState<string | null>(null);
+  const [isClarificationBannerDismissed, setIsClarificationBannerDismissed] = useState<boolean>(false);
+
+  const handleOpenClarification = useCallback((claimKey: string) => {
+    setActiveClarificationModalKey(claimKey);
+  }, []);
+
+  const handleCloseClarification = useCallback(() => {
+    setActiveClarificationModalKey(null);
+  }, []);
+
+  const handleSubmitClarification = useCallback((payload: ClarificationResponsePayload) => {
+    setClarificationRequests((prev) =>
+      prev.filter((r) => r.claimKey !== payload.claimKey)
+    );
+    setActiveClarificationModalKey(null);
+    setToast({
+      type: 'success',
+      message: `✓ Clarification submitted for ${payload.claimKey.replace(/_/g, ' ')}. Clearance matrix updated.`,
+    });
+  }, []);
+
+  const handleEscalateClarification = useCallback((payload: ClarificationResponsePayload) => {
+    setClarificationRequests((prev) =>
+      prev.filter((r) => r.claimKey !== payload.claimKey)
+    );
+    setActiveClarificationModalKey(null);
+    setToast({
+      type: 'info',
+      message: `Escalated ${payload.claimKey.replace(/_/g, ' ')} directly to supervising legal counsel.`,
+    });
+  }, []);
 
   // Hydrate sound mute state from localStorage safely in browser
   useEffect(() => {
@@ -895,6 +939,14 @@ export default function ReviewerDashboardPage() {
         onSelectBeat={handleSelectBeat}
       />
 
+      {/* HITL Clarification Blocker Banner Alert across top of production dashboard */}
+      <ClarificationBannerAlert
+        pendingRequests={clarificationRequests}
+        onOpenClarification={handleOpenClarification}
+        onDismiss={() => setIsClarificationBannerDismissed(true)}
+        isDismissed={isClarificationBannerDismissed}
+      />
+
       {/* 1. Modular Header Component (Pitch Beat 2: Version 7 Baseline) */}
       <section id="pitch-beat-2" data-pitch-beat="2" className="scroll-mt-6">
         <DashboardHeader
@@ -1175,6 +1227,8 @@ export default function ReviewerDashboardPage() {
                       setSelectedClaimKey(key);
                     }}
                     userRole={userRole}
+                    activeClarifications={clarificationRequests}
+                    onOpenClarification={handleOpenClarification}
                   />
                 </div>
               </div>
@@ -1248,6 +1302,8 @@ export default function ReviewerDashboardPage() {
               onSelectClaim={(key) => setSelectedClaimKey(key)}
               onOpenInGate={handleOpenInGate}
               userRole={userRole}
+              activeClarifications={clarificationRequests}
+              onOpenClarification={handleOpenClarification}
             />
 
             {/* Clearance Workflow Engine Traces */}
@@ -1328,6 +1384,19 @@ export default function ReviewerDashboardPage() {
         isOpen={isAuditDrawerOpen}
         onClose={() => setIsAuditDrawerOpen(false)}
         auditTrail={auditTrail}
+      />
+
+      {/* 9. HITL Clarifying Question Modal */}
+      <ClarifyingQuestionModal
+        isOpen={Boolean(activeClarificationModalKey)}
+        request={
+          clarificationRequests.find((r) => r.claimKey === activeClarificationModalKey) ??
+          GOLDEN_CLARIFICATION_REQUESTS.find((r) => r.claimKey === activeClarificationModalKey) ??
+          null
+        }
+        onClose={handleCloseClarification}
+        onSubmit={handleSubmitClarification}
+        onEscalate={handleEscalateClarification}
       />
     </div>
   );

@@ -5,6 +5,7 @@
  * Hollywood Studio Legal Ops UI/UX Overhaul - Component 4
  * Renders an individual rights-bearing claim with formatted scene timecode (e.g. SC 42 (00:41:12)),
  * asset category badges, confidentiality badges, and instant selection for the adjacent 4D Inspector.
+ * Integrated with HITL Waiting For Info clarification badge.
  * Authored strictly under Google AntiGravity: Defensive, zero-any TypeScript implementation.
  */
 
@@ -12,26 +13,30 @@ import React, { useState } from 'react';
 import {
   Clock,
   Eye,
-  Film,
-  Music,
-  Palette,
-  Box,
-  Tag,
-  User,
-  MapPin,
-  FileText,
   Zap,
   Link as LinkIcon,
   Lock,
   ChevronDown,
   ChevronUp,
+  HelpCircle,
 } from 'lucide-react';
 import { DecisionState, EvaluatedClaim, UserRole, hasClearanceAuthority } from '@/lib/types';
 import { ProvenancePanel } from './claims/ProvenancePanel';
 import { ShiftExplanationAlert } from './claims/ShiftExplanationAlert';
-import { ClearanceStatusBadge } from './claims/ClearanceStatusBadge';
 import { ConfidentialityBadge } from './intake/ConfidentialityBadge';
-import { validateConfidentiality, getClaimCategoryStyle } from './intake/intake_utils';
+import { validateConfidentiality } from './intake/intake_utils';
+import { ClarificationBadge } from './hitl';
+import {
+  formatCinematicTimecode,
+  renderAssetCategoryBadge,
+  renderClearanceStatusIndicator,
+} from './claims/claim_formatters';
+
+export {
+  formatCinematicTimecode,
+  renderAssetCategoryBadge,
+  renderClearanceStatusIndicator,
+};
 
 export interface ClaimRowProps {
   claim: EvaluatedClaim;
@@ -41,60 +46,8 @@ export interface ClaimRowProps {
   onOpenInGate?: (claimKey: string) => void;
   userRole?: UserRole;
   onViewProvenance?: (claimKey: string) => void;
-}
-
-export function formatCinematicTimecode(scene: string = '', key: string = '', index: number = 0): string {
-  const safeKey = key || '';
-  const safeScene = scene || '';
-
-  if (safeKey === 'poster_noir_detective_magazine' || safeKey.includes('noir_detective') || safeKey === 'claim_11') {
-    return 'SC 42 (00:41:12)';
-  }
-  if (safeKey === 'music_cue_midnight_serenade' || safeKey.includes('midnight_serenade') || safeKey === 'claim_12') {
-    return 'SC 18 (00:19:40)';
-  }
-
-  const timecodeMatch = safeScene.match(/(\d{2}:\d{2}(?::\d{2})?)/);
-  const sceneMatch = safeScene.match(/Scene\s*(\d+)/i) || safeScene.match(/SC\s*(\d+)/i);
-  const sceneNum = sceneMatch ? sceneMatch[1].padStart(2, '0') : String(index + 1).padStart(2, '0');
-
-  if (timecodeMatch) {
-    return `SC ${sceneNum} (${timecodeMatch[1]})`;
-  }
-
-  const minutes = String((parseInt(sceneNum, 10) * 2) % 60).padStart(2, '0');
-  const seconds = String((parseInt(sceneNum, 10) * 7 + 12) % 60).padStart(2, '0');
-  return `SC ${sceneNum} (00:${minutes}:${seconds})`;
-}
-
-function renderCategoryIcon(iconName: string) {
-  switch (iconName) {
-    case 'Palette': return <Palette className="h-3 w-3 text-purple-400" aria-hidden="true" />;
-    case 'Music': return <Music className="h-3 w-3 text-indigo-400" aria-hidden="true" />;
-    case 'Box': return <Box className="h-3 w-3 text-amber-400" aria-hidden="true" />;
-    case 'Tag': return <Tag className="h-3 w-3 text-cyan-400" aria-hidden="true" />;
-    case 'User': return <User className="h-3 w-3 text-rose-400" aria-hidden="true" />;
-    case 'MapPin': return <MapPin className="h-3 w-3 text-emerald-400" aria-hidden="true" />;
-    case 'FileText': return <FileText className="h-3 w-3 text-slate-400" aria-hidden="true" />;
-    default: return <Film className="h-3 w-3 text-slate-400" aria-hidden="true" />;
-  }
-}
-
-export function renderAssetCategoryBadge(assetType: string) {
-  const style = getClaimCategoryStyle(assetType);
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded ${style.bg} ${style.text} border ${style.border} px-2 py-0.5 text-[10px] font-mono font-bold tracking-wider uppercase shadow-sm`}
-      title={`${style.label} Asset`}
-    >
-      {renderCategoryIcon(style.iconName)}
-      <span>{style.label}</span>
-    </span>
-  );
-}
-
-export function renderClearanceStatusIndicator(state: DecisionState) {
-  return <ClearanceStatusBadge state={state} />;
+  hasActiveClarification?: boolean;
+  onOpenClarification?: (claimKey: string) => void;
 }
 
 export const ClaimRow: React.FC<ClaimRowProps> = ({
@@ -105,6 +58,8 @@ export const ClaimRow: React.FC<ClaimRowProps> = ({
   onOpenInGate,
   userRole = UserRole.REVIEWER,
   onViewProvenance,
+  hasActiveClarification = false,
+  onOpenClarification,
 }) => {
   const [showProvenance, setShowProvenance] = useState<boolean>(false);
   const isItem11 = claim.stable_lineage_key === 'poster_noir_detective_magazine' || claim.stable_lineage_key.includes('noir_detective');
@@ -112,6 +67,7 @@ export const ClaimRow: React.FC<ClaimRowProps> = ({
   const cinematicTimecode = formatCinematicTimecode(claim.scene, claim.stable_lineage_key, index);
   const canAdjudicate = hasClearanceAuthority(userRole);
   const confidentiality = validateConfidentiality(claim.description);
+  const isWaitingForInfo = hasActiveClarification || Boolean(claim.has_active_clarification);
 
   return (
     <tr
@@ -156,6 +112,12 @@ export const ClaimRow: React.FC<ClaimRowProps> = ({
             </span>
             {renderAssetCategoryBadge(claim.asset_type)}
             <ConfidentialityBadge wordCount={confidentiality.wordCount} />
+            {isWaitingForInfo && (
+              <ClarificationBadge
+                isInteractive={Boolean(onOpenClarification)}
+                onClick={() => onOpenClarification?.(claim.stable_lineage_key)}
+              />
+            )}
           </div>
           <span className="text-[11px] text-slate-400 line-clamp-1 font-sans">
             {claim.description}
@@ -195,11 +157,36 @@ export const ClaimRow: React.FC<ClaimRowProps> = ({
       </td>
 
       <td className="py-2.5 px-2.5 whitespace-nowrap">
-        {renderClearanceStatusIndicator(claim.state)}
+        {isWaitingForInfo ? (
+          <div className="flex flex-col gap-1">
+            <ClarificationBadge
+              isInteractive={Boolean(onOpenClarification)}
+              onClick={() => onOpenClarification?.(claim.stable_lineage_key)}
+            />
+            <span className="text-[10px] font-mono text-amber-400/80">Pending Clarification</span>
+          </div>
+        ) : (
+          renderClearanceStatusIndicator(claim.state)
+        )}
       </td>
 
       <td className="py-2.5 px-2.5 text-right whitespace-nowrap">
         <div className="flex items-center justify-end gap-1.5">
+          {isWaitingForInfo && onOpenClarification && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenClarification(claim.stable_lineage_key);
+              }}
+              className="inline-flex items-center gap-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 px-2 py-1 text-[10px] font-mono font-bold transition-all focus:outline-none focus:ring-1 focus:ring-amber-400"
+              title="Answer Clarification Question for this asset"
+            >
+              <HelpCircle className="h-3 w-3 text-amber-400" aria-hidden="true" />
+              <span>Clarify</span>
+            </button>
+          )}
+
           {claim.state === DecisionState.STALE && onOpenInGate && (
             canAdjudicate ? (
               <button

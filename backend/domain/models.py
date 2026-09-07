@@ -505,6 +505,11 @@ class ClarificationRequest(BaseModel):
     attached_document_ref: Optional[str] = None
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     resolved_at: Optional[str] = None
+    tenant_id: Optional[str] = Field(None, description="Owning tenant organization boundary")
+    production_id: Optional[str] = Field(None, description="Bound cinematic production ID")
+    selected_option: Optional[str] = Field(None, description="Selected option chosen by responder")
+    resolved_by: Optional[str] = Field(None, description="User ID or actor ID who resolved this request")
+    responder_role: Optional[str] = Field(None, description="Authorized role of responder")
 
 
 class CreativeUse(BaseModel):

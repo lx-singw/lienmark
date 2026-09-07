@@ -11,15 +11,18 @@ This rule governs agent behavior when `[DEEP THINK]`, `[ULTRA]`, `/goal`, or hig
 
 ---
 
-## 2. Dedicated Role Architecture & Model Tiering
+## 2. Dedicated Role Architecture & Hierarchical Subagent Nesting
 Execute subagent delegation using `define_subagent` or specialized `invoke_subagent` roles with distinct system prompts:
 
-| Role | Responsibility | Model Tier | Tool Permissions (Least Privilege) |
+| Role | Responsibility | Model Tier | Tool Permissions (Least Privilege & Recursion) |
 | :--- | :--- | :---: | :--- |
-| **Explorer & Analyst** | AST mapping, call-site discovery, API specs | `flash 3.8` | **Read-Only** (`enable_write_tools: false`) |
+| **Domain Leads / Parent Subagents** | Architectural partitioning, orchestrating nested worker swarms | `flash 3.8` | **Subagent-Enabled** (`enable_subagent_tools: true`, `enable_write_tools: true`) |
+| **Nested Implementers** | Scoped, granular file modifications and immediate diff execution | `flash 3.8` | **Write-Enabled** (`enable_write_tools: true`) |
+| **Nested Verifiers & Testers** | Test suite execution, linting passes, regression assertions | `flash 3.8` | **Execution-Enabled** (`enable_write_tools: true`) |
 | **Adversarial Critic** | Race conditions, null safety, security, edge-case attacks | `flash 3.8` | **Read-Only** (`enable_write_tools: false`) |
-| **Lead Implementer** | Scoped, cohesive code modifications | `flash 3.8` | **Write-Enabled** (`enable_write_tools: true`) |
-| **Empirical Verifier** | Test execution, linting, build pipelines, benchmark logs | `flash 3.8` | **Execution-Only** |
+
+- **Hierarchical Nesting Protocol**: Primary subagents act as **Parent Subagents**. Instead of executing complex multi-file tasks sequentially in one turn, parent subagents must actively recruit and spawn **2 to 4 nested child subagents** (grandchildren).
+- **Child Subagent Work Ethic ("Work Hard For Them")**: Child subagents relentlessly serve their parent subagent by taking their concrete assignment, formulating their plan, and executing immediately (writing diffs, running tests) without idling or returning unexecuted plans. They report verified results back up to their parent subagent.
 
 ---
 

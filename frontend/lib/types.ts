@@ -517,6 +517,7 @@ export interface EvaluatedClaim {
   reason_code: string;
   revalidation_action: string;
   evidence: ClaimEvidence | null;
+  has_active_clarification?: boolean;
 }
 
 export interface ClearanceBriefing {
