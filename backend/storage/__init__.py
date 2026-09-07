@@ -19,6 +19,12 @@ from backend.storage.firestore_client import (
     InMemoryFirestoreClient,
     get_firestore_client,
 )
+from backend.storage.ledger import (
+    AuditEvent,
+    CryptographicLedger,
+    LedgerTamperError,
+    LedgerIntegrityError,
+)
 
 __all__ = [
     "TenantRepository",
@@ -37,4 +43,8 @@ __all__ = [
     "FirestoreClientInterface",
     "InMemoryFirestoreClient",
     "get_firestore_client",
+    "AuditEvent",
+    "CryptographicLedger",
+    "LedgerTamperError",
+    "LedgerIntegrityError",
 ]

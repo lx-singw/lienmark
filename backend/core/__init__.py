@@ -86,6 +86,14 @@ from backend.core.rbac import (
     get_rbac_context,
     normalize_role_name,
 )
+from backend.core.projector import (
+    StateProjector,
+    ProductionStateProjection,
+    AuditEvent,
+    ProjectorError,
+    InvalidEventError,
+    compute_state_digest,
+)
 
 __all__ = [
     "InvalidationEngine",
@@ -162,4 +170,10 @@ __all__ = [
     "extract_rbac_context",
     "get_rbac_context",
     "normalize_role_name",
+    "StateProjector",
+    "ProductionStateProjection",
+    "AuditEvent",
+    "ProjectorError",
+    "InvalidEventError",
+    "compute_state_digest",
 ]

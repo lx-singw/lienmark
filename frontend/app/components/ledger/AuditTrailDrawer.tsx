@@ -21,8 +21,8 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { SupersessionEvent } from '@/lib/types';
-import { AuditTrailItem } from './ledger/AuditTrailItem';
-import { downloadAuditManifest, verifyParentLink } from './ledger/audit_utils';
+import { AuditTrailItem } from './AuditTrailItem';
+import { downloadAuditManifest, verifyParentLink } from './audit_utils';
 
 export interface AuditTrailDrawerProps {
   isOpen: boolean;
@@ -175,7 +175,9 @@ export const AuditTrailDrawer: React.FC<AuditTrailDrawerProps> = ({
             </div>
           ) : (
             filteredEvents.map((event, index) => {
+              // Sequence number: total - index (if reverse chronological) or index + 1
               const seqNum = index + 1;
+              // Link verification: compare current event's parent with previous chronological event
               const nextInArray = index < filteredEvents.length - 1 ? filteredEvents[index + 1] : undefined;
               const isVerified = verifyParentLink(event, nextInArray);
 
