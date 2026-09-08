@@ -34,6 +34,11 @@ def trigger_revision_audit(
     tenant_ctx: TenantContext = Depends(get_tenant_context),
 ):
     """Atomically commits immutable revision and dispatch, returns 202 immediately."""
+    if not tenant_ctx.user_id or tenant_ctx.auth_method in ("anonymous", "default", "demo_default"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required: valid credentials or session must be provided.",
+        )
     tenant_id = str(tenant_ctx.tenant_id or payload.get("tenant_id", "default_tenant"))
     prod_id = str(payload.get("production_id", "prod_noir_protocol"))
     parent_rev_id = str(payload.get("parent_revision_id", "v7"))

@@ -42,6 +42,11 @@ AUTHORIZED_DECISION_ROLES: frozenset[LienmarkRole] = frozenset({
 
 def _extract_verified_tenant_id(tenant_ctx: TenantContext) -> str:
     """Extracts verified tenant / organization identity or raises 401 Unauthorized."""
+    if not tenant_ctx.user_id or tenant_ctx.auth_method in ("anonymous", "default", "demo_default"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required: valid credentials or token must be provided.",
+        )
     tenant_id = tenant_ctx.tenant_id or tenant_ctx.organization_id
     if not tenant_id:
         raise HTTPException(

@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException, Body, Response, Query, Request
 
 logger = logging.getLogger("lienmark.api")
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from backend.domain.models import (
     DecisionStatus,
@@ -180,6 +180,8 @@ class SessionScopingMiddleware(BaseHTTPMiddleware):
             ctx = TenantContext(
                 tenant_id=authenticated_record.tenant_id,
                 organization_id=authenticated_record.tenant_id,
+                user_id=authenticated_record.user_id,
+                email=authenticated_record.email,
                 roles=[authenticated_record.role],
                 production_roles={authenticated_record.production_id: authenticated_record.role},
                 current_production_id=authenticated_record.production_id,
@@ -1728,6 +1730,12 @@ def export_exceptions_schedule(
     )
 
 
+@app.get("/login")
+def login_redirect() -> RedirectResponse:
+    """Cleanly redirects /login to the frictionless sample workspace root /."""
+    return RedirectResponse(url="/", status_code=307)
+
+
 @app.get("/", response_class=HTMLResponse)
 @app.get("/dashboard", response_class=HTMLResponse)
 def serve_dashboard():
@@ -1739,7 +1747,7 @@ def serve_dashboard():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lienmark — Clearance Change Control for E&O</title>
+    <title>Lienmark — Clearance Reviewer Dashboard</title>
     <style>
         :root {
             --bg-primary: #0a0f1d;
@@ -1818,7 +1826,7 @@ def serve_dashboard():
 
     <div class="header">
         <div class="title-group">
-            <h1>Lienmark <span class="badge-track">Parallel Track — Agentic Cinema</span></h1>
+            <h1>Lienmark <span class="badge-track">Parallel Track — Agentic Cinema</span> <span class="badge-sample" id="sample-workspace-badge" style="background: rgba(148, 163, 184, 0.15); color: #cbd5e1; padding: 4px 10px; border-radius: 6px; font-size: 13px; font-weight: 600; border: 1px solid rgba(148, 163, 184, 0.3);">Sample workspace · Read-only</span></h1>
             <p class="subtitle">Detect clearance drift, selectively revalidate affected evidence, and keep sign-offs aligned with every production version.</p>
         </div>
         <div class="hero-actions">

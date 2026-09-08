@@ -106,3 +106,37 @@ def test_producer_decision_forbidden():
         headers={"X-CSRF-Token": sess_id},
     )
     assert dec_res.status_code == 403
+
+
+def test_token_alias_redemption_and_replay():
+    raw_token = f"inv_{secrets.token_urlsafe(32)}"
+    h_token = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    invite_store = get_invite_store()
+    invite_store.create_invite(h_token, role="reviewer", tenant_id="tenant_gamma", production_id="prod_gamma")
+
+    # Redeem using "token" instead of "invite_token"
+    res1 = client.post("/api/auth/redeem-invite", json={"token": raw_token})
+    assert res1.status_code == 200
+    assert "lienmark_session" in res1.cookies
+    assert res1.json()["role"] == "reviewer"
+
+    # Verify server-side session persistence in SessionStore
+    sess_id = res1.json()["session_id"]
+    sess_rec = get_session_store().get_session(sess_id)
+    assert sess_rec is not None
+    assert sess_rec.tenant_id == "tenant_gamma"
+
+    # Replay with "token" or "invite_token" must return 401
+    res2 = client.post("/api/auth/redeem-invite", json={"token": raw_token})
+    assert res2.status_code == 401
+
+
+def test_invalid_and_empty_invite_rejection():
+    # Non-existent token returns 401
+    res_fake = client.post("/api/auth/redeem-invite", json={"token": "non_existent_token_123"})
+    assert res_fake.status_code == 401
+
+    # Empty payload returns 422
+    res_empty = client.post("/api/auth/redeem-invite", json={})
+    assert res_empty.status_code == 422
+
