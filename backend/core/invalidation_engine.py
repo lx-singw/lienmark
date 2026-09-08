@@ -251,9 +251,12 @@ class InvalidationEngine:
         # Step 2: Idempotent Execution Check
         # If evaluating a version against itself (v7, v7), zero drift occurred; 100% carried forward.
         is_self_eval = (
-            (base_ver == target_ver)
-            or (sorted_base_uses == sorted_target_uses and target_version_id == base_ver)
-            or (len(sorted_base_uses) > 0 and sorted_base_uses == sorted_target_uses and all(d.applicable_version_id == base_ver for d in sorted_decisions))
+            sorted_base_uses == sorted_target_uses
+            and (base_ver == target_ver or target_version_id == base_ver)
+        ) or (
+            len(sorted_base_uses) > 0
+            and sorted_base_uses == sorted_target_uses
+            and all(d.applicable_version_id == base_ver for d in sorted_decisions)
         )
         if is_self_eval:
             validity_results: List[DecisionValidity] = []

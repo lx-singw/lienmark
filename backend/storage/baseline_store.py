@@ -222,3 +222,6 @@ def get_default_baseline_store(force_in_memory: bool = False) -> BaselineStoreIn
         if _GLOBAL_STORE is None:
             _GLOBAL_STORE = FirestoreBaselineStore()
         return _GLOBAL_STORE
+
+
+get_baseline_store = get_default_baseline_store

@@ -507,7 +507,35 @@ def _base64url_decode(val: str) -> bytes:
 
 # =============================================================================
 # 6. Starlette / FastAPI ASGI Middleware: TenantContextMiddleware
-# =============================================================================
+def _extract_from_session_cookie(request: Request) -> Optional[TenantContext]:
+    """Resolves TenantContext from signed, unrevoked session cookie."""
+    for cookie_name in ("lienmark_session", "lienmark_session_id"):
+        sess_raw = request.cookies.get(cookie_name)
+        if not sess_raw:
+            continue
+        try:
+            from backend.api.routes.auth_routes import verify_session_cookie
+            from backend.storage.session_store import get_session_store
+            v_sess_id = verify_session_cookie(sess_raw)
+            if not v_sess_id:
+                continue
+            rec = get_session_store().get_session(v_sess_id)
+            if not rec or rec.revoked or rec.expires_at <= time.time():
+                continue
+            return TenantContext(
+                organization_id=rec.tenant_id,
+                tenant_id=rec.tenant_id,
+                org_id=rec.tenant_id,
+                user_id=rec.user_id,
+                roles=[rec.role],
+                production_roles={rec.production_id: rec.role},
+                current_production_id=rec.production_id,
+                auth_method="session_cookie",
+            )
+        except Exception:
+            continue
+    return None
+
 
 ORG_RESOURCE_REGEX = re.compile(r"^/(?:api/)?(?:v[0-9]+/)?organizations/(?P<org_id>[^/]+)(?:/.*)?$")
 
@@ -588,152 +616,156 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
         if not jwt_token and "token" in request.query_params:
             jwt_token = request.query_params.get("token")
 
-        resolved_ctx: Optional[TenantContext] = None
+        existing_ctx = getattr(request.state, "tenant_context", None) or getattr(request.state, "tenant", None)
+        resolved_ctx: Optional[TenantContext] = existing_ctx if isinstance(existing_ctx, TenantContext) else None
+        if not resolved_ctx:
+            resolved_ctx = _extract_from_session_cookie(request)
 
-        try:
-            # 5. Extraction Strategy A: Authorization JWT Bearer Token
-            if jwt_token:
-                is_counsel_req = (
-                    request.headers.get("X-Require-Counsel-Auth", "").lower() in ("true", "1")
-                    or canonical_path in (
-                        "/api/review/action",
-                        "/api/review/attest",
-                        "/api/attorney/override",
-                        "/api/attorney-override",
-                    )
-                )
-                payload = decode_jwt_token(
-                    jwt_token,
-                    secret=self.jwt_secret,
-                    strict_mode=self.is_strict,
-                    is_counsel_request=is_counsel_req,
-                )
-                extracted_org = (
-                    payload.get("org_id")
-                    or payload.get("organization_id")
-                    or payload.get("tenant_id")
-                )
-                if not extracted_org:
-                    return JSONResponse(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        content={"detail": "Unauthorized: JWT missing 'org_id' or 'organization_id' claim."},
-                        headers={"WWW-Authenticate": "Bearer"},
-                    )
-
-                # Precedence conflict check against header
-                if tenant_header and tenant_header.strip() != extracted_org:
-                    if self.is_strict:
-                        logger.warning(
-                            f"Header/JWT tenant mismatch in strict mode: header '{tenant_header}' != token '{extracted_org}'"
+        if not resolved_ctx:
+            try:
+                # 5. Extraction Strategy A: Authorization JWT Bearer Token
+                if jwt_token:
+                    is_counsel_req = (
+                        request.headers.get("X-Require-Counsel-Auth", "").lower() in ("true", "1")
+                        or canonical_path in (
+                            "/api/review/action",
+                            "/api/review/attest",
+                            "/api/attorney/override",
+                            "/api/attorney-override",
                         )
+                    )
+                    payload = decode_jwt_token(
+                        jwt_token,
+                        secret=self.jwt_secret,
+                        strict_mode=self.is_strict,
+                        is_counsel_request=is_counsel_req,
+                    )
+                    extracted_org = (
+                        payload.get("org_id")
+                        or payload.get("organization_id")
+                        or payload.get("tenant_id")
+                    )
+                    if not extracted_org:
                         return JSONResponse(
-                            status_code=status.HTTP_403_FORBIDDEN,
-                            content={
-                                "detail": (
-                                    f"Tenant mismatch in strict mode: Header organization '{tenant_header}' "
-                                    f"conflicts with JWT claims '{extracted_org}'."
-                                )
-                            },
-                        )
-                    # In permissive mode: signed token takes precedence over unauthenticated header
-
-                roles = payload.get("roles", [])
-                if isinstance(roles, str):
-                    roles = [r.strip() for r in roles.split(",") if r.strip()]
-                elif isinstance(roles, dict):
-                    roles = list(roles.values())
-
-                resolved_ctx = TenantContext(
-                    organization_id=str(extracted_org),
-                    user_id=str(payload.get("user_id") or payload.get("sub") or "anonymous_sub"),
-                    email=payload.get("email"),
-                    roles=list(roles),
-                    production_roles=dict(payload.get("production_roles", {})),
-                    current_production_id=current_prod_id,
-                    auth_method="jwt",
-                    is_demo=bool(payload.get("is_fictional_demo", False)),
-                    raw_claims=payload,
-                )
-
-            # 6. Extraction Strategy B: API Key Mapping
-            elif extracted_api_key:
-                resolved_ctx = api_key_registry.authenticate_key(extracted_api_key)
-                if not resolved_ctx:
-                    return JSONResponse(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        content={"detail": "Unauthorized: Invalid or unknown API key."},
-                        headers={"WWW-Authenticate": "ApiKey"},
-                    )
-
-                # Precedence conflict check against header
-                if tenant_header and tenant_header.strip() != resolved_ctx.organization_id:
-                    if self.is_strict:
-                        return JSONResponse(
-                            status_code=status.HTTP_403_FORBIDDEN,
-                            content={
-                                "detail": (
-                                    f"Tenant mismatch in strict mode: Header organization '{tenant_header}' "
-                                    f"conflicts with API key tenant '{resolved_ctx.organization_id}'."
-                                )
-                            },
+                            status_code=status.HTTP_401_UNAUTHORIZED,
+                            content={"detail": "Unauthorized: JWT missing 'org_id' or 'organization_id' claim."},
+                            headers={"WWW-Authenticate": "Bearer"},
                         )
 
-            # 7. Extraction Strategy C: Legacy Counsel Token
-            elif counsel_token:
-                # Check API key registry first
-                resolved_ctx = api_key_registry.authenticate_key(counsel_token)
-                if not resolved_ctx:
-                    try:
-                        payload = decode_jwt_token(counsel_token, secret=self.jwt_secret, strict_mode=self.is_strict)
-                        extracted_org = payload.get("org_id") or payload.get("organization_id")
-                        if extracted_org:
-                            resolved_ctx = TenantContext(
-                                organization_id=str(extracted_org),
-                                user_id=str(payload.get("sub") or "counsel_principal"),
-                                roles=list(payload.get("roles", ["authorized_reviewer"])),
-                                auth_method="counsel_token",
-                                is_demo=bool(payload.get("is_fictional_demo", False)),
+                    # Precedence conflict check against header
+                    if tenant_header and tenant_header.strip() != extracted_org:
+                        if self.is_strict:
+                            logger.warning(
+                                f"Header/JWT tenant mismatch in strict mode: header '{tenant_header}' != token '{extracted_org}'"
                             )
-                    except HTTPException:
-                        pass
+                            return JSONResponse(
+                                status_code=status.HTTP_403_FORBIDDEN,
+                                content={
+                                    "detail": (
+                                        f"Tenant mismatch in strict mode: Header organization '{tenant_header}' "
+                                        f"conflicts with JWT claims '{extracted_org}'."
+                                    )
+                                },
+                            )
+                        # In permissive mode: signed token takes precedence over unauthenticated header
 
-            # 8. Extraction Strategy D: Direct Tenant Header (Permissive Mode Only)
-            elif tenant_header and (self.allow_header_auth and not self.is_strict):
-                resolved_ctx = TenantContext(
-                    organization_id=tenant_header.strip(),
-                    auth_method="header",
-                    roles=["viewer"],
-                    is_demo=True,
+                    roles = payload.get("roles", [])
+                    if isinstance(roles, str):
+                        roles = [r.strip() for r in roles.split(",") if r.strip()]
+                    elif isinstance(roles, dict):
+                        roles = list(roles.values())
+
+                    resolved_ctx = TenantContext(
+                        organization_id=str(extracted_org),
+                        user_id=str(payload.get("user_id") or payload.get("sub") or "anonymous_sub"),
+                        email=payload.get("email"),
+                        roles=list(roles),
+                        production_roles=dict(payload.get("production_roles", {})),
+                        current_production_id=current_prod_id,
+                        auth_method="jwt",
+                        is_demo=bool(payload.get("is_fictional_demo", False)),
+                        raw_claims=payload,
+                    )
+
+                # 6. Extraction Strategy B: API Key Mapping
+                elif extracted_api_key:
+                    resolved_ctx = api_key_registry.authenticate_key(extracted_api_key)
+                    if not resolved_ctx:
+                        return JSONResponse(
+                            status_code=status.HTTP_401_UNAUTHORIZED,
+                            content={"detail": "Unauthorized: Invalid or unknown API key."},
+                            headers={"WWW-Authenticate": "ApiKey"},
+                        )
+
+                    # Precedence conflict check against header
+                    if tenant_header and tenant_header.strip() != resolved_ctx.organization_id:
+                        if self.is_strict:
+                            return JSONResponse(
+                                status_code=status.HTTP_403_FORBIDDEN,
+                                content={
+                                    "detail": (
+                                        f"Tenant mismatch in strict mode: Header organization '{tenant_header}' "
+                                        f"conflicts with API key tenant '{resolved_ctx.organization_id}'."
+                                    )
+                                },
+                            )
+
+                # 7. Extraction Strategy C: Legacy Counsel Token
+                elif counsel_token:
+                    # Check API key registry first
+                    resolved_ctx = api_key_registry.authenticate_key(counsel_token)
+                    if not resolved_ctx:
+                        try:
+                            payload = decode_jwt_token(counsel_token, secret=self.jwt_secret, strict_mode=self.is_strict)
+                            extracted_org = payload.get("org_id") or payload.get("organization_id")
+                            if extracted_org:
+                                resolved_ctx = TenantContext(
+                                    organization_id=str(extracted_org),
+                                    user_id=str(payload.get("sub") or "counsel_principal"),
+                                    roles=list(payload.get("roles", ["authorized_reviewer"])),
+                                    auth_method="counsel_token",
+                                    is_demo=bool(payload.get("is_fictional_demo", False)),
+                                )
+                        except HTTPException:
+                            pass
+
+                # 8. Extraction Strategy D: Direct Tenant Header (Permissive Mode Only)
+                elif tenant_header and (self.allow_header_auth and not self.is_strict):
+                    resolved_ctx = TenantContext(
+                        organization_id=tenant_header.strip(),
+                        auth_method="header",
+                        roles=["viewer"],
+                        is_demo=True,
+                    )
+
+                # 9. Strategy E: Non-Strict Demo Mode Fallback for backward compatibility
+                elif is_exempt:
+                    # Unauthenticated call to an exempt endpoint: allow pass-through without tenant context
+                    pass
+                elif not self.is_strict:
+                    # Permissive demo mode default
+                    default_org = os.getenv("DEFAULT_ORGANIZATION_ID", "org_lienmark_demo")
+                    resolved_ctx = TenantContext(
+                        organization_id=default_org,
+                        user_id="demo_visitor",
+                        roles=["viewer"],
+                        auth_method="demo_default",
+                        is_demo=True,
+                    )
+
+            except HTTPException as http_exc:
+                return JSONResponse(
+                    status_code=http_exc.status_code,
+                    content={"detail": http_exc.detail},
+                    headers=dict(http_exc.headers or {}),
                 )
-
-            # 9. Strategy E: Non-Strict Demo Mode Fallback for backward compatibility
-            elif is_exempt:
-                # Unauthenticated call to an exempt endpoint: allow pass-through without tenant context
-                pass
-            elif not self.is_strict:
-                # Permissive demo mode default
-                default_org = os.getenv("DEFAULT_ORGANIZATION_ID", "org_lienmark_demo")
-                resolved_ctx = TenantContext(
-                    organization_id=default_org,
-                    user_id="demo_visitor",
-                    roles=["viewer"],
-                    auth_method="demo_default",
-                    is_demo=True,
+            except Exception as err:
+                logger.warning(f"Tenant authentication exception on {canonical_path}: {err}")
+                return JSONResponse(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    content={"detail": f"Tenant authentication error: {err}"},
+                    headers={"WWW-Authenticate": "Bearer"},
                 )
-
-        except HTTPException as http_exc:
-            return JSONResponse(
-                status_code=http_exc.status_code,
-                content={"detail": http_exc.detail},
-                headers=dict(http_exc.headers or {}),
-            )
-        except Exception as err:
-            logger.warning(f"Tenant authentication exception on {canonical_path}: {err}")
-            return JSONResponse(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                content={"detail": f"Tenant authentication error: {err}"},
-                headers={"WWW-Authenticate": "Bearer"},
-            )
 
         # 10. Fail-Closed Authentication Gate on Protected Routes
         if not resolved_ctx:

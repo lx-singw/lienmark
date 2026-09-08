@@ -156,22 +156,38 @@ class SessionScopingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         header_sess = request.headers.get("X-Session-ID") or request.headers.get("x-session-id")
         cookie_sess = verify_and_extract_session_id(request.cookies.get(SESSION_COOKIE_NAME))
-        lienmark_session = request.cookies.get("lienmark_session")
+        lienmark_session_raw = request.cookies.get("lienmark_session")
 
         session_id = None
-        if lienmark_session:
-            import json, base64, time
-            from backend.storage.invite_store import get_invite_store
-            try:
-                session_data = json.loads(base64.b64decode(lienmark_session.encode('utf-8')).decode('utf-8'))
-                if time.time() > session_data.get("expires_at", 0):
-                    return JSONResponse(status_code=401, content={"detail": "Session expired"})
-                if get_invite_store().is_session_revoked(session_data["session_id"]):
-                    return JSONResponse(status_code=401, content={"detail": "Session revoked"})
-                session_id = session_data["session_id"]
-            except Exception:
-                pass
-        
+        authenticated_record = None
+
+        if lienmark_session_raw:
+            from backend.api.routes.auth_routes import verify_session_cookie
+            from backend.storage.session_store import get_session_store
+            from backend.middleware.tenant import TenantContext
+
+            verified_sess_id = verify_session_cookie(lienmark_session_raw)
+            if not verified_sess_id:
+                return JSONResponse(status_code=401, content={"detail": "Tampered or invalid session cookie."})
+
+            session_store = get_session_store()
+            authenticated_record = session_store.get_session(verified_sess_id)
+            if not authenticated_record:
+                return JSONResponse(status_code=401, content={"detail": "Session expired or revoked."})
+
+            session_id = authenticated_record.session_id
+            request.state.session_record = authenticated_record
+            ctx = TenantContext(
+                tenant_id=authenticated_record.tenant_id,
+                organization_id=authenticated_record.tenant_id,
+                roles=[authenticated_record.role],
+                production_roles={authenticated_record.production_id: authenticated_record.role},
+                current_production_id=authenticated_record.production_id,
+                auth_method="session_cookie",
+            )
+            request.state.tenant_context = ctx
+            request.state.tenant = ctx
+
         if not session_id:
             if header_sess and header_sess.strip():
                 session_id = header_sess.strip()
@@ -186,11 +202,12 @@ class SessionScopingMiddleware(BaseHTTPMiddleware):
                 else:
                     session_id = counsel_checkpoint_manager.DEFAULT_SESSION_ID
 
-        # CSRF check
-        if request.method in ["POST", "PUT", "PATCH", "DELETE"] and lienmark_session:
-            csrf_token = request.headers.get("X-CSRF-Token")
-            if not csrf_token or csrf_token != session_id:
-                return JSONResponse(status_code=403, content={"detail": "CSRF validation failed"})
+        # CSRF check on mutating requests for authenticated sessions
+        if request.method in ["POST", "PUT", "PATCH", "DELETE"] and authenticated_record:
+            if not request.url.path.startswith("/api/auth/"):
+                csrf_token = request.headers.get("X-CSRF-Token")
+                if not csrf_token or csrf_token != session_id:
+                    return JSONResponse(status_code=403, content={"detail": "CSRF validation failed."})
 
         request.state.session_id = session_id
         response = await call_next(request)

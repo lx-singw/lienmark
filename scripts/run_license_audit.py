@@ -74,6 +74,8 @@ KNOWN_BACKEND_LICENSES: Dict[str, Dict[str, str]] = {
     "google-genai": {"license": "Apache-2.0", "spdx": "Apache-2.0", "osi_approved": True},
     "google-cloud-firestore": {"license": "Apache-2.0", "spdx": "Apache-2.0", "osi_approved": True},
     "google-cloud-aiplatform": {"license": "Apache-2.0", "spdx": "Apache-2.0", "osi_approved": True},
+    "reportlab": {"license": "BSD-3-Clause", "spdx": "BSD-3-Clause", "osi_approved": True},
+    "pypdf": {"license": "BSD-3-Clause", "spdx": "BSD-3-Clause", "osi_approved": True},
 }
 
 # Canonical fallback metadata for frontend packages

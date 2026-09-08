@@ -1,87 +1,108 @@
-import hashlib
+"""
+tests/test_auth_routes.py
+
+Acceptance tests exercising real authentication middleware, routes, and SessionStore.
+Tests invite redemption, replay prevention, cookie signing/tampering, logout revocation, and RBAC.
+Authored strictly under Google AntiGravity: files <= 250 lines, functions <= 40 lines.
+"""
+
 import pytest
-from fastapi import FastAPI, HTTPException, Header, Depends
+import os
+import secrets
+import hashlib
 from fastapi.testclient import TestClient
-from typing import Optional, Dict
 
-app = FastAPI()
-used_tokens = set()
-sessions = {"valid_session": {"role": "reviewer", "production_id": "prod_1"}, "prod_session": {"role": "producer", "production_id": "prod_1"}, "cross_session": {"role": "reviewer", "production_id": "prod_2"}}
-
-class DomainError(Exception):
-    pass
-
-@app.post("/auth/redeem")
-def redeem_invite(token: str):
-    token_hash = hashlib.sha256(token.encode()).hexdigest()
-    if token_hash in used_tokens:
-        raise HTTPException(status_code=401, detail="Replay prevention")
-    used_tokens.add(token_hash)
-    return {"session_token": "new_session"}
-
-@app.post("/auth/logout")
-def logout(authorization: str = Header(None)):
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization.split(" ")[1]
-        if token in sessions:
-            del sessions[token]
-    return {"status": "logged_out"}
-
-@app.post("/api/v1/claims/{claim_id}/decision")
-def make_decision(claim_id: str, decision: str, evidence: bool = False, counsel_directive: str = "", authorization: str = Header(None)):
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    token = authorization.split(" ")[1]
-    if token not in sessions:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    
-    session = sessions[token]
-    if session["role"] == "producer":
-        raise HTTPException(status_code=403, detail="Producers cannot make decisions")
-    if session["production_id"] != "prod_1":
-        raise HTTPException(status_code=403, detail="Cross-production access denied")
-        
-    if decision == "approve" and not evidence:
-        raise HTTPException(status_code=400, detail="Missing evidence")
-    if decision == "reject" and not counsel_directive:
-        raise HTTPException(status_code=400, detail="Missing counsel directive")
-        
-    return {"status": "success"}
+os.environ["USE_LOCAL_STORAGE"] = "true"
+from backend.main import app
+from backend.storage.invite_store import get_invite_store
+from backend.storage.session_store import get_session_store
 
 client = TestClient(app)
 
-def test_invite_redemption():
-    res = client.post("/auth/redeem?token=secret123")
+
+@pytest.fixture(autouse=True)
+def setup_test_env():
+    os.environ["USE_LOCAL_STORAGE"] = "true"
+
+
+def test_invite_redemption_and_signed_cookie():
+    raw_token = f"inv_{secrets.token_urlsafe(32)}"
+    h_token = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    invite_store = get_invite_store()
+    invite_store.create_invite(h_token, role="producer", tenant_id="tenant_alpha", production_id="prod_alpha")
+
+    res = client.post("/api/auth/redeem-invite", json={"invite_token": raw_token})
     assert res.status_code == 200
-    assert "session_token" in res.json()
+    assert "lienmark_session" in res.cookies
+    assert "." in res.cookies["lienmark_session"]
+
+    # Verify session profile matches
+    sess_res = client.get("/api/auth/session", cookies=res.cookies)
+    assert sess_res.status_code == 200
+    data = sess_res.json()
+    assert data["role"] == "producer"
+    assert data["tenant_id"] == "tenant_alpha"
+
 
 def test_replay_prevention():
-    res = client.post("/auth/redeem?token=secret123")
+    raw_token = f"inv_{secrets.token_urlsafe(32)}"
+    h_token = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    invite_store = get_invite_store()
+    invite_store.create_invite(h_token, role="producer", tenant_id="tenant_alpha", production_id="prod_alpha")
+
+    res1 = client.post("/api/auth/redeem-invite", json={"invite_token": raw_token})
+    assert res1.status_code == 200
+
+    # Replay must fail with 401
+    res2 = client.post("/api/auth/redeem-invite", json={"invite_token": raw_token})
+    assert res2.status_code == 401
+
+
+def test_tampered_cookie_rejected():
+    tampered_cookies = {"lienmark_session": "sess_fake123.invalidsignature"}
+    res = client.get("/api/auth/session", cookies=tampered_cookies)
     assert res.status_code == 401
 
-def test_session_revocation():
-    client.post("/auth/logout", headers={"Authorization": "Bearer valid_session"})
-    res = client.post("/api/v1/claims/1/decision?decision=approve", headers={"Authorization": "Bearer valid_session"})
-    assert res.status_code == 401
+
+def test_session_revocation_on_logout():
+    raw_token = f"inv_{secrets.token_urlsafe(32)}"
+    h_token = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    get_invite_store().create_invite(h_token, role="reviewer", tenant_id="tenant_beta", production_id="prod_beta")
+
+    res = client.post("/api/auth/redeem-invite", json={"invite_token": raw_token})
+    assert res.status_code == 200
+    cookies = res.cookies
+
+    # Logout
+    logout_res = client.post("/api/auth/logout", cookies=cookies)
+    assert logout_res.status_code == 200
+
+    # Request after logout must fail
+    follow_up = client.get("/api/auth/session", cookies=cookies)
+    assert follow_up.status_code == 401
+
 
 def test_producer_decision_forbidden():
-    res = client.post("/api/v1/claims/1/decision?decision=approve", headers={"Authorization": "Bearer prod_session"})
-    assert res.status_code == 403
+    raw_token = f"inv_{secrets.token_urlsafe(32)}"
+    h_token = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    get_invite_store().create_invite(h_token, role="producer", tenant_id="tenant_test", production_id="prod_test")
 
-def test_reviewer_decisions():
-    sessions["reviewer_session"] = {"role": "reviewer", "production_id": "prod_1"}
-    # Approval missing evidence
-    res = client.post("/api/v1/claims/1/decision?decision=approve", headers={"Authorization": "Bearer reviewer_session"})
-    assert res.status_code == 400
-    
-    # Approval with evidence
-    res = client.post("/api/v1/claims/1/decision?decision=approve&evidence=true", headers={"Authorization": "Bearer reviewer_session"})
+    res = client.post("/api/auth/redeem-invite", json={"invite_token": raw_token})
     assert res.status_code == 200
-    
-    # Rejection with directive
-    res = client.post("/api/v1/claims/1/decision?decision=reject&counsel_directive=reject_this", headers={"Authorization": "Bearer reviewer_session"})
-    assert res.status_code == 200
+    cookies = res.cookies
+    sess_id = res.json()["session_id"]
 
-def test_cross_production_access():
-    res = client.post("/api/v1/claims/1/decision?decision=approve", headers={"Authorization": "Bearer cross_session"})
-    assert res.status_code == 403
+    # Producer attempting to sign off or reject on decisions endpoint
+    dec_res = client.post(
+        "/api/v1/claims/claim_item_11/decision",
+        json={
+            "action": "sign_off",
+            "counsel_id": "counsel_sarah",
+            "counsel_name": "Sarah Jenkins, Esq.",
+            "directive_text": "Producer attempting illegal signoff",
+        },
+        params={"production_id": "prod_test"},
+        cookies=cookies,
+        headers={"X-CSRF-Token": sess_id},
+    )
+    assert dec_res.status_code == 403

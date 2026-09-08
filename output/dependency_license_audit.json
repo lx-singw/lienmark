@@ -1,7 +1,7 @@
 {
   "audit_name": "Lienmark Dependency & Open Source License Compliance Audit",
   "sprint": "Sprint 5B",
-  "timestamp_utc": "2026-09-08T08:47:41.701494+00:00",
+  "timestamp_utc": "2026-09-08T11:41:53.634113+00:00",
   "compliance_status": "PASSED",
   "verdict": "100% OSI-approved permissive licenses (MIT, Apache-2.0, BSD, ISC, PSF). Zero copyleft or non-commercial restrictions verified.",
   "allowed_licenses": [
@@ -17,12 +17,12 @@
     "Python-2.0"
   ],
   "summary": {
-    "total_packages": 24,
-    "permissive_count": 24,
+    "total_packages": 26,
+    "permissive_count": 26,
     "copyleft_count": 0,
     "non_compliant_count": 0,
     "compliance_percentage": 100.0,
-    "duration_seconds": 0.497
+    "duration_seconds": 0.456
   },
   "backend_dependencies": [
     {
@@ -151,6 +151,26 @@
       "tier": "backend",
       "detected_license": "Apache-2.0",
       "spdx_identifier": "Apache-2.0",
+      "osi_approved": true,
+      "is_copyleft": false,
+      "status": "COMPLIANT"
+    },
+    {
+      "package": "reportlab",
+      "version_spec": "reportlab>=4.0.0",
+      "tier": "backend",
+      "detected_license": "BSD license (see license.txt for details), Copyright (c) 2000-2025, ReportLab Inc.",
+      "spdx_identifier": "BSD-2-Clause",
+      "osi_approved": true,
+      "is_copyleft": false,
+      "status": "COMPLIANT"
+    },
+    {
+      "package": "pypdf",
+      "version_spec": "pypdf>=5.0.0",
+      "tier": "backend",
+      "detected_license": "BSD-3-Clause",
+      "spdx_identifier": "BSD-3-Clause",
       "osi_approved": true,
       "is_copyleft": false,
       "status": "COMPLIANT"

@@ -36,3 +36,4 @@ docs/winning/
 dist_test/
 next-env.d.ts
 .vscode/
+.data/
