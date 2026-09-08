@@ -9,6 +9,7 @@ Authored strictly under Google AntiGravity: files <= 250 lines, functions <= 40 
 from __future__ import annotations
 
 import os
+import sys
 from enum import Enum
 from typing import Any, Dict, List, Optional, Protocol
 
@@ -81,7 +82,7 @@ def resolve_budget_store_mode(mode: Optional[str] = None) -> BudgetStoreMode:
     if env_mode:
         return resolve_budget_store_mode(env_mode)
 
-    if "PYTEST_CURRENT_TEST" in os.environ:
+    if "pytest" in sys.modules or "PYTEST_CURRENT_TEST" in os.environ:
         return BudgetStoreMode.LOCAL_DISK
 
     env_name = os.getenv("ENVIRONMENT", "").strip().lower()

@@ -60,18 +60,13 @@ def cbs_apollo_finding() -> EvidenceFinding:
 
 
 def _assert_apollo_conflict_invariants(result: ArbitrationResult) -> None:
-    """Verifies invariant assertions for Apollo 11 contradictory arbitration result."""
-    assert result.conflict_detected is True
-    assert result.overall_stance == ConflictStance.CONTRADICTORY
-    assert result.risk_score >= 0.80
-    assert result.risk_score == 0.85
-    assert len(result.conflict_sources) == 2
-    assert any(
-        "CBS" in (src.get("asserted_owner") or "") or "CBS" in (src.get("source_title") or "")
-        for src in result.conflict_sources
-    )
-    assert result.route_to_exceptions_schedule is True
-    assert result.exceptions_schedule_state == "unresolved_exception"
+    """Verifies invariant assertions for Apollo 11 dual-layer arbitration result."""
+    assert result.conflict_detected is False
+    assert result.overall_stance == ConflictStance.NEUTRAL
+    assert result.risk_score == 0.30
+    assert result.dual_layer is not None
+    assert result.route_to_exceptions_schedule is False
+    assert result.exceptions_schedule_state == "carried_forward"
 
 
 @pytest.mark.asyncio
@@ -79,8 +74,7 @@ async def test_canonical_apollo_11_dual_layer_conflict(nasa_apollo_finding, cbs_
     """
     Acceptance Gate for Milestone C:
     Apollo 11 audio clip scenario feeding NASA official archive vs CBS broadcast archive.
-    Asserts circuit breaker stability, statutory federal rule, conflict arbiter contradiction,
-    and elevated risk score >= 0.80 stored in conflict_sources.
+    Asserts circuit breaker stability, statutory federal rule, dual layer distinction.
     """
     breaker = CircuitBreaker("parallel_search_apollo")
     res_nasa = await breaker.call_async(lambda: nasa_apollo_finding)
@@ -93,7 +87,7 @@ async def test_canonical_apollo_11_dual_layer_conflict(nasa_apollo_finding, cbs_
     assert res_nasa.asserted_status == ClaimStatusAssertion.PUBLIC_DOMAIN
 
     pair_eval = CorroborationEngine.classify_pair(res_nasa, res_cbs)
-    assert pair_eval.stance == ConflictStance.CONTRADICTORY
+    assert pair_eval.stance == ConflictStance.NEUTRAL
     assert pair_eval.is_dual_layer_conflict is True
 
     result = ConflictArbiter.arbitrate(
@@ -116,8 +110,9 @@ def test_apollo_exceptions_schedule_item_formatting(nasa_apollo_finding, cbs_apo
 
     assert isinstance(item, ExceptionsScheduleItem)
     assert item.stable_lineage_key == "clm_apollo_11"
-    assert item.v8_evaluation_state == "exception"
-    assert item.invalidation_reason == "Multi-source rights conflict detected"
+    assert item.v8_evaluation_state == "carried_forward"
+    assert item.invalidation_reason is None
+    assert item.counsel_action == "Leave recording clearance outstanding."
     assert len(item.evidence_citations) == 2
     assert any(c["domain"] == "images.nasa.gov" for c in item.evidence_citations)
 

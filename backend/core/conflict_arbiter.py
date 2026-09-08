@@ -38,7 +38,7 @@ class CorroborationEngine:
 
     @classmethod
     def classify_pair(cls, a: EvidenceFinding, b: EvidenceFinding) -> StancePairEvaluation:
-        """Classifies stance between two evidence findings with dual-layer detection."""
+        """Classifies stance between two evidence findings with dual-layer distinction."""
         if cls.is_insufficient(a) or cls.is_insufficient(b):
             return StancePairEvaluation(
                 source_a_id=a.finding_id, source_b_id=b.finding_id,
@@ -49,16 +49,17 @@ class CorroborationEngine:
         if (fed_a and net_b) or (fed_b and net_a):
             return StancePairEvaluation(
                 source_a_id=a.finding_id, source_b_id=b.finding_id,
-                stance=ConflictStance.CONTRADICTORY, is_dual_layer_conflict=True,
-                explanation="Dual-layer conflict: US Government public domain vs network master broadcast.",
+                stance=ConflictStance.NEUTRAL, is_dual_layer_conflict=True,
+                explanation="Dual-layer distinction: public domain composition and protected recording are valid.",
             )
         pd_a, pd_b = ConflictHeuristics.is_public_domain(a), ConflictHeuristics.is_public_domain(b)
         cp_a, cp_b = ConflictHeuristics.is_copyrighted(a), ConflictHeuristics.is_copyrighted(b)
-        if (pd_a and cp_b) or (pd_b and cp_a):
+        same_layer = (a.rights_layer == b.rights_layer) if (a.rights_layer and b.rights_layer) else True
+        if (pd_a and cp_b and same_layer) or (pd_b and cp_a and same_layer):
             return StancePairEvaluation(
                 source_a_id=a.finding_id, source_b_id=b.finding_id,
                 stance=ConflictStance.CONTRADICTORY,
-                explanation="Direct contradiction: one source asserts public domain, other asserts copyright.",
+                explanation="Direct contradiction: incompatible assertions about the same work and rights layer.",
             )
         if (pd_a and pd_b) or (cp_a and cp_b and a.asserted_owner == b.asserted_owner):
             return StancePairEvaluation(
@@ -117,25 +118,29 @@ class ConflictArbiter:
 
     @classmethod
     def _build_contradictory_result(
-        cls,
-        claim_id: str,
-        findings: Sequence[EvidenceFinding],
-        dual_layer: Optional[DualLayerConflictInfo],
-        citations: List[Dict[str, str]],
+        cls, claim_id: str, findings: Sequence[EvidenceFinding], citations: List[Dict[str, str]]
     ) -> ArbitrationResult:
-        """Constructs an ArbitrationResult for contradictory or dual-layer findings."""
+        """Constructs an ArbitrationResult for genuine contradictory findings."""
         conf_sources = [f.model_dump() for f in findings if not CorroborationEngine.is_insufficient(f)]
-        action = (
-            "Dual-layer clearance required: composition/transcript is public domain under 17 U.S.C. § 105; "
-            "obtain private master clearance or network release for broadcast recording."
-            if dual_layer else "Manual attorney review required: conflicting ownership claims across sources."
-        )
         return ArbitrationResult(
             claim_id=claim_id, conflict_detected=True, overall_stance=ConflictStance.CONTRADICTORY,
-            risk_score=0.85, conflict_sources=conf_sources, dual_layer=dual_layer,
+            risk_score=0.85, conflict_sources=conf_sources, dual_layer=None,
             route_to_exceptions_schedule=True, exceptions_schedule_state="unresolved_exception",
-            recommended_action=action, summary=f"Contradictory evidence detected for claim {claim_id}.",
-            citations=citations,
+            recommended_action="Manual attorney review required: conflicting ownership claims across sources.",
+            summary=f"Contradictory evidence detected for claim {claim_id}.", citations=citations,
+        )
+
+    @classmethod
+    def _build_dual_layer_result(
+        cls, claim_id: str, findings: Sequence[EvidenceFinding], dual_layer: DualLayerConflictInfo, citations: List[Dict[str, str]]
+    ) -> ArbitrationResult:
+        """Constructs an ArbitrationResult for dual-layer distinction findings."""
+        return ArbitrationResult(
+            claim_id=claim_id, conflict_detected=False, overall_stance=ConflictStance.NEUTRAL,
+            risk_score=0.30, dual_layer=dual_layer, route_to_exceptions_schedule=False,
+            exceptions_schedule_state="carried_forward",
+            recommended_action="Leave recording clearance outstanding.",
+            summary=f"Dual-layer findings for claim {claim_id}.", citations=citations,
         )
 
     @classmethod
@@ -146,8 +151,10 @@ class ConflictArbiter:
         citations = cls._extract_citations(findings)
         stance = CorroborationEngine.classify_set(findings)
         dual_layer = cls._build_dual_layer(findings)
-        if dual_layer or stance == ConflictStance.CONTRADICTORY:
-            return cls._build_contradictory_result(claim_id, findings, dual_layer, citations)
+        if stance == ConflictStance.CONTRADICTORY:
+            return cls._build_contradictory_result(claim_id, findings, citations)
+        if dual_layer:
+            return cls._build_dual_layer_result(claim_id, findings, dual_layer, citations)
         if stance == ConflictStance.CORROBORATING:
             corr_sources = [f.model_dump() for f in findings]
             return ArbitrationResult(

@@ -474,6 +474,7 @@ class EvidenceDrivenCoordinator:
         config: Optional[AgentBuilderConfig] = None,
         use_fallback: bool = False,
     ):
+        from backend.orchestration.coordinator_adapters import CoordinatorAdapters
         self.run_id = run_id or f"run_{uuid.uuid4().hex[:8]}"
         self.revision_id = revision_id
         self.budget = budget or CoordinatorBudget()
@@ -482,6 +483,7 @@ class EvidenceDrivenCoordinator:
         self.gemini = gemini_service or GeminiService(use_fallback=use_fallback)
         self.parallel = parallel_service or ParallelSearchService(use_fallback=use_fallback)
         self.reconciler = evidence_reconciler or EvidenceReconciler()
+        self.adapters = CoordinatorAdapters()
         self.use_fallback = use_fallback
 
         # Independent claim registries
@@ -491,6 +493,12 @@ class EvidenceDrivenCoordinator:
         self.clarification_requests: Dict[str, ClarificationRequest] = {}
         self.action_history: Dict[str, List[Dict[str, Any]]] = {}
         self._checkpoints: Dict[str, CoordinatorCheckpoint] = {}
+        from backend.orchestration.shared_limits import SharedInvestigationGovernor
+        from backend.orchestration.circuit_breaker_governor import InvestigationCircuitBreaker
+        from backend.orchestration.milestone_b_reservation import MilestoneBBudgetManager
+        self.limits_governor = SharedInvestigationGovernor(investigation_id=self.run_id)
+        self.circuit_breaker = InvestigationCircuitBreaker()
+        self.milestone_b = MilestoneBBudgetManager()
 
     def register_claim(
         self,
@@ -593,6 +601,8 @@ class EvidenceDrivenCoordinator:
 
         if claim.right_category == "master_recording" and ctx.get("private_agreements_evaluated") and not claim.licensor_grant_confirmed:
             return True, "master_use_license"
+        if claim.right_category in ("composition", "composite", "music") and ctx.get("private_agreements_evaluated") and not claim.licensor_grant_confirmed:
+            return True, "synchronization_scope"
 
         return False, None
 
@@ -609,8 +619,9 @@ class EvidenceDrivenCoordinator:
         cid = norm_claim.claim_id
         ctx = self.claim_contexts.setdefault(cid, {})
 
-        # 1. Check remaining budget (call budget, token budget, dollar budget)
-        if self.budget.is_exhausted:
+        # 1. Check remaining budget (call budget, token budget, dollar budget, or shared limits)
+        limits_gov = getattr(self, "limits_governor", None)
+        if self.budget.is_exhausted or (limits_gov and limits_gov.is_query_budget_exhausted):
             norm_claim.workflow_reason = WorkflowReason.WAITING_FOR_BUDGET
             norm_claim.disposition = CensusDisposition.NEEDS_REVIEW
             self.claim_states[cid] = "unresolved_exception"
@@ -619,6 +630,17 @@ class EvidenceDrivenCoordinator:
                 claim_id=cid,
                 reason=WorkflowReason.WAITING_FOR_BUDGET,
                 notes="Coordinator budget exhausted: call, token, or dollar ceiling reached.",
+            )
+
+        # 1.5. Check 30-second execution deadline
+        if limits_gov and limits_gov.check_deadline():
+            norm_claim.disposition = CensusDisposition.NEEDS_REVIEW
+            self.claim_states[cid] = "unresolved_exception"
+            return CoordinatorDecision(
+                action=CoordinatorAction.ACT_08_STOP_UNRESOLVED,
+                claim_id=cid,
+                reason=WorkflowReason.NORMAL_OPERATION,
+                notes="Execution deadline (30s) reached; stopping with partial unresolved results.",
             )
 
         # 2. Check if public search failed (HTTP 504 / timeout / offline)
@@ -695,6 +717,16 @@ class EvidenceDrivenCoordinator:
                 action=CoordinatorAction.ACT_02_SEARCH_PUBLIC_SOURCES,
                 claim_id=cid,
                 notes="Phase 1 Identity Anchoring: public registry and copyright search unperformed.",
+            )
+
+        # 6.5. If urls exist and inspection unperformed -> ACT_03_INSPECT_SPECIFIC_SOURCE
+        urls_to_inspect = ctx.get("urls_to_inspect", [])
+        inspection_performed = ctx.get("source_inspection_performed", False)
+        if urls_to_inspect and not inspection_performed:
+            return CoordinatorDecision(
+                action=CoordinatorAction.ACT_03_INSPECT_SPECIFIC_SOURCE,
+                claim_id=cid,
+                notes="Target URLs found during public search require specific source extraction and inspection.",
             )
 
         # 7. If Phase 1 search found preliminary evidence -> ACT_05_ADVERSARIAL_DISCONFIRMATION (Phase 2)
@@ -951,172 +983,16 @@ class EvidenceDrivenCoordinator:
         """
         Dispatches and executes the selected CoordinatorAction.
         Updates claim context, mutates legal status, and enforces budget constraints.
+        Delegates to modular coordinator_actions.execute_action_step.
         """
-        norm_claim = self._resolve_claim(claim)
-        cid = norm_claim.claim_id
-        ctx = self.claim_contexts.setdefault(cid, {})
-
-        if action == CoordinatorAction.ACT_01_RETRIEVE_PRIVATE_AGREEMENTS:
-            self.budget.consume(calls=1, dollars=0.01)
-            matching: List[ContractAgreement] = []
-            target_key = (norm_claim.occurrence_lineage_id or cid).lower()
-            subj_key = (norm_claim.rights_subject or "").lower()
-            for c in self.contracts:
-                agr_id = getattr(c, "agreement_id", getattr(c, "contract_id", ""))
-                lin_key = getattr(c, "stable_lineage_key", "")
-                licensor = getattr(c, "licensor", "")
-                licensee = getattr(c, "licensee", "")
-                title = getattr(c, "title", "")
-                scope = getattr(c, "scope", "")
-                perm = getattr(c, "permitted_uses", [])
-                text = f"{agr_id} {lin_key} {title} {licensor} {licensee} {scope} {' '.join(perm)}".lower()
-                if target_key in text or (subj_key and subj_key in text) or (lin_key and lin_key.lower() == target_key):
-                    matching.append(c)
-
-            ctx["private_agreements_evaluated"] = True
-            matched_ids = [getattr(c, "agreement_id", getattr(c, "contract_id", str(i))) for i, c in enumerate(matching)]
-            if matching:
-                primary = matching[0]
-                norm_claim.licensor_grant_confirmed = True
-                norm_claim.licensed_media = getattr(primary, "permitted_media", getattr(primary, "permitted_uses", ["theatrical", "svod", "linear"]))
-                norm_claim.licensed_territory = getattr(primary, "territories", ["worldwide"])
-                norm_claim.licensed_term = getattr(primary, "term", "perpetual")
-                ctx["contract_shield_applied"] = True
-                ctx["matching_contracts"] = matched_ids
-                ctx["scope_mismatch"] = False
-                ctx["missing_crucial_scope"] = False
-            else:
-                ctx["contract_shield_applied"] = False
-                ctx["missing_crucial_scope"] = True
-                ctx["scope_field_missing"] = "executed_license"
-
-            self._record_action(cid, action, {"matching_count": len(matching)})
-            return {"status": "SUCCESS", "action": action.value, "matching_contracts": matched_ids}
-
-        elif action == CoordinatorAction.ACT_02_SEARCH_PUBLIC_SOURCES:
-            self.budget.consume(calls=1, dollars=0.04)
-            if http_status_override in (504, 502, 503, 408):
-                ctx["last_search_status"] = http_status_override
-                ctx["provider_offline"] = True
-                self._record_action(cid, action, {"status": "PROVIDER_OFFLINE", "http_status": http_status_override})
-                return {"status": "PROVIDER_OFFLINE", "http_status": http_status_override}
-
-            lineage_key = norm_claim.occurrence_lineage_id or cid
-            query = custom_query or f"{norm_claim.rights_subject} copyright registry public domain"
-            tool_output = await revalidate_evidence_tool(
-                query=query,
-                asset_key=lineage_key,
-                objective="public_identity_anchoring",
-                parallel_service=self.parallel,
-            )
-
-            st_val = tool_output.get("stance", "supporting").lower()
-            ev_stance = EvidenceStance.SUPPORTING
-            for s in EvidenceStance:
-                if s.value == st_val:
-                    ev_stance = s
-                    break
-
-            snapshot = PublicEvidenceSnapshot(
-                snapshot_id=tool_output.get("snapshot_id", f"snap_{lineage_key}"),
-                use_id=norm_claim.occurrence_id,
-                stable_lineage_key=lineage_key,
-                query=query,
-                source_title=tool_output.get("source_title", ""),
-                source_url=tool_output.get("source_url", ""),
-                excerpt=tool_output.get("excerpt", ""),
-                stance=ev_stance,
-                provider="Parallel",
-                provider_call_id=tool_output.get("provider_call_id"),
-                retrieval_latency_ms=tool_output.get("retrieval_latency_ms"),
-                raw_payload_hash=tool_output.get("raw_payload_hash"),
-                http_status=tool_output.get("http_status", 200),
-            )
-
-            if snapshot.http_status in (504, 502, 503, 408):
-                ctx["last_search_status"] = snapshot.http_status
-                ctx["provider_offline"] = True
-            else:
-                ctx["public_search_performed"] = True
-                ctx["public_evidence"] = snapshot
-                ctx["preliminary_evidence"] = snapshot
-                if snapshot.snapshot_id not in norm_claim.evidence_ids:
-                    norm_claim.evidence_ids.append(snapshot.snapshot_id)
-
-            self._record_action(cid, action, {"query": query, "stance": ev_stance.value})
-            return {"status": "SUCCESS", "action": action.value, "snapshot": snapshot.model_dump()}
-
-        elif action == CoordinatorAction.ACT_03_INSPECT_SPECIFIC_SOURCE:
-            self.budget.consume(calls=1, dollars=0.02)
-            ctx["source_inspected"] = True
-            self._record_action(cid, action, {"details": "Source inspected"})
-            return {"status": "SUCCESS", "action": action.value, "claim_id": cid}
-
-        elif action == CoordinatorAction.ACT_04_SPLIT_INVESTIGATION:
-            children = self.split_claim(norm_claim)
-            return {"status": "SUCCESS", "action": action.value, "children": [c.model_dump() for c in children]}
-
-        elif action == CoordinatorAction.ACT_05_ADVERSARIAL_DISCONFIRMATION:
-            self.budget.consume(calls=1, dollars=0.04)
-            lineage_key = norm_claim.occurrence_lineage_id or cid
-            query = custom_query or f"{norm_claim.rights_subject} copyright dispute renewal contested ownership"
-            tool_output = await revalidate_evidence_tool(
-                query=query,
-                asset_key=lineage_key,
-                objective="adversarial_disconfirmation",
-                parallel_service=self.parallel,
-            )
-            ctx["adversarial_disconfirmation_performed"] = True
-            ctx["adversarial_evidence"] = tool_output
-            self._record_action(cid, action, {"query": query, "adversarial_output": tool_output})
-            return {"status": "SUCCESS", "action": action.value, "tool_output": tool_output}
-
-        elif action == CoordinatorAction.ACT_06_REQUEST_INFORMATION:
-            clrf = self.suspend_claim(
-                claim=norm_claim,
-                question_text=custom_query or f"Clarification requested for license/scope on {norm_claim.rights_subject}",
-                scope_field_missing=ctx.get("scope_field_missing", "licensed_scope"),
-            )
-            return {"status": "SUSPENDED", "action": action.value, "clarification_request": clrf.model_dump()}
-
-        elif action == CoordinatorAction.ACT_07_PREPARE_REVIEW_BRIEF:
-            self.budget.consume(tokens=500, dollars=0.02)
-            ev = ctx.get("public_evidence")
-            excerpt = ""
-            src_title = ""
-            src_url = ""
-            if isinstance(ev, PublicEvidenceSnapshot):
-                excerpt = ev.excerpt
-                src_title = ev.source_title
-                src_url = ev.source_url
-            elif isinstance(ev, dict):
-                excerpt = ev.get("excerpt", "")
-                src_title = ev.get("source_title", "")
-                src_url = ev.get("source_url", "")
-
-            briefing = await self.gemini.synthesize_counsel_briefing(
-                asset_name=norm_claim.rights_subject,
-                reason_code=norm_claim.workflow_reason.value if hasattr(norm_claim.workflow_reason, "value") else str(norm_claim.workflow_reason),
-                evidence_excerpt=excerpt or "Clearance validated via public registry and contract vault.",
-                source_title=src_title or "Clearance Register",
-                source_url=src_url or "https://copyright.gov",
-            )
-            # Preparing an AI review brief provides advisory research synthesis for legal counsel;
-            # only authenticated counsel via the dual-review gate can grant CensusDisposition.APPROVED.
-            norm_claim.disposition = CensusDisposition.NEEDS_REVIEW
-            norm_claim.approval_origin = ApprovalOrigin.NONE
-            self.claim_states[cid] = "ready_for_review"
-            ctx["counsel_briefing"] = briefing.model_dump()
-            self._record_action(cid, action, {"briefing_prepared": True})
-            return {"status": "SUCCESS", "action": action.value, "briefing": briefing.model_dump()}
-
-        elif action == CoordinatorAction.ACT_08_STOP_UNRESOLVED:
-            norm_claim.disposition = CensusDisposition.NEEDS_REVIEW
-            self.claim_states[cid] = "unresolved_exception"
-            self._record_action(cid, action, {"reason": norm_claim.workflow_reason})
-            return {"status": "STOPPED", "action": action.value, "claim_id": cid, "reason": norm_claim.workflow_reason}
-
-        raise ValueError(f"Unknown coordinator action: {action}")
+        from backend.orchestration.coordinator_actions import execute_action_step
+        return await execute_action_step(
+            coordinator=self,
+            action=action,
+            claim=claim,
+            custom_query=custom_query,
+            http_status_override=http_status_override,
+        )
 
     async def coordinate_claim(self, claim_id: str, max_steps: int = 8) -> Dict[str, Any]:
         """Runs the 8-action dynamic decision loop for a single claim until terminal or suspended."""

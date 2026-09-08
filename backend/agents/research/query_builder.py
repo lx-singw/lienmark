@@ -193,7 +193,8 @@ class InverseDomainSteeringEngine:
     def should_trigger_inverse_steering(eval_result: EvidenceEvaluation) -> bool:
         """Determines if registry results are empty or below confidence threshold."""
         if eval_result.error_status and eval_result.error_status >= 400:
-            return True
+            from backend.agents.research.query_types import QueryBuilderError
+            raise QueryBuilderError("Provider failure triggered circuit-breaker recovery")
         if eval_result.result_count == 0 or eval_result.confidence_score < 0.70:
             return True
         if eval_result.stance in ("insufficient", None):

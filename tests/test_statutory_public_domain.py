@@ -28,14 +28,14 @@ def test_pre_1923_unconditionally_public_domain():
 
 def test_1923_to_1977_rolling_threshold_boundary():
     """Asserts exact 95-year boundary expiration for 1923-1977 works."""
-    # Reference year 2026: threshold = 2026 - 95 = 1931.
+    # Reference year 2026: threshold = 2026 - 96 = 1930.
     res_1930 = eval_public_domain(1930, reference_year=2026)
     assert res_1930.is_public_domain is True
-    assert res_1930.threshold_year == 1931
+    assert res_1930.threshold_year == 1930
     assert res_1930.statutory_era == StatutoryEra.YEARS_1923_TO_1977
 
     res_1931 = eval_public_domain(1931, reference_year=2026)
-    assert res_1931.is_public_domain is True
+    assert res_1931.is_public_domain is False
 
     res_1932 = eval_public_domain(1932, reference_year=2026)
     assert res_1932.is_public_domain is False
@@ -44,13 +44,13 @@ def test_1923_to_1977_rolling_threshold_boundary():
 
 
 def test_1923_to_1977_reference_year_2025():
-    """Asserts threshold behavior against reference year 2025 (threshold 1930)."""
-    res_1930 = eval_public_domain(1930, reference_year=2025)
-    assert res_1930.is_public_domain is True
-    assert res_1930.threshold_year == 1930
+    """Asserts threshold behavior against reference year 2025 (threshold 1929)."""
+    res_1929 = eval_public_domain(1929, reference_year=2025)
+    assert res_1929.is_public_domain is True
+    assert res_1929.threshold_year == 1929
 
-    res_1931 = eval_public_domain(1931, reference_year=2025)
-    assert res_1931.is_public_domain is False
+    res_1930 = eval_public_domain(1930, reference_year=2025)
+    assert res_1930.is_public_domain is False
 
 
 def test_post_1977_work_made_for_hire():
@@ -60,7 +60,7 @@ def test_post_1977_work_made_for_hire():
     assert res_current.statutory_era == StatutoryEra.POST_1977
     assert res_current.is_work_made_for_hire is True
 
-    # Future reference year 2085: threshold = 2085 - 95 = 1990
+    # Future reference year 2085: threshold = 2085 - 96 = 1989
     res_future = eval_public_domain(1985, reference_year=2085, is_work_made_for_hire=True)
     assert res_future.is_public_domain is True
 

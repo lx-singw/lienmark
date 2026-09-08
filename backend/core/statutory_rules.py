@@ -87,16 +87,18 @@ def eval_de_minimis(
 ) -> DeMinimisEvaluation:
     """
     3-Second De Minimis Visual Prominence Metric (Ringgold v. Black Entertainment Television).
-    Deterministic rule: duration_sec < 3.0 AND focal_prominence in qualifying set.
+    Provides a triage indicator; requires counsel review.
     """
     norm_prom = _validate_de_minimis_params(duration_sec, focal_prominence, total_work_ratio)
     is_de_minimis = (duration_sec < 3.0) and (norm_prom in DE_MINIMIS_QUALIFYING_PROMINENCE)
-    risk = "NONE_DE_MINIMIS" if is_de_minimis else "ACTIONABLE_COPYRIGHT_RISK"
+    risk = "TRIAGE_FAVORABLE_DE_MINIMIS" if is_de_minimis else "ACTIONABLE_COPYRIGHT_RISK"
+    conf = 0.70 if is_de_minimis else 1.0
     rat = _build_de_minimis_rationale(is_de_minimis, duration_sec, norm_prom, total_work_ratio)
+    rat += " Triage indicator only, requiring counsel review."
 
     return DeMinimisEvaluation(
         is_de_minimis=is_de_minimis,
-        confidence=1.0,
+        confidence=conf,
         duration_sec=float(duration_sec),
         focal_prominence=norm_prom,
         total_work_ratio=float(total_work_ratio) if total_work_ratio is not None else None,
@@ -107,8 +109,8 @@ def eval_de_minimis(
 
 
 def _compute_fair_use_confidence(aggregate_score: int) -> float:
-    """Computes deterministic confidence based on absolute deviation from zero point."""
-    return round(0.50 + 0.50 * (abs(aggregate_score) / 8.0), 2)
+    """Confidence not claimed as a calibrated probability."""
+    return 0.0
 
 
 def _compute_fair_use_outcome(aggregate_score: int) -> FairUseOutcome:
@@ -127,14 +129,14 @@ def _build_fair_use_rationale(
     return (
         f"Aggregate score {score} (range [-8, +7]). Factor 1: {factors.purpose_and_character}, "
         f"Factor 2: {factors.nature_of_work}, Factor 3: {factors.amount_and_substantiality}, "
-        f"Factor 4: {factors.market_harm}. Outcome: {outcome.value} under 17 U.S.C. § 107."
+        f"Factor 4: {factors.market_harm}. Factors organized for counsel review without claiming legal determination."
     )
 
 
 def eval_fair_use_scorecard(factors: FairUseFactors) -> FairUseEvaluation:
     """
     Structured 4-Factor Fair Use Scorecard (17 U.S.C. § 107).
-    Pure mathematical scoring matrix with ZERO freehand LLM drift.
+    Organizes factors for counsel review without claiming a legal determination.
     """
     if not isinstance(factors, FairUseFactors):
         raise InvalidFactorScoreError(f"factors must be FairUseFactors, got {type(factors).__name__}")

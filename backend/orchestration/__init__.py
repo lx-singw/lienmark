@@ -77,6 +77,25 @@ from backend.orchestration.budget_store import (
     BudgetStoreMode,
     get_budget_store,
 )
+from backend.orchestration.shared_limits import (
+    SharedInvestigationGovernor,
+    InvestigationLimitError,
+    MaxQueryLimitReachedError as SharedMaxQueryLimitReachedError,
+    MaxInspectionLimitReachedError,
+    CycleDetectedError as SharedCycleDetectedError,
+    DeadlineExceededError,
+)
+from backend.orchestration.circuit_breaker_governor import (
+    ProviderStatus,
+    InvestigationCircuitBreaker,
+    CircuitBreakerError as InvestigationCircuitBreakerError,
+    CircuitOpenError,
+    ScheduledRetry,
+)
+from backend.orchestration.milestone_b_reservation import (
+    MilestoneBBudgetManager,
+    PaidActionType,
+)
 
 __all__ = [
     "LienmarkWorkflow",
@@ -134,4 +153,17 @@ __all__ = [
     "FirestoreBudgetStore",
     "BudgetStoreMode",
     "get_budget_store",
+    "SharedInvestigationGovernor",
+    "InvestigationLimitError",
+    "SharedMaxQueryLimitReachedError",
+    "MaxInspectionLimitReachedError",
+    "SharedCycleDetectedError",
+    "DeadlineExceededError",
+    "ProviderStatus",
+    "InvestigationCircuitBreaker",
+    "InvestigationCircuitBreakerError",
+    "CircuitOpenError",
+    "ScheduledRetry",
+    "MilestoneBBudgetManager",
+    "PaidActionType",
 ]

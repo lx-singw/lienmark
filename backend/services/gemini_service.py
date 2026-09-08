@@ -11,7 +11,7 @@ import random
 import hashlib
 import logging
 import asyncio
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 from urllib.parse import urlsplit
 from pydantic import BaseModel, Field, model_validator
 import httpx
@@ -24,20 +24,11 @@ logger = logging.getLogger("lienmark.gemini")
 
 
 
-class ClearanceBriefing(BaseModel):
-    claim_id: str
-    asset_name: str
-    counsel_summary: str
-    parallel_evidence_stance: str
-    suggested_counsel_action: str
-    confidence: float = 1.0
-    stable_lineage_key: Optional[str] = None
-    citation: Optional[str] = None
-    raw_payload_hash: Optional[str] = None
-    latency_ms: Optional[float] = None
-    model_version: Optional[str] = None
-    token_estimate: Optional[int] = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+from backend.services.briefing_synthesis import (
+    ClearanceBriefing,
+    synthesize_fallback_briefing,
+    evaluate_evidence_stance,
+)
 
 
 class GeminiService:
@@ -569,71 +560,21 @@ Return a valid JSON object matching this schema:
             "call_count": self.call_count,
         }
 
-        metadata = {
-            "citation": citation,
-            "domain": domain,
-            "source_url": source_url,
-            "stance": stance,
-            "excerpt": excerpt,
-            "call_count": self.call_count,
-            "is_fallback": True,
-        }
-
-        if "midnight" in stable_lineage_key.lower() or "midnight" in asset_name.lower():
-            return ClearanceBriefing(
-                claim_id=stable_lineage_key if stable_lineage_key else "music_cue_midnight_serenade",
-                asset_name=asset_name,
-                counsel_summary="Prior public domain attestation invalid: Vanguard Media Holdings acquired exclusive worldwide synchronization rights as of August 2026.",
-                parallel_evidence_stance="CONTRADICTORY",
-                suggested_counsel_action="Mark as UNRESOLVED EXCEPTION on Form E&O; initiate master license negotiation or replace cue with cleared alternate.",
-                confidence=0.98,
-                stable_lineage_key=stable_lineage_key,
-                citation=citation or "ASCAP ACE Repertory & Billboard Rights Bulletin (ASCAP / Billboard Licensing Bulletin)",
-                raw_payload_hash=raw_payload_hash,
-                latency_ms=elapsed_ms,
-                model_version=self.MODEL_NAME,
-                token_estimate=token_estimate,
-                metadata=metadata,
-            )
-        elif (
-            stable_lineage_key == "poster_noir_detective_magazine"
-            or "poster_noir" in stable_lineage_key.lower()
-            or "crime detective" in asset_name.lower()
-            or "detective magazine" in asset_name.lower()
-            or ("noir" in asset_name.lower() and "poster" in asset_name.lower())
-            or ("noir" in asset_name.lower() and "magazine" in asset_name.lower())
-        ):
-            return ClearanceBriefing(
-                claim_id=stable_lineage_key if stable_lineage_key else "poster_noir_detective_magazine",
-                asset_name=asset_name,
-                counsel_summary="Scene 42 focal dialogue escalation invalidates de minimis defense, but US Copyright Office records retrieved by Parallel confirm 1946 registration lapsed without renewal in 1974. Cover art is public domain.",
-                parallel_evidence_stance="SUPPORTING",
-                suggested_counsel_action="Re-attest as APPROVED under Public Domain doctrine; attach LOC registration excerpt to exceptions schedule.",
-                confidence=0.96,
-                stable_lineage_key=stable_lineage_key,
-                citation=citation or "US Copyright Office Historical Catalog - Renewal Records (Library of Congress Copyright Office)",
-                raw_payload_hash=raw_payload_hash,
-                latency_ms=elapsed_ms,
-                model_version=self.MODEL_NAME,
-                token_estimate=token_estimate,
-                metadata=metadata,
-            )
-        else:
-            return ClearanceBriefing(
-                claim_id=stable_lineage_key if stable_lineage_key else asset_name,
-                asset_name=asset_name,
-                counsel_summary="Dependencies verified; no adverse evidence retrieved.",
-                parallel_evidence_stance="SUPPORTING",
-                suggested_counsel_action="Carry forward prior approval.",
-                confidence=1.0,
-                stable_lineage_key=stable_lineage_key,
-                citation=citation or f"Public Registry: {asset_name}",
-                raw_payload_hash=raw_payload_hash,
-                latency_ms=elapsed_ms,
-                model_version=self.MODEL_NAME,
-                token_estimate=token_estimate,
-                metadata=metadata,
-            )
+        return synthesize_fallback_briefing(
+            stable_lineage_key=stable_lineage_key,
+            asset_name=asset_name,
+            evidence=evidence,
+            delta=delta,
+            elapsed_ms=elapsed_ms,
+            raw_payload_hash=raw_payload_hash,
+            token_estimate=token_estimate,
+            model_version=self.MODEL_NAME,
+            call_count=self.call_count,
+            citation=citation,
+            domain=domain,
+            source_url=source_url,
+            excerpt=excerpt,
+        )
 
     async def synthesize_counsel_briefing(
         self,
@@ -642,12 +583,15 @@ Return a valid JSON object matching this schema:
         evidence_excerpt: str,
         source_title: str,
         source_url: str,
+        evidence_stance: Optional[str] = None,
+        claim_id: Optional[str] = None,
+        evidence: Optional[Union[PublicEvidenceSnapshot, Dict[str, Any]]] = None,
     ) -> ClearanceBriefing:
         """
-        Legacy/compat method synthesizing a 15-second counsel decision briefing.
-        Delegates to synthesize_clearance_briefing.
+        Synthesizes a 15-second counsel decision briefing evaluating genuine evidence stance.
+        Disconfirming evidence produces CONTRADICTORY stance and warns counsel of adverse claimants.
         """
-        key = (
+        key = claim_id or (
             "music_cue_midnight_serenade"
             if ("midnight" in asset_name.lower() or "serenade" in asset_name.lower())
             else (
@@ -657,11 +601,14 @@ Return a valid JSON object matching this schema:
             )
         )
         fake_delta = {"is_material": True, "prominence_shift": reason_code, "narrative_impact": reason_code}
-        fake_evidence = {
+        ev_stance = evidence_stance or evaluate_evidence_stance(
+            evidence, reason_code=reason_code, excerpt=evidence_excerpt
+        )
+        fake_evidence = evidence or {
             "source_title": source_title,
             "source_url": source_url,
             "excerpt": evidence_excerpt,
-            "stance": "CONTRADICTORY" if ("midnight" in asset_name.lower() or "serenade" in asset_name.lower()) else "SUPPORTING",
+            "stance": ev_stance,
         }
         return await self.synthesize_clearance_briefing(
             stable_lineage_key=key,

@@ -9,6 +9,7 @@ Sprint 3.3 - 100% pure, deterministic Python with zero freehand drift.
 from __future__ import annotations
 
 from enum import Enum
+import datetime
 from typing import Dict, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -78,6 +79,11 @@ class PublicDomainEvaluation(BaseModel):
     rationale: str = Field(..., description="Deterministic legal explanation")
     is_work_made_for_hire: bool = Field(default=False, description="Work made for hire flag")
     author_death_year: Optional[int] = Field(default=None, description="Author year of death if known")
+    evaluation_date: datetime.date = Field(..., description="Explicit evaluation date")
+    jurisdiction: str = Field(default="US", description="Jurisdiction")
+    work_type: str = Field(default="unspecified", description="Work type")
+    applicable_term: str = Field(..., description="Applicable term")
+    verified_facts: bool = Field(default=True, description="Whether facts are verified")
 
 
 class DeMinimisEvaluation(BaseModel):

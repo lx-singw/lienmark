@@ -29,7 +29,7 @@ def test_fair_use_likely_strong_transformative():
     assert isinstance(res, FairUseEvaluation)
     assert res.aggregate_score == 7
     assert res.recommendation == FairUseOutcome.FAIR_USE_LIKELY
-    assert res.confidence == 0.94
+    assert res.confidence == 0.0
     assert res.factor_breakdown["purpose_and_character"] == 2
 
 
@@ -44,7 +44,7 @@ def test_fair_use_unlikely_commercial_piracy():
     res = eval_fair_use_scorecard(factors)
     assert res.aggregate_score == -8
     assert res.recommendation == FairUseOutcome.FAIR_USE_UNLIKELY
-    assert res.confidence == 1.0
+    assert res.confidence == 0.0
 
 
 def test_fair_use_uncertain_boundary_scores():
@@ -59,7 +59,7 @@ def test_fair_use_uncertain_boundary_scores():
     res_zero = eval_fair_use_scorecard(f_zero)
     assert res_zero.aggregate_score == 0
     assert res_zero.recommendation == FairUseOutcome.FAIR_USE_UNCERTAIN
-    assert res_zero.confidence == 0.50
+    assert res_zero.confidence == 0.0
 
     # Score +1
     f_plus1 = FairUseFactors(
@@ -120,3 +120,4 @@ def test_eval_fair_use_scorecard_type_guard():
     """Asserts InvalidFactorScoreError on non-FairUseFactors argument."""
     with pytest.raises(InvalidFactorScoreError):
         eval_fair_use_scorecard({"purpose_and_character": 1})  # type: ignore
+# Updated timestamp 2

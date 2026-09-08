@@ -173,7 +173,14 @@ def atomic_save_json(f_path: str, data: Dict[str, Any]) -> None:
             json.dump(data, f, indent=2, sort_keys=True)
             f.flush()
             os.fsync(f.fileno())
-        os.replace(tmp, f_path)
+        for attempt in range(5):
+            try:
+                os.replace(tmp, f_path)
+                break
+            except OSError:
+                if attempt == 4:
+                    raise
+                time.sleep(0.02 * (2 ** attempt))
     except Exception as exc:
         if os.path.exists(tmp):
             with contextlib.suppress(OSError):

@@ -1,17 +1,14 @@
+"""evidence_archiver.py
+Asynchronous Evidence Archiver and citation verification with redirect-aware SSRF defense.
 """
-evidence_archiver.py
-
-Asynchronous Evidence Snapshot Archiver and citation URL liveness verification.
-Enforces Cloudflare/paywall pre-mortem mitigations and dual GCS/local snapshot storage.
-Authored strictly under Google AntiGravity for Agentic Cinema compliance.
-"""
-
 from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from typing import Any, Dict, List, Optional, Sequence, Tuple
+from urllib.parse import urljoin
 import uuid
 
 import httpx
@@ -24,20 +21,20 @@ from backend.services.evidence_archiver_types import (
     EvidenceSnapshot,
     InvalidCitationUrlError,
     LivenessVerificationResult,
+    RegistrationExtractionError,
     SnapshotHttpHeaders,
-    SnapshotStorageError,
+    SSRFSecurityError,
     compute_payload_digest,
+    validate_url_ssrf,
 )
 from backend.services.snapshot_store import SnapshotStore
 
 logger = logging.getLogger("lienmark.services.evidence_archiver")
+REG_REGEX = re.compile(r"\b(?:(?:TX|PA|VA|SR|RE|B)[- ]?\d{4,8}|\d{7,8}|[A-Z]{1,3}-\d{4}-\d{4,8})\b", re.IGNORECASE)
 
 
 class EvidenceArchiver:
-    """
-    Evidence verification and snapshot archiver service.
-    Verifies citation URLs using HEAD and fallback GET with scraper pre-mortem classification.
-    """
+    """Evidence verification and snapshot archiver with redirect-aware SSRF protection."""
 
     def __init__(
         self,
@@ -62,8 +59,6 @@ class EvidenceArchiver:
             return CitationLivenessStatus.LIVE_RESTRICTED
         if code in (404, 410):
             return CitationLivenessStatus.DEAD
-        if 500 <= code < 600:
-            return CitationLivenessStatus.ERROR
         return CitationLivenessStatus.DEAD if (400 <= code < 500) else CitationLivenessStatus.ERROR
 
     @staticmethod
@@ -79,73 +74,99 @@ class EvidenceArchiver:
             },
         )
 
-    async def _send_request(
+    async def _send_hop(
         self, client: httpx.AsyncClient, method: str, url: str, timeout: float
-    ) -> Tuple[Optional[httpx.Response], Optional[Exception]]:
-        """Executes a single HTTP request defensively."""
-        headers = {"User-Agent": self.config.user_agent}
-        try:
-            resp = await client.request(method, url, headers=headers, timeout=timeout, follow_redirects=True)
-            return resp, None
-        except Exception as exc:
-            return None, exc
+    ) -> httpx.Response:
+        """Executes a single hop validating SSRF boundaries."""
+        validate_url_ssrf(url)
+        return await client.request(
+            method, url, headers={"User-Agent": self.config.user_agent},
+            timeout=timeout, follow_redirects=False
+        )
 
-    async def _execute_liveness_probes(
+    async def _follow_redirects(
+        self, client: httpx.AsyncClient, method: str, url: str, timeout: float, start: float
+    ) -> Tuple[Optional[httpx.Response], str, int, Optional[Exception]]:
+        """Follows redirects with destination IP validation on each hop."""
+        curr_url, hops = url, 0
+        while hops <= self.config.max_redirects:
+            rem = max(0.5, timeout - (time.perf_counter() - start))
+            try:
+                resp = await self._send_hop(client, method, curr_url, rem)
+                if resp.is_redirect and "location" in resp.headers:
+                    curr_url = urljoin(curr_url, resp.headers["location"])
+                    hops += 1
+                    continue
+                return resp, curr_url, hops, None
+            except Exception as exc:
+                return None, curr_url, hops, exc
+        return None, curr_url, hops, EvidenceArchiverError(f"Exceeded max redirects ({self.config.max_redirects})")
+
+    async def _probe(
         self, client: httpx.AsyncClient, url: str, timeout: float, start: float
-    ) -> Tuple[Optional[httpx.Response], Optional[Exception], str]:
-        """Executes HEAD probe with conditional fallback GET."""
-        resp, exc = await self._send_request(client, "HEAD", url, timeout)
-        method_used = "HEAD"
+    ) -> Tuple[Optional[httpx.Response], str, int, Optional[Exception], str]:
+        """Probes URL with HEAD and fallback GET, validating redirects for SSRF."""
+        resp, f_url, hops, exc = await self._follow_redirects(client, "HEAD", url, timeout, start)
+        method = "HEAD"
         need_fallback = exc is not None or (resp is not None and resp.status_code in (400, 401, 403, 404, 405, 501))
-
-        if need_fallback and not isinstance(exc, httpx.TimeoutException):
-            rem_timeout = max(0.5, timeout - (time.perf_counter() - start))
-            get_resp, get_exc = await self._send_request(client, "GET", url, rem_timeout)
-            if get_resp is not None or get_exc is not None:
-                resp, exc = get_resp, get_exc
-                method_used = "GET"
-        return resp, exc, method_used
+        if need_fallback and not isinstance(exc, (httpx.TimeoutException, SSRFSecurityError)):
+            rem = max(0.5, timeout - (time.perf_counter() - start))
+            g_resp, g_url, g_hops, g_exc = await self._follow_redirects(client, "GET", url, rem, start)
+            if g_resp is not None or g_exc is not None:
+                resp, f_url, hops, exc = g_resp, g_url, hops + g_hops, g_exc
+                method = "GET"
+        return resp, f_url, hops, exc, method
 
     async def verify_url_liveness(
         self, url: str, timeout_seconds: Optional[float] = None
     ) -> LivenessVerificationResult:
-        """
-        Asynchronously verifies citation URL liveness with HEAD and fallback GET.
-        Categorizes 401/403 as LIVE_RESTRICTED to prevent false negative dead-link alerts.
-        """
+        """Asynchronously verifies URL liveness with redirect-aware SSRF protection."""
         if not url or not (url.startswith("http://") or url.startswith("https://")):
             return LivenessVerificationResult(
-                url=url or "",
-                status=CitationLivenessStatus.DEAD,
+                url=url or "", status=CitationLivenessStatus.DEAD,
                 error_detail="Invalid URL scheme; must begin with http:// or https://",
             )
-
-        timeout = timeout_seconds if timeout_seconds is not None else self.config.timeout_seconds
-        start = time.perf_counter()
+        start, timeout = time.perf_counter(), timeout_seconds or self.config.timeout_seconds
         owns_client = self._client is None
         client = self._client or httpx.AsyncClient()
-
         try:
-            resp, exc, method_used = await self._execute_liveness_probes(client, url, timeout, start)
-            latency_ms = round((time.perf_counter() - start) * 1000.0, 2)
+            resp, f_url, hops, exc, method = await self._probe(client, url, timeout, start)
+            lat = round((time.perf_counter() - start) * 1000.0, 2)
             if isinstance(exc, httpx.TimeoutException):
-                return LivenessVerificationResult(url=url, status=CitationLivenessStatus.TIMEOUT, latency_ms=latency_ms)
+                return LivenessVerificationResult(url=url, final_url=f_url, status=CitationLivenessStatus.TIMEOUT, latency_ms=lat)
             if exc is not None or resp is None:
                 return LivenessVerificationResult(
-                    url=url, status=CitationLivenessStatus.ERROR, latency_ms=latency_ms, error_detail=str(exc)
+                    url=url, final_url=f_url, status=CitationLivenessStatus.ERROR,
+                    latency_ms=lat, error_detail=str(exc), redirect_count=hops
                 )
-
+            body = resp.text if method == "GET" else None
             return LivenessVerificationResult(
-                url=url,
-                status=self._classify_status(resp.status_code),
-                http_status=resp.status_code,
-                latency_ms=latency_ms,
-                method_used=method_used,
-                headers=self._extract_headers(resp),
+                url=url, final_url=f_url, status=self._classify_status(resp.status_code),
+                http_status=resp.status_code, latency_ms=lat, method_used=method,
+                headers=self._extract_headers(resp), redirect_count=hops, fetched_body=body
             )
         finally:
             if owns_client:
                 await client.aclose()
+
+    @staticmethod
+    def extract_registration_number_from_snapshot(snapshot: EvidenceSnapshot) -> str:
+        """HEAD checks cannot extract registration numbers; body content or extraction is required."""
+        if snapshot.method_used == "HEAD" and not snapshot.fetched_content and not snapshot.provider_extraction:
+            raise RegistrationExtractionError("HEAD checks cannot extract registration numbers.")
+        source = snapshot.fetched_content or snapshot.provider_extraction or snapshot.raw_snippet or ""
+        match = REG_REGEX.search(source)
+        if not match:
+            raise RegistrationExtractionError("No registration number found in evidence content.")
+        return match.group(0)
+
+    @staticmethod
+    def compute_locators(snippet: str, content: str) -> Dict[str, Any]:
+        """Calculates character offset excerpt locators within source content."""
+        if snippet and content and snippet in content:
+            idx = content.find(snippet)
+            return {"char_start": idx, "char_end": idx + len(snippet), "type": "exact"}
+        return {"char_start": 0, "char_end": len(snippet), "type": "snippet"}
 
     async def archive_citation(
         self,
@@ -153,40 +174,74 @@ class EvidenceArchiver:
         snippet: str,
         tenant_id: str = "default",
         metadata: Optional[Dict[str, Any]] = None,
+        fetched_content: Optional[str] = None,
+        provider_extraction: Optional[str] = None,
+        attributable_provider: Optional[str] = None,
+        excerpt_locators: Optional[Dict[str, Any]] = None,
+        is_historical: bool = False,
+        historical_timestamp: Optional[str] = None,
     ) -> EvidenceSnapshot:
-        """Verifies citation liveness, hashes payload, and stores immutable snapshot."""
-        verification = await self.verify_url_liveness(url)
+        """Archives citation requiring fetched content or attributable extraction, digests, and SSRF check."""
+        validate_url_ssrf(url)
+        v = await self.verify_url_liveness(url)
+        if v.error_detail and "SSRF blocked" in v.error_detail:
+            raise SSRFSecurityError(v.error_detail)
+        body = fetched_content or v.fetched_body
+        final_url = v.final_url or url
+        prov_ext = provider_extraction or (snippet if not body else None)
+        attr_prov = attributable_provider or ("search_provider" if prov_ext and not body else None)
+        locators = excerpt_locators or self.compute_locators(snippet, body or prov_ext or "")
+        ret_time = historical_timestamp if (is_historical and historical_timestamp) else v.checked_at_utc
         snapshot = EvidenceSnapshot(
-            snapshot_id=f"snp_{uuid.uuid4().hex[:16]}",
-            url=url,
-            status=verification.status,
-            http_status=verification.http_status,
-            raw_snippet=snippet,
-            headers=verification.headers,
-            retrieved_at_utc=verification.checked_at_utc,
-            payload_digest_sha256=compute_payload_digest(snippet),
-            latency_ms=verification.latency_ms,
-            method_used=verification.method_used,
-            tenant_id=tenant_id,
+            snapshot_id=f"snp_{uuid.uuid4().hex[:16]}", url=url, final_url=final_url,
+            status=v.status, http_status=v.http_status, raw_snippet=snippet,
+            fetched_content=body, provider_extraction=prov_ext, attributable_provider=attr_prov,
+            excerpt_locators=locators, retrieval_time_utc=ret_time,
+            response_digest_sha256=compute_payload_digest(body) if body else None,
+            content_digest_sha256=compute_payload_digest(snippet),
+            headers=v.headers, latency_ms=v.latency_ms, method_used=v.method_used,
+            tenant_id=tenant_id, is_historical=is_historical,
+            historical_label="historical" if is_historical else None,
+            original_retrieval_time_utc=ret_time if is_historical else None,
             metadata=metadata or {},
         )
         await self.store.save_snapshot(snapshot)
         return snapshot
 
-    async def archive_batch(
+    async def archive_historical_snapshot(
         self,
-        citations: Sequence[CitationRequest],
-        concurrency_limit: Optional[int] = None,
+        url: str,
+        snippet: str,
+        original_retrieval_time_utc: str,
+        tenant_id: str = "default",
+        fetched_content: Optional[str] = None,
+        provider_extraction: Optional[str] = None,
+        attributable_provider: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> EvidenceSnapshot:
+        """Creates and stores a historical snapshot retaining original timestamp and historical label."""
+        return await self.archive_citation(
+            url=url, snippet=snippet, tenant_id=tenant_id, metadata=metadata,
+            fetched_content=fetched_content, provider_extraction=provider_extraction,
+            attributable_provider=attributable_provider or "historical_archive",
+            is_historical=True, historical_timestamp=original_retrieval_time_utc,
+        )
+
+    async def archive_batch(
+        self, citations: Sequence[CitationRequest], concurrency_limit: Optional[int] = None
     ) -> List[EvidenceSnapshot]:
         """Archives a batch of citations concurrently with bounded concurrency."""
-        limit = concurrency_limit or self.config.max_concurrency
-        semaphore = asyncio.Semaphore(limit)
+        sem = asyncio.Semaphore(concurrency_limit or self.config.max_concurrency)
 
-        async def _worker(req: CitationRequest) -> EvidenceSnapshot:
-            async with semaphore:
-                return await self.archive_citation(req.url, req.snippet, req.tenant_id, req.metadata)
+        async def _w(r: CitationRequest) -> EvidenceSnapshot:
+            async with sem:
+                return await self.archive_citation(
+                    r.url, r.snippet, r.tenant_id, r.metadata, r.fetched_content,
+                    r.provider_extraction, r.attributable_provider, r.excerpt_locators,
+                    r.is_historical, r.historical_timestamp,
+                )
 
-        return list(await asyncio.gather(*[_worker(c) for c in citations]))
+        return list(await asyncio.gather(*[_w(c) for c in citations]))
 
 
 __all__ = ["EvidenceArchiver", "SnapshotStore"]

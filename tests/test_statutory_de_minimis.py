@@ -23,8 +23,8 @@ def test_qualifying_de_minimis_uses():
             res = eval_de_minimis(duration_sec=dur, focal_prominence=prominence)
             assert isinstance(res, DeMinimisEvaluation)
             assert res.is_de_minimis is True
-            assert res.actionable_risk == "NONE_DE_MINIMIS"
-            assert res.confidence == 1.0
+            assert res.actionable_risk == "TRIAGE_FAVORABLE_DE_MINIMIS"
+            assert res.confidence == 0.70
             assert "Ringgold v. Black Entertainment Television" in res.legal_precedent
 
 

@@ -18,13 +18,14 @@ from backend.agents.research.query_types import (
     AssetClass,
     EvidenceEvaluation,
     InvalidSteeringTransitionError,
+    QueryBuilderError,
     SearchQueryRequest,
     SteeringState,
 )
 
 
 def test_trigger_condition_evaluation():
-    """Verifies that 0 results or low confidence accurately trigger inverse steering."""
+    """Verifies that 0 results or low confidence accurately trigger inverse steering, while provider error triggers recovery."""
     engine = InverseDomainSteeringEngine()
 
     zero_hits = EvidenceEvaluation(result_count=0, confidence_score=0.0)
@@ -34,7 +35,8 @@ def test_trigger_condition_evaluation():
     assert engine.should_trigger_inverse_steering(low_conf) is True
 
     http_error = EvidenceEvaluation(result_count=0, error_status=504)
-    assert engine.should_trigger_inverse_steering(http_error) is True
+    with pytest.raises(QueryBuilderError):
+        engine.should_trigger_inverse_steering(http_error)
 
     high_conf = EvidenceEvaluation(result_count=4, confidence_score=0.88, stance="supporting")
     assert engine.should_trigger_inverse_steering(high_conf) is False
