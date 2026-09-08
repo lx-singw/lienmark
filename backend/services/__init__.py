@@ -213,6 +213,11 @@ from backend.services.evidence_pack_types import (
     compute_manifest_root_hash,
 )
 from backend.services.evidence_pack_builder import build_evidence_pack
+from backend.services.resumption_pipeline import (
+    ResumptionPipelineService,
+    get_resumption_pipeline_service,
+    set_resumption_pipeline_service,
+)
 
 __all__.extend([
     "CitationCategory",
@@ -226,5 +231,9 @@ __all__.extend([
     "VerificationReport",
     "compute_manifest_root_hash",
     "build_evidence_pack",
+    "ResumptionPipelineService",
+    "get_resumption_pipeline_service",
+    "set_resumption_pipeline_service",
 ])
+
 

@@ -179,7 +179,7 @@ def test_claim_update_and_ledger_recording(
         rights_subject="Brass Motif",
     )
     res = verifier.verify_agreement(doc=doc, claim=claim)
-    updated_claim = verifier.update_claim_state(claim, res)
+    updated_claim = verifier.update_claim_state(claim, res, counsel_signoff=True)
 
     assert updated_claim.licensor_grant_confirmed is True
     assert updated_claim.disposition == CensusDisposition.APPROVED

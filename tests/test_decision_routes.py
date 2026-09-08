@@ -56,8 +56,8 @@ def test_decision_sign_off_success_reviewer():
     assert data["audit_event_id"].startswith("evt_")
 
 
-def test_decision_sign_off_conditional_producer():
-    """Producer role successfully executes conditional sign-off with clear caveats."""
+def test_decision_sign_off_producer_strictly_rejected_403():
+    """Producer role is strictly forbidden from adjudicating clearance decisions."""
     tenant = "org_warner_002"
     token = create_test_jwt(tenant_id=tenant, user_id="usr_prod_mike", roles=["producer"])
     claim_id = "claim_music_sync_10"
@@ -69,11 +69,37 @@ def test_decision_sign_off_conditional_producer():
         "conditions": conditions,
     }
     res = _post_decision(claim_id, payload, token)
+    assert res.status_code == 403
+    assert "Access denied" in res.json()["detail"]
+
+
+def test_decision_production_scoped_roles():
+    """Target production reviewer/admin succeeds, other production or producer rejected."""
+    tenant = "org_warner_002"
+    claim_id = "claim_scoped_dec_01"
+    target_prod = "prod_matrix_42"
+    payload = {
+        "action": "sign_off",
+        "counsel_id": "c_rev_01",
+        "counsel_name": "Sarah Reviewer",
+        "citation_text": "Fair use cleared.",
+    }
+
+    # 1. Reviewer on target production succeeds
+    token_rev = create_test_jwt(tenant_id=tenant, roles=[], claims_extra={"production_roles": {target_prod: "reviewer"}})
+    res = client.post(f"/api/v1/claims/{claim_id}/decision?production_id={target_prod}", json=payload, headers={"Authorization": f"Bearer {token_rev}"})
     assert res.status_code == 200
-    data = res.json()
-    assert data["status"] == "conditional"
-    assert data["disposition"] == "conditional"
-    assert data["attempt_number"] == 1
+
+    # 2. Producer on target production rejected with 403
+    token_prod = create_test_jwt(tenant_id=tenant, roles=[], claims_extra={"production_roles": {target_prod: "producer"}})
+    res_prod = client.post(f"/api/v1/claims/{claim_id}/decision?production_id={target_prod}", json=payload, headers={"Authorization": f"Bearer {token_prod}"})
+    assert res_prod.status_code == 403
+
+    # 3. Role on different production rejected with 403 (cross-production leak)
+    token_other = create_test_jwt(tenant_id=tenant, roles=[], claims_extra={"production_roles": {"prod_other": "reviewer"}})
+    res_leak = client.post(f"/api/v1/claims/{claim_id}/decision?production_id={target_prod}", json=payload, headers={"Authorization": f"Bearer {token_other}"})
+    assert res_leak.status_code == 403
+
 
 
 def test_decision_reject_creates_reinvestigation_admin():

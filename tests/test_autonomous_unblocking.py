@@ -144,7 +144,7 @@ def test_step_5_hydration_agreement_verification_and_review_readiness():
 
     updated_claim = verifier.update_claim_state(claim, v_res)
     assert updated_claim.licensor_grant_confirmed is True
-    assert updated_claim.disposition == CensusDisposition.APPROVED
+    assert updated_claim.disposition == CensusDisposition.NEEDS_REVIEW
 
 
 def _setup_e2e_suspension():
@@ -221,6 +221,7 @@ def test_acceptance_gate_e2e_autonomous_unblocking_under_10_seconds():
 
     assert mgr.states[claim.claim_id] == SuspensionState.READY_FOR_REVIEW
     assert claim.licensor_grant_confirmed is True
+    assert claim.disposition == CensusDisposition.NEEDS_REVIEW
     assert store.get_clarification("clrf_jazz_001", "tenant_paramount").status == "resolved"
 
     elapsed = time.monotonic() - start_time

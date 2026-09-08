@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 from pydantic import BaseModel, ConfigDict, Field
 
 from backend.orchestration.checkpoint_types import (
@@ -34,6 +34,16 @@ class ResumptionStatus(str, Enum):
     FAILED = "failed"
 
 
+class ResumptionDispatchStatus(str, Enum):
+    """Lifecycle status of a durable resumption dispatch record."""
+    QUEUED_FOR_RESUMPTION = "queued for resumption"
+    PROCESSING = "processing"
+    INVESTIGATION_RESUMED = "investigation resumed"
+    BLOCKED = "blocked"
+    FAILED = "failed"
+    RECOVERED = "recovered"
+
+
 class NextStageType(str, Enum):
     """Categorical classification of the next stage dispatched after resumption."""
     TARGETED_AGREEMENT_VERIFICATION = "targeted_agreement_verification"
@@ -51,7 +61,7 @@ class ResolutionPayload(BaseModel):
     claim_id: str = Field(..., description="Target claim being resolved")
     clarification_id: Optional[str] = Field(default=None, description="Bound clarification request ID")
     resolved_by: str = Field(default="counsel", description="Origin of resolution (e.g. counsel)")
-    provided_facts: Dict[str, Any] = Field(
+    provided_facts: Dict[str, object] = Field(
         default_factory=dict, description="Factual assertions, e.g. license scope confirmation"
     )
     resolution_status: str = Field(default="confirmed", description="Resolution outcome status")
@@ -67,27 +77,27 @@ class ResumedAgentMemory(BaseModel):
     current_step: str = Field(default="resuming", description="Pipeline execution step name")
     completed_step_count: int = Field(default=0, ge=0, description="Count of completed steps")
     completed_subgoals: List[str] = Field(default_factory=list, description="Subgoal IDs verified completed")
-    uncompleted_subgoals: List[Dict[str, Any]] = Field(default_factory=list, description="Pending sub-objectives")
-    partial_dag: Dict[str, Any] = Field(default_factory=dict, description="DAG state with completed nodes marked")
-    query_history: List[Dict[str, Any]] = Field(default_factory=list, description="Prior queries executed (cached)")
-    context_variables: Dict[str, Any] = Field(default_factory=dict, description="Working context merged with facts")
-    upstream_frozen_count: int = Field(default=0, ge=0, description="Count of upstream elements protected from re-query")
+    uncompleted_subgoals: List[Dict[str, object]] = Field(default_factory=list, description="Pending sub-objectives")
+    partial_dag: Dict[str, object] = Field(default_factory=dict, description="DAG state with completed nodes marked")
+    query_history: List[Dict[str, object]] = Field(default_factory=list, description="Prior queries executed")
+    context_variables: Dict[str, object] = Field(default_factory=dict, description="Working context merged with facts")
+    upstream_frozen_count: int = Field(default=0, ge=0, description="Count of upstream elements protected")
 
     @classmethod
     def extract_subgoals_and_dag(
-        cls, checkpoint: Any
-    ) -> Tuple[List[str], List[Dict[str, Any]], Dict[str, Any]]:
+        cls, checkpoint: object
+    ) -> Tuple[List[str], List[Dict[str, object]], Dict[str, object]]:
         """Separates completed from pending subgoals and extracts DAG graph."""
         completed_sg: List[str] = []
-        uncompleted_sg: List[Dict[str, Any]] = []
-        dag: Dict[str, Any] = {}
+        uncompleted_sg: List[Dict[str, object]] = []
+        dag: Dict[str, object] = {}
         if hasattr(checkpoint, "investigation_dag"):
             dag = getattr(checkpoint, "investigation_dag") or {}
             for sg in getattr(checkpoint, "uncompleted_subgoals", []):
                 status = sg.get("status") if isinstance(sg, dict) else getattr(sg, "status", None)
                 sg_id = sg.get("id") if isinstance(sg, dict) else getattr(sg, "id", str(sg))
                 if status == "completed":
-                    completed_sg.append(sg_id)
+                    completed_sg.append(str(sg_id))
                 else:
                     uncompleted_sg.append(sg if isinstance(sg, dict) else sg.model_dump())
         elif hasattr(checkpoint, "agent_memory_snapshot"):
@@ -105,8 +115,34 @@ class NextStageDispatch(BaseModel):
     stage_action: str = Field(..., description="Specific action string (e.g. ACT_01)")
     target_claim_id: str = Field(..., description="Claim ID undergoing investigation")
     pending_node_id: Optional[str] = Field(default=None, description="Next DAG node ID to execute")
-    dispatch_payload: Dict[str, Any] = Field(default_factory=dict, description="Context variables passed to stage")
+    dispatch_payload: Dict[str, object] = Field(default_factory=dict, description="Context variables passed to stage")
     reasoning: str = Field(..., description="Causal justification for stage selection")
+    dispatch_id: Optional[str] = Field(default=None, description="Bound resumption dispatch identifier")
+    execution_result: Optional[Dict[str, object]] = Field(default=None, description="Stage execution result")
+
+
+class ResumptionDispatchRecord(BaseModel):
+    """Durable record tracking resumption dispatch across workers."""
+    model_config = ConfigDict(extra="ignore")
+
+    dispatch_id: str = Field(..., description="Unique dispatch identifier")
+    tenant_id: str = Field(..., description="Multi-tenant identifier")
+    production_id: str = Field(..., description="Production identifier")
+    run_id: str = Field(..., description="ADK pipeline run identifier")
+    claim_id: str = Field(..., description="Target claim identifier")
+    checkpoint_id: str = Field(..., description="Bound checkpoint identifier")
+    checkpoint_revision: int = Field(default=1, ge=1, description="Checkpoint revision counter")
+    resolution_payload: Optional[ResolutionPayload] = Field(default=None, description="Bound resolution payload")
+    resume_token: Optional[str] = Field(default=None, description="Cryptographic resume token")
+    status: str = Field(default=ResumptionDispatchStatus.QUEUED_FOR_RESUMPTION.value, description="Lifecycle status")
+    worker_id: Optional[str] = Field(default=None, description="Worker identifier holding lease")
+    lease_expires_at_utc: Optional[str] = Field(default=None, description="Lease expiry UTC timestamp")
+    fencing_token: Optional[int] = Field(default=None, description="Monotonic worker fencing token")
+    retry_count: int = Field(default=0, ge=0, description="Recovery retry count")
+    created_at_utc: str = Field(..., description="ISO 8601 UTC creation timestamp")
+    updated_at_utc: str = Field(..., description="ISO 8601 UTC update timestamp")
+    execution_result: Optional[Dict[str, object]] = Field(default=None, description="Execution result")
+    error_message: Optional[str] = Field(default=None, description="Error diagnostics if failed")
 
 
 class ResumptionResult(BaseModel):
@@ -139,7 +175,7 @@ class ResumptionResult(BaseModel):
         )
 
 
-def verify_checkpoint_token(checkpoint: Any, resume_token: str) -> bool:
+def verify_checkpoint_token(checkpoint: object, resume_token: str) -> bool:
     """Validates cryptographic SHA-256 resume token against checkpoint digest."""
     if isinstance(checkpoint, OrchCheckpoint):
         return validate_resume_token(checkpoint, resume_token)
@@ -148,13 +184,13 @@ def verify_checkpoint_token(checkpoint: Any, resume_token: str) -> bool:
     return getattr(checkpoint, "resume_token", None) == resume_token
 
 
-def verify_checkpoint_ttl(checkpoint: Any) -> bool:
+def verify_checkpoint_ttl(checkpoint: object) -> bool:
     """Verifies checkpoint TTL expiration timestamp has not elapsed."""
     exp_iso = getattr(checkpoint, "expires_at_utc", getattr(checkpoint, "ttl_expires_at_utc", None))
     if not exp_iso:
         return True
     try:
-        exp_dt = datetime.fromisoformat(exp_iso)
+        exp_dt = datetime.fromisoformat(str(exp_iso))
         if exp_dt.tzinfo is None:
             exp_dt = exp_dt.replace(tzinfo=timezone.utc)
         return datetime.now(timezone.utc) <= exp_dt
@@ -162,7 +198,7 @@ def verify_checkpoint_ttl(checkpoint: Any) -> bool:
         return False
 
 
-def is_claim_active_in_revision(claim_id: str, revision_uses: Optional[List[Any]]) -> bool:
+def is_claim_active_in_revision(claim_id: str, revision_uses: Optional[List[object]]) -> bool:
     """Verifies target claim is still present and active in current script revision cut."""
     if revision_uses is None:
         return True
@@ -173,6 +209,9 @@ def is_claim_active_in_revision(claim_id: str, revision_uses: Optional[List[Any]
             cid = getattr(item, "claim_id", getattr(item, "occurrence_lineage_id", None))
         if cid == claim_id:
             return True
+    return False
+
+
 def has_attached_contracts(resolution: Optional[ResolutionPayload]) -> bool:
     """Helper checking if resolution payload contains attached contracts or license scope."""
     if not resolution:

@@ -171,6 +171,7 @@ class AgreementVerifier:
         self,
         claim: AtomicRightsClaim,
         result: AgreementVerificationResult,
+        counsel_signoff: bool = False,
     ) -> AtomicRightsClaim:
         """Synchronizes claim state, licensed scope, and disposition with verification results."""
         claim.licensor_grant_confirmed = result.is_valid
@@ -181,7 +182,7 @@ class AgreementVerifier:
         if result.requires_counsel_rider:
             claim.disposition = CensusDisposition.CONDITIONAL
             claim.decision_conditions = list(result.rider_reasons)
-        elif result.is_valid:
+        elif result.is_valid and counsel_signoff:
             claim.disposition = CensusDisposition.APPROVED
             claim.approval_origin = ApprovalOrigin.INITIAL_APPROVAL
         else:
@@ -202,7 +203,7 @@ class AgreementVerifier:
     ) -> Tuple[AgreementVerificationResult, Optional[AuditEvent]]:
         """Coordinates post-resumption verification, unblocks clarification, and persists to ledger."""
         res = self.verify_agreement(doc=doc, claim=claim, requirements=requirements)
-        self.update_claim_state(claim, res)
+        self.update_claim_state(claim, res, counsel_signoff=False)
 
         if res.is_valid:
             clarification.status = "resolved"

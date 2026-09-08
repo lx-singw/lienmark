@@ -209,3 +209,27 @@ def test_respond_to_clarification_not_found():
         headers={"Authorization": f"Bearer {token}"},
     )
     assert res.status_code == 404
+
+
+def test_respond_to_clarification_production_scoped_roles_and_resumption():
+    store = get_clarification_store()
+    tenant = "org_warner_001"
+    prod_target = "prod_matrix_01"
+    req_id = "clrf_scoped_01"
+    store.save_clarification(_make_clrf(req_id, "run_scope_01", "pending"), tenant, prod_target)
+
+    # 1. Scoped producer on target production succeeds and never sets approved
+    token_prod = create_test_jwt(tenant_id=tenant, roles=[], claims_extra={"production_roles": {prod_target: "producer"}})
+    payload = {"response_text": "Answered by target producer", "responder_role": "Producer"}
+    res = client.post(f"/api/v1/clarifications/{req_id}/respond", json=payload, headers={"Authorization": f"Bearer {token_prod}"})
+    assert res.status_code == 200
+    assert res.json()["status"] == "resolved"
+    assert res.json()["status"] != "approved"
+
+    # 2. Scoped role on different production is rejected (cross-production role leak)
+    req_id2 = "clrf_scoped_02"
+    store.save_clarification(_make_clrf(req_id2, "run_scope_01", "pending"), tenant, prod_target)
+    token_diff = create_test_jwt(tenant_id=tenant, roles=[], claims_extra={"production_roles": {"prod_other": "producer"}})
+    res_leak = client.post(f"/api/v1/clarifications/{req_id2}/respond", json=payload, headers={"Authorization": f"Bearer {token_diff}"})
+    assert res_leak.status_code == 403
+

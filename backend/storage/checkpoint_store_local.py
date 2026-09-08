@@ -78,42 +78,45 @@ class LocalCheckpointStore:
             }
         )
 
-    def save_checkpoint(self, checkpoint: ExecutionCheckpoint) -> ExecutionCheckpoint:
+    def save_checkpoint(self, checkpoint: object) -> object:
         """
         Saves checkpoint with idempotency: identical state preserves revision,
         mutated state increments revision and updates resume token.
         """
         with self._lock:
-            key = (
-                checkpoint.tenant_id,
-                checkpoint.production_id,
-                checkpoint.run_id,
-                checkpoint.checkpoint_id,
-            )
-            existing = self._get_raw_checkpoint(
-                checkpoint.tenant_id,
-                checkpoint.production_id,
-                checkpoint.run_id,
-                checkpoint.checkpoint_id,
-            )
+            t_id = getattr(checkpoint, "tenant_id")
+            p_id = getattr(checkpoint, "production_id")
+            r_id = getattr(checkpoint, "run_id")
+            c_id = getattr(checkpoint, "checkpoint_id")
+            key = (t_id, p_id, r_id, c_id)
+            existing = self._get_raw_checkpoint(t_id, p_id, r_id, c_id)
 
             to_save = copy.deepcopy(checkpoint)
-            if existing is not None:
+            if existing is not None and hasattr(to_save, "state_hash") and hasattr(existing, "state_hash"):
                 if existing.state_hash == to_save.state_hash:
                     return copy.deepcopy(existing)
                 to_save = self._bump_checkpoint_revision(to_save, existing.revision)
 
-            if not verify_resume_token(to_save):
+            if not self._verify_token(to_save):
                 raise CorruptedResumeTokenError("Resume token does not match checkpoint state.")
 
             self._memory_cache[key] = copy.deepcopy(to_save)
             self._write_to_disk(to_save)
             return copy.deepcopy(to_save)
 
-    def _write_to_disk(self, checkpoint: ExecutionCheckpoint) -> None:
+    def _verify_token(self, checkpoint: object) -> bool:
+        """Verifies resume token against either orchestration or storage digest."""
+        if hasattr(checkpoint, "agent_memory_snapshot"):
+            from backend.orchestration.checkpoint_types import validate_resume_token
+            return validate_resume_token(checkpoint, getattr(checkpoint, "resume_token", ""))
+        return verify_resume_token(checkpoint)
+
+    def _write_to_disk(self, checkpoint: object) -> None:
         """Writes serialized checkpoint JSON to the local filesystem."""
         file_path = self._resolve_file_path(
-            checkpoint.tenant_id, checkpoint.run_id, checkpoint.checkpoint_id
+            getattr(checkpoint, "tenant_id"),
+            getattr(checkpoint, "run_id"),
+            getattr(checkpoint, "checkpoint_id"),
         )
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         with open(file_path, "w", encoding="utf-8") as f:
@@ -121,7 +124,7 @@ class LocalCheckpointStore:
 
     def _get_raw_checkpoint(
         self, tenant_id: str, production_id: str, run_id: str, checkpoint_id: str
-    ) -> Optional[ExecutionCheckpoint]:
+    ) -> Optional[object]:
         """Loads checkpoint from memory cache or filesystem without expiration validation."""
         key = (tenant_id.strip(), production_id.strip(), run_id.strip(), checkpoint_id.strip())
         if key in self._memory_cache:
@@ -134,11 +137,15 @@ class LocalCheckpointStore:
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            checkpoint = ExecutionCheckpoint.model_validate(data)
-            if checkpoint.tenant_id != tenant_id or checkpoint.production_id != production_id:
+            if "agent_memory_snapshot" in data:
+                from backend.orchestration.checkpoint_types import ExecutionCheckpoint as OrchCheckpoint
+                cp = OrchCheckpoint.model_validate(data)
+            else:
+                cp = ExecutionCheckpoint.model_validate(data)
+            if cp.tenant_id != tenant_id or cp.production_id != production_id:
                 raise CrossTenantCheckpointViolation("Tenant or production boundary mismatch.")
-            self._memory_cache[key] = checkpoint
-            return checkpoint
+            self._memory_cache[key] = cp
+            return cp
         except CrossTenantCheckpointViolation:
             raise
         except Exception:
@@ -151,17 +158,18 @@ class LocalCheckpointStore:
         run_id: str,
         checkpoint_id: str,
         allow_expired: bool = False,
-    ) -> Optional[ExecutionCheckpoint]:
+    ) -> Optional[object]:
         """Retrieves checkpoint validating boundary, expiration TTL, and resume token."""
         with self._lock:
             cp = self._get_raw_checkpoint(tenant_id, production_id, run_id, checkpoint_id)
             if cp is None:
                 return None
-            if not allow_expired and is_checkpoint_expired(cp.expires_at_utc):
+            exp_ts = getattr(cp, "expires_at_utc", None) or getattr(cp, "ttl_expires_at_utc", "")
+            if not allow_expired and is_checkpoint_expired(exp_ts):
                 raise CheckpointExpiredError(
-                    f"Checkpoint '{checkpoint_id}' expired at {cp.expires_at_utc}."
+                    f"Checkpoint '{checkpoint_id}' expired at {exp_ts}."
                 )
-            if not verify_resume_token(cp):
+            if not self._verify_token(cp):
                 raise CorruptedResumeTokenError(
                     f"Checkpoint '{checkpoint_id}' resume token failed integrity check."
                 )
@@ -173,26 +181,29 @@ class LocalCheckpointStore:
         production_id: str,
         run_id: str,
         include_expired: bool = False,
-    ) -> List[ExecutionCheckpoint]:
+    ) -> List[object]:
         """Lists all checkpoints matching tenant, production, and run IDs."""
         with self._lock:
-            results: List[ExecutionCheckpoint] = []
+            results: List[object] = []
             run_dir = os.path.join(self._base_dir, tenant_id.strip(), run_id.strip())
             if os.path.isdir(run_dir):
                 for fname in os.listdir(run_dir):
                     if fname.endswith(".json"):
                         cid = fname[:-5]
                         cp = self._get_raw_checkpoint(tenant_id, production_id, run_id, cid)
-                        if cp and (include_expired or not is_checkpoint_expired(cp.expires_at_utc)):
-                            results.append(copy.deepcopy(cp))
+                        if cp:
+                            exp_ts = getattr(cp, "expires_at_utc", None) or getattr(cp, "ttl_expires_at_utc", "")
+                            if include_expired or not is_checkpoint_expired(exp_ts):
+                                results.append(copy.deepcopy(cp))
 
             for (t, p, r, _), cp in self._memory_cache.items():
                 if t == tenant_id and p == production_id and r == run_id:
-                    if not any(r_item.checkpoint_id == cp.checkpoint_id for r_item in results):
-                        if include_expired or not is_checkpoint_expired(cp.expires_at_utc):
+                    if not any(getattr(r_item, "checkpoint_id") == getattr(cp, "checkpoint_id") for r_item in results):
+                        exp_ts = getattr(cp, "expires_at_utc", None) or getattr(cp, "ttl_expires_at_utc", "")
+                        if include_expired or not is_checkpoint_expired(exp_ts):
                             results.append(copy.deepcopy(cp))
 
-            results.sort(key=lambda c: (c.revision, c.created_at_utc), reverse=True)
+            results.sort(key=lambda c: (getattr(c, "revision", 1), getattr(c, "created_at_utc", "")), reverse=True)
             return results
 
     def delete_checkpoint(

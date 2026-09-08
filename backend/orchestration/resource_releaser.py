@@ -27,13 +27,26 @@ class ResourceReleaser:
     def cancel_async_tasks(tasks: Sequence[asyncio.Task]) -> int:
         """
         Cancels all active in-memory async tasks associated with the suspended run.
+        Ensures awaiting coroutines exit cleanly with zero lingering coroutine frames.
         Returns the count of successfully cancelled tasks.
         """
         cancelled = 0
         for task in tasks:
-            if isinstance(task, asyncio.Task) and not task.done():
-                task.cancel()
-                cancelled += 1
+            if isinstance(task, asyncio.Task):
+                if not task.done():
+                    task.cancel()
+                    cancelled += 1
+                try:
+                    loop = task.get_loop()
+                    if not task.done() and not loop.is_running() and not loop.is_closed():
+                        loop.run_until_complete(task)
+                except (asyncio.CancelledError, Exception):
+                    pass
+                coro = getattr(task, "get_coro", None)
+                if callable(coro):
+                    c = coro()
+                    if c is not None and hasattr(c, "close"):
+                        c.close()
         logger.debug(f"ResourceReleaser cancelled {cancelled} async tasks.")
         return cancelled
 

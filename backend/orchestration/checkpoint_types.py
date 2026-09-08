@@ -67,6 +67,18 @@ class AgentMemorySnapshot(BaseModel):
         default_factory=dict,
         description="Scoped working variables, e.g. license scope and music cue metadata",
     )
+    completed_subgoals: List[str] = Field(
+        default_factory=list,
+        description="Completed sub-objectives resolved prior to suspension",
+    )
+    evidence_digests: List[str] = Field(
+        default_factory=list,
+        description="Cryptographic or content digests of collected evidence",
+    )
+    remaining_budget: Optional[float] = Field(
+        default=None,
+        description="Remaining compute or API dollar budget",
+    )
 
 
 class ExecutionCheckpoint(BaseModel):
@@ -94,6 +106,22 @@ class ExecutionCheckpoint(BaseModel):
     metadata: Dict[str, Any] = Field(
         default_factory=dict,
         description="Additional operational metadata (e.g. revision_id, reason code)",
+    )
+    completed_subgoals: List[str] = Field(
+        default_factory=list,
+        description="Completed subgoals resolved before suspension",
+    )
+    evidence_digests: List[str] = Field(
+        default_factory=list,
+        description="Cryptographic digests of collected evidence",
+    )
+    remaining_budget: Optional[float] = Field(
+        default=None,
+        description="Remaining compute or dollar budget",
+    )
+    structured_execution_state: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Structured execution state vector",
     )
 
 

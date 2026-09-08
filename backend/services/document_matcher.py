@@ -9,7 +9,7 @@ Authored strictly under Google AntiGravity: files <= 250 lines, functions <= 40 
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 from backend.domain.models import ClarificationRequest
 from backend.orchestration.suspension import SuspensionManager
@@ -19,6 +19,8 @@ from backend.services.document_matcher_scoring import (
     compute_text_similarity,
     compute_type_similarity,
     evaluate_dual_key_match,
+    is_agreement_ambiguous,
+    verify_agreement_sufficiency,
 )
 from backend.services.document_matcher_types import (
     DocumentArrivalEvent,
@@ -38,6 +40,8 @@ __all__ = [
     "compute_type_similarity",
     "compute_parties_similarity",
     "evaluate_dual_key_match",
+    "is_agreement_ambiguous",
+    "verify_agreement_sufficiency",
 ]
 
 
@@ -49,8 +53,8 @@ class DocumentMatcherService:
         parser: Optional[AgreementParser] = None,
         clarification_store: Optional[ClarificationStore] = None,
         suspension_manager: Optional[SuspensionManager] = None,
-        resumption_coordinator: Optional[Any] = None,
-        resumption_callback: Optional[Callable[[ClarificationRequest, ExtractedAgreementMetadata], Any]] = None,
+        resumption_coordinator: Optional[object] = None,
+        resumption_callback: Optional[Callable[[ClarificationRequest, ExtractedAgreementMetadata], object]] = None,
     ) -> None:
         self.parser = parser or AgreementParser(use_fallback=True)
         self.store = clarification_store or get_clarification_store()
@@ -104,6 +108,9 @@ class DocumentMatcherService:
         breakdown: MatchScoreBreakdown,
     ) -> MatchResult:
         """Auto-attaches agreement, transitions clarification to resolved, and resumes pipeline."""
+        disp = getattr(clrf, "disposition", None)
+        if disp and str(disp).upper() == "APPROVED":
+            raise ValueError("Critical invariant violation: document arrival cannot set or approve claim disposition.")
         resp_text = f"Autonomous match verified: {metadata.agreement_type} for '{metadata.asset_title}'"
         self.store.resolve_clarification(
             request_id=clrf.request_id,
@@ -154,6 +161,41 @@ class DocumentMatcherService:
             pipeline_resumed=False,
         )
 
+    def _dispatch_result(self, result: MatchResult) -> MatchResult:
+        """Notifies registered listeners and returns the MatchResult."""
+        for listener in self._listeners:
+            try:
+                listener(result)
+            except Exception as exc:
+                logger.error(f"Matcher listener error: {exc}")
+        return result
+
+    def _evaluate_qualifying(
+        self,
+        qualifying: List[Tuple[ClarificationRequest, MatchScoreBreakdown]],
+        evaluated: List[Tuple[ClarificationRequest, MatchScoreBreakdown]],
+        metadata: ExtractedAgreementMetadata,
+        event: DocumentArrivalEvent,
+    ) -> MatchResult:
+        """Determines matching outcome from evaluated candidates."""
+        if len(qualifying) > 1:
+            for c, b in qualifying:
+                self.store.flag_candidate_document(
+                    request_id=c.request_id, tenant_id=event.tenant_id,
+                    candidate_document_ref=metadata.document_id, match_confidence=b.composite_score,
+                )
+            top_clrf, top_bdown = max(qualifying, key=lambda pair: pair[1].composite_score)
+            return self._flag_candidate(top_clrf, metadata, event, top_bdown)
+        if len(qualifying) == 1:
+            target_clrf, bdown = qualifying[0]
+            suff_ok, _ = verify_agreement_sufficiency(metadata, target_clrf, event, bdown)
+            ambig_found, _ = is_agreement_ambiguous(metadata, target_clrf)
+            if suff_ok and not ambig_found:
+                return self._resolve_match(target_clrf, metadata, event, bdown)
+            return self._flag_candidate(target_clrf, metadata, event, bdown)
+        best_clrf, best_bdown = max(evaluated, key=lambda pair: pair[1].composite_score)
+        return self._flag_candidate(best_clrf, metadata, event, best_bdown)
+
     def on_document_arrival(
         self,
         event: DocumentArrivalEvent,
@@ -169,39 +211,31 @@ class DocumentMatcherService:
                 decision=MatchingDecision.NO_MATCH, confidence_score=0.0, dual_key_valid=False,
             )
 
-        best_score, best_clrf, best_bdown = -1.0, None, None
+        evaluated: List[Tuple[ClarificationRequest, MatchScoreBreakdown]] = []
         for clrf in open_clrfs:
             valid, bdown = evaluate_dual_key_match(metadata, clrf, event)
-            if valid and bdown.composite_score > best_score:
-                best_score, best_clrf, best_bdown = bdown.composite_score, clrf, bdown
+            if valid and bdown.composite_score >= 0.40:
+                evaluated.append((clrf, bdown))
 
-        if not best_clrf or best_score < 0.40 or not best_bdown:
+        if not evaluated:
             return MatchResult(
                 event_id=event.event_id, document_id=metadata.document_id,
-                decision=MatchingDecision.NO_MATCH, confidence_score=max(0.0, best_score), dual_key_valid=False,
+                decision=MatchingDecision.NO_MATCH, confidence_score=0.0, dual_key_valid=False,
             )
 
-        if best_score > 0.85:
-            result = self._resolve_match(best_clrf, metadata, event, best_bdown)
-        else:
-            result = self._flag_candidate(best_clrf, metadata, event, best_bdown)
-
-        for listener in self._listeners:
-            try:
-                listener(result)
-            except Exception as exc:
-                logger.error(f"Matcher listener error: {exc}")
-        return result
+        qualifying = [(c, b) for c, b in evaluated if b.composite_score > 0.85]
+        res = self._evaluate_qualifying(qualifying, evaluated, metadata, event)
+        return self._dispatch_result(res)
 
     def on_storage_watcher_event(
         self,
-        payload: Dict[str, Any],
+        payload: Dict[str, Union[str, int, float, bool, None, Dict[str, object]]],
         file_content: Optional[Union[str, bytes]] = None,
     ) -> Optional[MatchResult]:
         """Translates generic storage watcher notification into DocumentArrivalEvent and matches."""
-        obj_name = payload.get("object_name") or payload.get("filename") or ""
+        obj_name = str(payload.get("object_name") or payload.get("filename") or "")
         parsed = parse_agreement_path(obj_name)
-        tenant_id = payload.get("organization_id") or parsed.get("tenant_id")
+        tenant_id = str(payload.get("organization_id") or parsed.get("tenant_id") or "")
         if not tenant_id:
             return None
 
@@ -209,7 +243,7 @@ class DocumentMatcherService:
             file_path=obj_name,
             tenant_id=tenant_id,
             gcs_uri=f"gs://{payload.get('bucket', 'default')}/{obj_name}",
-            file_hash=payload.get("etag") or compute_file_hash(file_content or obj_name),
-            production_id=payload.get("production_id") or parsed.get("production_id"),
+            file_hash=str(payload.get("etag") or compute_file_hash(file_content or obj_name)),
+            production_id=str(payload.get("production_id") or parsed.get("production_id") or ""),
         )
         return self.on_document_arrival(event, file_content=file_content)

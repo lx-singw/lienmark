@@ -19,6 +19,7 @@ class DecisionApiMixin:
 
     _tenant_claims: Dict[str, str] = {}
     _api_lineages: Dict[str, List[Dict[str, Any]]] = {}
+    _claim_productions: Dict[str, str] = {}
 
     def clear_state(self) -> None:
         """Resets all in-memory coordinator state for clean testing."""
@@ -26,8 +27,18 @@ class DecisionApiMixin:
             getattr(self, "_lineages").clear()
         self._tenant_claims.clear()
         self._api_lineages.clear()
+        self._claim_productions.clear()
         if hasattr(self, "ledger") and hasattr(getattr(self, "ledger"), "_chains"):
             getattr(self, "ledger")._chains.clear()
+
+    def get_claim_production(self, claim_id: str) -> Optional[str]:
+        """Returns the registered production_id for a claim, if known."""
+        return self._claim_productions.get(claim_id)
+
+    def set_claim_production(self, claim_id: str, production_id: str) -> None:
+        """Registers the production_id for a claim."""
+        self._claim_productions[claim_id] = production_id
+
 
     def verify_tenant_ownership(self, tenant_id: str, claim_id: str) -> None:
         """Enforces strict multi-tenant boundary checks on claims."""
@@ -100,7 +111,8 @@ class DecisionApiMixin:
     ) -> Any:
         """Handles decision request routing, verification, and persistence."""
         self.verify_tenant_ownership(tenant_id, claim_id)
-        prod_id = production_id or f"prod_{claim_id}"
+        prod_id = production_id or self._claim_productions.get(claim_id) or f"prod_{claim_id}"
+        self._claim_productions[claim_id] = prod_id
         attempts = self._api_lineages.setdefault(claim_id, [])
         att_num = len(attempts) + 1
         now = datetime.now(timezone.utc).isoformat()

@@ -41,6 +41,8 @@ from backend.orchestration.suspension import (
 )
 from backend.orchestration.resumption_types import (
     ResumptionStatus,
+    ResumptionDispatchStatus,
+    ResumptionDispatchRecord,
     NextStageType,
     ResolutionPayload,
     ResumedAgentMemory,
@@ -56,6 +58,9 @@ from backend.orchestration.resumption_types import (
 )
 from backend.orchestration.resumption import (
     ResumptionCoordinator,
+)
+from backend.orchestration.resumption_pipeline import (
+    ResumptionPipelineService,
 )
 from backend.orchestration.budget_store_types import (
     MICROS_PER_USD,
@@ -124,7 +129,10 @@ __all__ = [
     "CheckpointExpiredError",
     "InvalidResumeTokenError",
     "ResumptionCoordinator",
+    "ResumptionPipelineService",
     "ResumptionStatus",
+    "ResumptionDispatchStatus",
+    "ResumptionDispatchRecord",
     "NextStageType",
     "ResolutionPayload",
     "ResumedAgentMemory",

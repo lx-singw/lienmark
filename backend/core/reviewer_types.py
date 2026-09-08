@@ -161,6 +161,7 @@ class ReinvestigationDispatch(BaseModel):
     lineage: Optional[AttemptLineage] = None
     ledger_event: Optional[Any] = None
     claim: Optional[Any] = None
+    invalidated_downstream_claim_ids: List[str] = Field(default_factory=list)
     status: str = "DISPATCHED"
     timestamp_utc: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()

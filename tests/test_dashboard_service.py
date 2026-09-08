@@ -17,11 +17,11 @@ from backend.storage.repository import InMemoryTenantRepository
 
 
 @pytest.fixture
-def clean_env():
+def clean_env(tmp_path):
     """Provides isolated in-memory stores for clean testing."""
     InMemoryTenantRepository.reset_global_storage()
     repo = InMemoryTenantRepository(organization_id="org_test_01")
-    clrf_store = ClarificationStore()
+    clrf_store = ClarificationStore(base_dir=str(tmp_path / "clarifications"))
     budget_gov = ExecutionBudgetGovernor()
     svc = DashboardService(
         repo_factory=lambda org_id: repo,

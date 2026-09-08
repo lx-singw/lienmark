@@ -513,6 +513,8 @@ class ClarificationRequest(BaseModel):
     resolution_channel: Optional[str] = Field(None, description="Channel that resolved request, e.g. folder_arrival_autonomous")
     candidate_document_ref: Optional[str] = Field(None, description="Detected candidate document reference")
     match_confidence: Optional[float] = Field(None, description="Confidence score for candidate document match")
+    deadline_utc: Optional[str] = Field(None, description="Workflow deadline ISO timestamp")
+    expired_at: Optional[str] = Field(None, description="Timestamp when clarification transitioned to expired")
 
 
 class CreativeUse(BaseModel):

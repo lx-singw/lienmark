@@ -34,6 +34,7 @@ class ReviewerLedgerHelper:
         p_fid: Optional[str],
         prior_att: int,
         new_att: int,
+        prior_finding_text: Optional[str] = None,
     ) -> AuditEvent:
         """Appends CLAIM_REJECTED_BY_COUNSEL event to the cryptographic ledger."""
         self.ensure_genesis(tid, pid, d.counsel_id)
@@ -49,6 +50,8 @@ class ReviewerLedgerHelper:
             "prior_finding_id": p_fid,
             "previous_attempt": prior_att,
             "new_attempt": new_att,
+            "prior_finding": prior_finding_text,
+            "rationale": prior_finding_text,
         }
         return self.ledger.append_event(
             tenant_id=tid, production_id=pid, actor_id=d.counsel_id,

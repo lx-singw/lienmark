@@ -99,3 +99,63 @@ def evaluate_dual_key_match(
         composite_score=composite,
     )
     return True, breakdown
+
+
+def is_agreement_ambiguous(
+    metadata: ExtractedAgreementMetadata,
+    clrf: ClarificationRequest,
+) -> Tuple[bool, Optional[str]]:
+    """Detects whether agreement terms or extracted metadata contain legal ambiguities."""
+    if metadata.extraction_confidence < 0.75:
+        return True, f"Low extraction confidence ({metadata.extraction_confidence:.2f}) requires counsel review"
+
+    ambiguous_terms = ("ambiguous", "tbd", "pending", "disputed", "unconfirmed", "negotiable", "subject to")
+    combined = f"{metadata.asset_title} {metadata.agreement_type} {metadata.parties.licensor} {metadata.grant_term or ''}".lower()
+    for kw in ambiguous_terms:
+        if kw in combined:
+            return True, f"Ambiguous term '{kw}' detected in agreement metadata"
+
+    if metadata.grant_territory:
+        t_low = [t.lower() for t in metadata.grant_territory]
+        if any("worldwide" in t for t in t_low) and any("excluding" in t or "except" in t for t in t_low):
+            return True, "Territory scope has conflicting worldwide grant with exclusions"
+
+    lic = metadata.parties.licensor.strip().lower()
+    if lic in ("unknown", "unknown licensor", "tbd", ""):
+        return True, "Unidentified or placeholder licensor requires counsel clarification"
+
+    return False, None
+
+
+def verify_agreement_sufficiency(
+    metadata: ExtractedAgreementMetadata,
+    clrf: ClarificationRequest,
+    event: DocumentArrivalEvent,
+    breakdown: MatchScoreBreakdown,
+) -> Tuple[bool, Optional[str]]:
+    """
+    Verifies agreement sufficiency across tenant, production, asset identity,
+    requested document type, and relevant license scope.
+    """
+    if clrf.tenant_id != event.tenant_id:
+        return False, f"Tenant mismatch: {clrf.tenant_id} != {event.tenant_id}"
+
+    if event.production_id and clrf.production_id and event.production_id != clrf.production_id:
+        return False, f"Production container mismatch: {clrf.production_id} != {event.production_id}"
+
+    if breakdown.asset_score < 0.70:
+        return False, f"Asset identity confidence ({breakdown.asset_score:.2f}) insufficient for auto-resolution"
+
+    if breakdown.agreement_type_score < 0.70:
+        return False, f"Document type '{metadata.agreement_type}' incompatible with required '{clrf.required_document_type}'"
+
+    missing = (clrf.scope_field_missing or "").lower()
+    if "territory" in missing and not metadata.grant_territory:
+        return False, "Missing required territorial grant in agreement"
+    if "media" in missing and not metadata.grant_media:
+        return False, "Missing required media grant scope in agreement"
+    if "term" in missing and not metadata.grant_term:
+        return False, "Missing required license term duration in agreement"
+
+    return True, None
+
