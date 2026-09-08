@@ -15,6 +15,7 @@ from backend.services.storage_watcher_types import (
     parse_and_validate_gcs_path,
 )
 from backend.services.storage_watcher import StorageWatcherService
+from backend.services.ingestion_recovery import IngestionRecoveryService
 
 from backend.services.hasher_types import (
     HashAlgorithm,
@@ -27,6 +28,7 @@ from backend.services.hasher_types import (
 from backend.services.hasher import (
     StreamingHasher,
     normalize_screenplay_text,
+    normalize_and_hash_text,
     compute_semantic_digest,
 )
 
@@ -89,6 +91,7 @@ __all__ = [
     "WatcherConfig",
     "parse_and_validate_gcs_path",
     "StorageWatcherService",
+    "IngestionRecoveryService",
     "HashAlgorithm",
     "HashDigestResult",
     "StreamingHasherError",
@@ -97,6 +100,7 @@ __all__ = [
     "NormalizationError",
     "StreamingHasher",
     "normalize_screenplay_text",
+    "normalize_and_hash_text",
     "compute_semantic_digest",
     "EvidenceArchiver",
     "SnapshotStore",

@@ -628,7 +628,7 @@ class TestScenario4DurableClaimLevelPauseAndDocumentResumption:
         assert resolved_clarification.attached_document_ref == doc_uri
         assert resolved_clarification.resolved_at is not None
 
-        assert resumed_claim.disposition == CensusDisposition.APPROVED
+        assert resumed_claim.disposition == CensusDisposition.NEEDS_REVIEW
         assert resumed_claim.workflow_reason == WorkflowReason.NORMAL_OPERATION
         assert resumed_claim.licensor_grant_confirmed is True
         assert doc_uri in resumed_claim.notes

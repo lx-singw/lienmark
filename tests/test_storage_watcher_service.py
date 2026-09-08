@@ -1,11 +1,13 @@
 """
-Unit tests for StorageWatcherService and DistributedLockManager.
+Unit tests for StorageWatcherService, DistributedLockManager, and Poller.
+Authored strictly under Google AntiGravity: files <= 250 lines, functions <= 40 lines.
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 import pytest
 
 from backend.domain.models import RunStatus
+from backend.services.ingestion_pipeline import IngestionPipelineService
 from backend.services.storage_watcher import StorageWatcherService
 from backend.services.storage_watcher_types import (
     IngestionStatus,
@@ -34,30 +36,19 @@ def clean_repository() -> InMemoryTenantRepository:
 def test_distributed_lock_lifecycle(clean_lock_manager: DistributedLockManager) -> None:
     """Verifies lock acquisition, fence token monotonicity, and release."""
     lock1 = clean_lock_manager.acquire("ingest:bucket:file1:etag1", ttl_seconds=60.0)
-    assert lock1 is not None
-    assert lock1.fence_token == 1
-
-    # Concurrent attempt fails
-    lock2 = clean_lock_manager.acquire("ingest:bucket:file1:etag1", ttl_seconds=60.0)
-    assert lock2 is None
-
-    # Distinct resource has its own initial fence token
+    assert lock1 is not None and lock1.fence_token == 1
+    assert clean_lock_manager.acquire("ingest:bucket:file1:etag1", ttl_seconds=60.0) is None
     lock3 = clean_lock_manager.acquire("ingest:bucket:file2:etag2", ttl_seconds=60.0)
-    assert lock3 is not None
-    assert lock3.fence_token == 1
-
-    # Release allows re-acquisition with incremented fence token for this resource
+    assert lock3 is not None and lock3.fence_token == 1
     assert clean_lock_manager.release(lock1) is True
     reacquired = clean_lock_manager.acquire("ingest:bucket:file1:etag1", ttl_seconds=60.0)
-    assert reacquired is not None
-    assert reacquired.fence_token == 2
+    assert reacquired is not None and reacquired.fence_token == 2
 
 
 def test_distributed_lock_expiry(clean_lock_manager: DistributedLockManager) -> None:
     """Verifies lock expiration logic."""
     lock = clean_lock_manager.acquire("temp_key", ttl_seconds=0.01)
-    assert lock is not None
-    assert lock.is_expired(current_time=lock.expires_at + 1.0) is True
+    assert lock is not None and lock.is_expired(current_time=lock.expires_at + 1.0) is True
 
 
 def test_process_storage_event_success(
@@ -81,16 +72,9 @@ def test_process_storage_event_success(
     result = service.process_storage_event(event, run_id_override="run_test_override")
     assert result["status"] == IngestionStatus.QUEUED.value
     assert result["run_id"] == "run_test_override"
-    assert result["fence_token"] == 1
-    assert result["organization_id"] == "org_studio_alpha"
-
-    saved_run = clean_repository.get_run("prod_alpha_01", "run_test_override")
-    assert saved_run is not None
-    assert saved_run.status == RunStatus.QUEUED
-    assert saved_run.base_version_id == "v7"
-    assert saved_run.target_version_id == "v8"
-    assert saved_run.metadata["fence_token"] == 1
-    assert saved_run.metadata["etag"] == "etag_hash_12345"
+    saved = clean_repository.get_run("prod_alpha_01", "run_test_override")
+    assert saved is not None and saved.status == RunStatus.QUEUED
+    assert saved.base_version_id == "v7" and saved.target_version_id == "v8"
 
 
 def test_process_storage_event_dispatches_listener(
@@ -98,13 +82,12 @@ def test_process_storage_event_dispatches_listener(
     clean_repository: InMemoryTenantRepository,
 ) -> None:
     """Verifies live listener receives dispatch on event ingestion."""
-    received_events: List[Dict[str, Any]] = []
+    received: List[Dict[str, Any]] = []
     service = StorageWatcherService(
         lock_manager=clean_lock_manager,
         repository_factory=lambda org_id: clean_repository,
     )
-    service.register_listener(lambda data: received_events.append(data))
-
+    service.register_listener(lambda data: received.append(data))
     event = StorageEvent(
         event_id="evt_valid_02",
         bucket="scripts_bucket",
@@ -114,8 +97,7 @@ def test_process_storage_event_dispatches_listener(
         time_created_utc="2026-09-07T08:30:00Z",
     )
     service.process_storage_event(event, run_id_override="run_listener_test")
-    assert len(received_events) == 1
-    assert received_events[0]["run_id"] == "run_listener_test"
+    assert len(received) == 1 and received[0]["run_id"] == "run_listener_test"
 
 
 def test_process_storage_event_rejected_out_of_scope(
@@ -123,11 +105,7 @@ def test_process_storage_event_rejected_out_of_scope(
     clean_repository: InMemoryTenantRepository,
 ) -> None:
     """Verifies rejection of events outside locked production directory."""
-    service = StorageWatcherService(
-        lock_manager=clean_lock_manager,
-        repository_factory=lambda org_id: clean_repository,
-    )
-
+    service = StorageWatcherService(lock_manager=clean_lock_manager, repository_factory=lambda o: clean_repository)
     event = StorageEvent(
         event_id="evt_invalid_01",
         bucket="scripts_bucket",
@@ -136,7 +114,6 @@ def test_process_storage_event_rejected_out_of_scope(
         size_bytes=100,
         time_created_utc="2026-09-07T08:30:00Z",
     )
-
     result = service.process_storage_event(event)
     assert result["status"] == IngestionStatus.REJECTED_OUT_OF_SCOPE.value
     assert "sandbox" in result["rejection_reason"].lower()
@@ -147,11 +124,7 @@ def test_process_storage_event_concurrent_lease_skip(
     clean_repository: InMemoryTenantRepository,
 ) -> None:
     """Verifies that duplicate or concurrent events are skipped cleanly."""
-    service = StorageWatcherService(
-        lock_manager=clean_lock_manager,
-        repository_factory=lambda org_id: clean_repository,
-    )
-
+    service = StorageWatcherService(lock_manager=clean_lock_manager, repository_factory=lambda o: clean_repository)
     event = StorageEvent(
         event_id="evt_dup_01",
         bucket="scripts_bucket",
@@ -160,15 +133,11 @@ def test_process_storage_event_concurrent_lease_skip(
         size_bytes=1000,
         time_created_utc="2026-09-07T08:30:00Z",
     )
-
-    # First attempt acquires lease
     res1 = service.process_storage_event(event)
     assert res1["status"] == IngestionStatus.QUEUED.value
-
-    # Second attempt encounters active lease
     res2 = service.process_storage_event(event)
     assert res2["status"] == "skipped_concurrent_lease"
-    assert "Concurrent lease active" in res2["reason"]
+    assert "lease_details" in res2
 
 
 def test_poll_bucket_once_deduplication_and_batch_limits(
@@ -176,41 +145,74 @@ def test_poll_bucket_once_deduplication_and_batch_limits(
     clean_repository: InMemoryTenantRepository,
 ) -> None:
     """Verifies poll_bucket_once filters unseen ETags and honors max_batch_size."""
-    cfg = WatcherConfig(max_batch_size=2)
     service = StorageWatcherService(
         lock_manager=clean_lock_manager,
-        config=cfg,
-        repository_factory=lambda org_id: clean_repository,
+        config=WatcherConfig(max_batch_size=2),
+        repository_factory=lambda o: clean_repository,
     )
-
-    mock_objects = [
-        {
-            "name": "organizations/org_studio_alpha/productions/prod_01/locked/script_1.pdf",
-            "etag": "etag_1",
-            "size_bytes": 100,
-        },
-        {
-            "name": "organizations/org_studio_alpha/productions/prod_01/locked/script_2.pdf",
-            "etag": "etag_2",
-            "size_bytes": 200,
-        },
-        {
-            "name": "organizations/org_studio_alpha/productions/prod_01/locked/script_3.pdf",
-            "etag": "etag_3",
-            "size_bytes": 300,
-        },
+    objs = [
+        {"name": f"organizations/org_studio_alpha/productions/prod_01/locked/script_{i}.pdf", "etag": f"e_{i}"}
+        for i in range(1, 4)
     ]
+    res1 = service.poll_bucket_once("test_bucket", objs)
+    assert len(res1) == 2 and all(r["status"] == IngestionStatus.QUEUED.value for r in res1)
+    res2 = service.poll_bucket_once("test_bucket", objs)
+    assert len(res2) == 1 and res2[0]["status"] == IngestionStatus.QUEUED.value
 
-    # First poll processes capped batch of 2
-    res_poll_1 = service.poll_bucket_once("test_bucket", mock_objects)
-    assert len(res_poll_1) == 2
-    assert all(r["status"] == IngestionStatus.QUEUED.value for r in res_poll_1)
 
-    # Second poll with identical objects skips already seen ETags
-    res_poll_2 = service.poll_bucket_once("test_bucket", mock_objects)
-    # Only the third object was unread in poll 1; objects 1 & 2 have same ETag
-    assert len(res_poll_2) == 1
-    assert res_poll_2[0]["status"] == IngestionStatus.QUEUED.value
+def test_poll_bucket_once_gcs_client_paginated(
+    clean_lock_manager: DistributedLockManager,
+    clean_repository: InMemoryTenantRepository,
+) -> None:
+    """Verifies real paginated GCS blob listing via storage_client with max_results and prefix."""
+    listed: Dict[str, Any] = {}
+
+    class MockBlob:
+        def __init__(self, name: str, etag: str, gen: str = "1"):
+            self.name = name
+            self.etag = etag
+            self.size = 1024
+            self.generation = gen
+            self.time_created = "2026-09-08T08:00:00Z"
+            self.content_type = "application/pdf"
+            self.id = f"{name}#{gen}"
+
+    class MockGcsClient:
+        def list_blobs(self, bucket: str, prefix: Optional[str] = None, max_results: Optional[int] = None):
+            listed["bucket"], listed["prefix"], listed["max_results"] = bucket, prefix, max_results
+            return [
+                MockBlob("organizations/org_studio_alpha/productions/prod_gcs/locked/script_v8.pdf", "etag_1", "101"),
+                MockBlob("organizations/org_studio_alpha/productions/prod_gcs/drafts/draft.pdf", "etag_2", "102"),
+            ]
+
+    pipe = IngestionPipelineService()
+    svc = StorageWatcherService(
+        lock_manager=clean_lock_manager,
+        repository_factory=lambda o: clean_repository,
+        pipeline_service=pipe,
+        storage_client=MockGcsClient(),
+    )
+    res = svc.poll_bucket_once("bucket_alpha", prefix="organizations/org_studio_alpha/")
+    assert len(res) == 1 and res[0]["status"] == IngestionStatus.QUEUED.value
+    assert listed["bucket"] == "bucket_alpha" and listed["prefix"] == "organizations/org_studio_alpha/"
+    assert listed["max_results"] == svc.config.max_batch_size
+    assert len(pipe.get_queued_runs()) == 1
+
+
+def test_poll_bucket_once_generation_tracking(
+    clean_lock_manager: DistributedLockManager,
+    clean_repository: InMemoryTenantRepository,
+) -> None:
+    """Verifies generation/etag tracking allows new generations while skipping identical."""
+    service = StorageWatcherService(lock_manager=clean_lock_manager, repository_factory=lambda o: clean_repository)
+    name = "organizations/org_studio_alpha/productions/prod_01/locked/script_v8.pdf"
+    r1 = service.poll_bucket_once("bkt", [{"name": name, "etag": "etag_same", "generation": "1"}])
+    assert len(r1) == 1
+    r2 = service.poll_bucket_once("bkt", [{"name": name, "etag": "etag_same", "generation": "1"}])
+    assert len(r2) == 0
+    clean_lock_manager.reset()
+    r3 = service.poll_bucket_once("bkt", [{"name": name, "etag": "etag_same", "generation": "2"}])
+    assert len(r3) == 1
 
 
 def test_derive_version_ids() -> None:

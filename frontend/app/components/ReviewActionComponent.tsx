@@ -43,6 +43,7 @@ export interface ReviewActionComponentProps {
   isPending?: boolean;
   lastConfirmedEvent?: SupersessionEvent | null;
   userRole?: UserRole;
+  isMutationDisabled?: boolean;
 }
 
 /**
@@ -96,6 +97,7 @@ export const ReviewActionComponent: React.FC<ReviewActionComponentProps> = ({
   isPending = false,
   lastConfirmedEvent,
   userRole = UserRole.REVIEWER,
+  isMutationDisabled = false,
 }) => {
   const [copiedHash, setCopiedHash] = useState<boolean>(false);
   const [serverConfirmed, setServerConfirmed] = useState<boolean>(false);
@@ -117,7 +119,7 @@ export const ReviewActionComponent: React.FC<ReviewActionComponentProps> = ({
       ? ((rawRecommendation as { confidence?: number }).confidence || 0) * 100
       : 96;
 
-  const isDisabled = isSubmitting || isPending;
+  const isDisabled = isSubmitting || isPending || isMutationDisabled;
 
   // Track verified SHA-256 chained event hash
   const activeLineageKey = activeItem?.stable_lineage_key;
@@ -298,6 +300,12 @@ export const ReviewActionComponent: React.FC<ReviewActionComponentProps> = ({
             <span className="text-sky-400 text-xs font-sans font-semibold animate-pulse flex items-center gap-1.5">
               <Loader2 className="h-3.5 w-3.5 animate-spin text-sky-400" aria-hidden="true" />
               <span>Submitting to Audit Ledger...</span>
+            </span>
+          )}
+          {isMutationDisabled && (
+            <span className="text-rose-400 text-xs font-mono font-semibold flex items-center gap-1">
+              <Lock className="h-3 w-3 text-rose-400" aria-hidden="true" />
+              <span>MUTATIONS LOCKED (BACKEND OFFLINE/STALE)</span>
             </span>
           )}
         </div>

@@ -13,3 +13,4 @@ export * from './AdminOverridePanel';
 export * from './BudgetApprovalModal';
 export * from './BudgetMeter';
 export * from './budget_utils';
+export * from './ConnectionStatusBanner';

@@ -49,6 +49,7 @@ export interface DashboardHeaderProps {
   currentDemoMode?: string;
   userRole?: UserRole;
   onRoleChange?: (role: UserRole) => void;
+  isMutationDisabled?: boolean;
 }
 
 export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
@@ -75,6 +76,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   currentDemoMode = 'drifted',
   userRole = UserRole.REVIEWER,
   onRoleChange,
+  isMutationDisabled = false,
 }) => {
   const shortBaseHash = baseContentHash.slice(0, 8);
   const shortTargetHash = targetContentHash.slice(0, 8);
@@ -366,9 +368,9 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
         <button
           type="button"
           onClick={onRunEvaluation}
-          disabled={isRunningEvaluation || isPending}
-          className="flex items-center gap-2 rounded-lg bg-sky-500 hover:bg-sky-400 disabled:bg-slate-700 disabled:text-slate-400 px-4 py-2 text-sm font-semibold text-slate-950 transition-all shadow-md shadow-sky-500/20 active:scale-95 focus:outline-none focus:ring-2 focus:ring-sky-300"
-          aria-label={isRunningEvaluation ? 'Clearance Evaluation running' : 'Run Clearance Evaluation'}
+          disabled={isRunningEvaluation || isPending || isMutationDisabled}
+          className="flex items-center gap-2 rounded-lg bg-sky-500 hover:bg-sky-400 disabled:bg-slate-700 disabled:text-slate-400 disabled:cursor-not-allowed px-4 py-2 text-sm font-semibold text-slate-950 transition-all shadow-md shadow-sky-500/20 active:scale-95 focus:outline-none focus:ring-2 focus:ring-sky-300"
+          aria-label={isRunningEvaluation ? 'Clearance Evaluation running' : isMutationDisabled ? 'Clearance Evaluation disabled (offline/stale)' : 'Run Clearance Evaluation'}
           aria-busy={isRunningEvaluation}
         >
           <RefreshCw

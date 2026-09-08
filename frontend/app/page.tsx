@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 
 import {
+  ConnectionState,
   DecisionState,
   DecisionStatus,
   EvaluatedClaim,
@@ -46,11 +47,7 @@ import {
   fetchAuditTrailAction,
   fetchClearanceStateAction,
 } from './actions';
-import {
-  getGoldenAuditTrail,
-  getGoldenDriftEvaluationResult,
-  getGoldenReviewQueue,
-} from '@/lib/fixtures_data';
+
 import {
   isSoundMuted,
   setSoundMuted,
@@ -107,7 +104,7 @@ import {
   AgreementMatchPayload,
   ResumptionSession,
 } from './components/hitl';
-import { StudioPolicyEditor } from './components/governance';
+import { StudioPolicyEditor, ConnectionStatusBanner } from './components/governance';
 
 export default function ReviewerDashboardPage() {
   const [isPending, startTransition] = useTransition();
@@ -121,20 +118,19 @@ export default function ReviewerDashboardPage() {
   const [evalStageIdx, setEvalStageIdx] = useState<number>(0);
   const [evalElapsedMs, setEvalElapsedMs] = useState<number>(0);
 
-  // Core data states initialized with golden fixtures for deterministic SSR parity
-  const [claims, setClaims] = useState<EvaluatedClaim[]>(
-    () => getGoldenDriftEvaluationResult().claims
-  );
+  // Connection and truthfulness state lifecycle: 'loading' | 'connected' | 'empty' | 'unavailable' | 'stale'
+  const [connectionState, setConnectionState] = useState<ConnectionState>('loading');
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [isRetryingConnection, setIsRetryingConnection] = useState<boolean>(false);
+
+  // Core data states initialized empty for fail-closed truthfulness (no synthetic golden SSR mask)
+  const [claims, setClaims] = useState<EvaluatedClaim[]>([]);
   // Traces start unmeasured until evaluation is triggered
   const [traces, setTraces] = useState<WorkflowStepTrace[]>([]);
   const [lastMeasuredElapsedMs, setLastMeasuredElapsedMs] = useState<number | null>(null);
   const [hasEvaluated, setHasEvaluated] = useState<boolean>(false);
-  const [reviewQueue, setReviewQueue] = useState<ReviewQueueItem[]>(
-    () => getGoldenReviewQueue()
-  );
-  const [auditTrail, setAuditTrail] = useState<SupersessionEvent[]>(
-    () => getGoldenAuditTrail()
-  );
+  const [reviewQueue, setReviewQueue] = useState<ReviewQueueItem[]>([]);
+  const [auditTrail, setAuditTrail] = useState<SupersessionEvent[]>([]);
 
   // Active view and selection states
   const [activeTab, setActiveTab] = useState<'checkpoint' | 'diff' | 'lineage'>('checkpoint');
@@ -273,36 +269,69 @@ export default function ReviewerDashboardPage() {
     }
   }, []);
 
-  // Initial dashboard hydration effect: hydrate live clearance claims, review queue, and audit trail on mount
-  useEffect(() => {
-    let isMounted = true;
-    async function hydrateDashboardState() {
-      try {
-        const [clearanceRes, queueRes, auditRes] = await Promise.all([
-          fetchClearanceStateAction(),
-          fetchReviewQueueAction(),
-          fetchAuditTrailAction(),
-        ]);
-        if (isMounted) {
-          if (clearanceRes.success && clearanceRes.data) {
-            setClaims(clearanceRes.data.claims);
-          }
-          if (queueRes.success && queueRes.data) {
-            setReviewQueue(queueRes.data);
-          }
-          if (auditRes.success && Array.isArray(auditRes.data)) {
-            setAuditTrail(auditRes.data);
-          }
-        }
-      } catch (err) {
-        console.warn('[ReviewerDashboardPage] Hydration from live server failed; using SSR golden baseline', err);
+  // Live server state hydration and connection lifecycle management
+  const hydrateDashboardState = useCallback(async () => {
+    setConnectionState((prev) => (prev === 'connected' ? 'stale' : 'loading'));
+    setConnectionError(null);
+    try {
+      const [clearanceRes, queueRes, auditRes] = await Promise.all([
+        fetchClearanceStateAction(),
+        fetchReviewQueueAction(),
+        fetchAuditTrailAction(),
+      ]);
+
+      if (!clearanceRes.success) {
+        setConnectionState('unavailable');
+        setConnectionError(clearanceRes.error || 'FastAPI clearance backend is unreachable.');
+        return;
       }
+
+      const serverClaims = clearanceRes.data?.claims ?? [];
+      setClaims(serverClaims);
+
+      if (queueRes.success && queueRes.data) {
+        setReviewQueue(queueRes.data);
+      } else if (!queueRes.success) {
+        setConnectionState('unavailable');
+        setConnectionError(queueRes.error || 'Failed to retrieve active review queue.');
+        return;
+      }
+
+      if (auditRes.success && Array.isArray(auditRes.data)) {
+        setAuditTrail(auditRes.data);
+      } else if (!auditRes.success) {
+        setConnectionState('unavailable');
+        setConnectionError(auditRes.error || 'Failed to retrieve append-only audit trail.');
+        return;
+      }
+
+      if (serverClaims.length === 0) {
+        setConnectionState('empty');
+      } else {
+        setConnectionState('connected');
+        setConnectionError(null);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'FastAPI clearance service is offline.';
+      setConnectionState('unavailable');
+      setConnectionError(msg);
     }
-    hydrateDashboardState();
-    return () => {
-      isMounted = false;
-    };
   }, []);
+
+  // Initial dashboard hydration effect on mount
+  useEffect(() => {
+    void hydrateDashboardState();
+  }, [hydrateDashboardState]);
+
+  // Handler: Explicit user retry connection action
+  const handleRetryConnection = useCallback(async () => {
+    setIsRetryingConnection(true);
+    try {
+      await hydrateDashboardState();
+    } finally {
+      setIsRetryingConnection(false);
+    }
+  }, [hydrateDashboardState]);
 
   // Live timer & multi-stage progress transition during evaluation
   useEffect(() => {
@@ -356,8 +385,13 @@ export default function ReviewerDashboardPage() {
   const isReconciled =
     staleCount === 0 && carriedCount === 10 && reattestedCount === 1 && exceptionCount === 1;
 
+  // Fail-closed invariant: Disable all mutations when connection is unavailable or stale
+  const isMutationDisabled =
+    connectionState === 'unavailable' || connectionState === 'stale';
+
   // Zero drift condition (evaluated v7, v7 or when 12 carried and 0 stale)
-  const isZeroDrift = (staleCount === 0 && carriedCount === 12) || targetVersionId === 'v7';
+  const isZeroDrift =
+    (staleCount === 0 && carriedCount === 12) || (claims.length > 0 && targetVersionId === 'v7');
 
   // Active queue item for Checkpoint Gate
   const activeQueueItem =
@@ -442,43 +476,81 @@ export default function ReviewerDashboardPage() {
     };
   }, [reviewQueue, selectedClaimKey, selectedClaim]);
 
-  // Handler: Toggle target comparison version (v8 vs v7)
-  const handleToggleVersion = (version: 'v8' | 'v7') => {
+  // Handler: Toggle target comparison version (v8 vs v7) with fail-closed live evaluation
+  const handleToggleVersion = async (version: 'v8' | 'v7') => {
+    if (isMutationDisabled) {
+      setToast({
+        type: 'error',
+        message: 'Cannot toggle comparison cut: Backend is offline or stale (Fail-Closed).',
+      });
+      return;
+    }
+
     setTargetVersionId(version);
-    if (version === 'v7') {
-      // Deterministic Zero Drift baseline (v7, v7): All 12 claims carried forward
-      const v7Claims: EvaluatedClaim[] = getGoldenDriftEvaluationResult().claims.map((c) => ({
-        ...c,
-        state: DecisionState.CARRIED_FORWARD,
-        reason_code: 'DEPENDENCIES_SATISFIED_UNCHANGED',
-        revalidation_action: 'carry',
-      }));
-      setClaims(v7Claims);
+    setIsRunningEvaluation(true);
+    const startWallTime = performance.now();
+
+    try {
+      const response = await evaluateClearanceDeltaAction(version);
+      const measuredElapsed = performance.now() - startWallTime;
+      setEvalElapsedMs(measuredElapsed);
+      setLastMeasuredElapsedMs(measuredElapsed);
+      setHasEvaluated(true);
+
+      if (response.success && response.data) {
+        setClaims(response.data.claims);
+        setTraces(response.data.execution_traces || []);
+        const queueRes = await fetchReviewQueueAction();
+        if (queueRes.success && queueRes.data) {
+          setReviewQueue(queueRes.data);
+        }
+        setConnectionState(response.data.claims.length === 0 ? 'empty' : 'connected');
+        setConnectionError(null);
+        setToast({
+          type: 'info',
+          message:
+            version === 'v7'
+              ? 'Evaluated Script Cut (v7, v7): Zero clearance drift detected across claims.'
+              : 'Switched to Revised Cut (v7, v8): Live drift evaluation complete.',
+        });
+      } else {
+        setConnectionState(claims.length > 0 ? 'stale' : 'unavailable');
+        setConnectionError(response.error || 'Failed to evaluate comparison cut on backend');
+        setToast({
+          type: 'error',
+          message: `Evaluation failed: ${response.error || 'Backend offline'}. Fail-closed active.`,
+        });
+      }
+    } catch (err: unknown) {
+      setConnectionState(claims.length > 0 ? 'stale' : 'unavailable');
+      const msg = err instanceof Error ? err.message : 'Evaluation request failed';
+      setConnectionError(msg);
       setToast({
-        type: 'info',
-        message: 'Evaluated Script Cut (v7, v7): Zero clearance drift detected across all 12 claims.',
+        type: 'error',
+        message: `Evaluation failed: ${msg}. Fail-closed active.`,
       });
-    } else {
-      // Restore v8 Revised cut evaluation: 10 carried, 2 stale
-      const golden = getGoldenDriftEvaluationResult();
-      setClaims(golden.claims);
-      setReviewQueue(getGoldenReviewQueue());
-      setToast({
-        type: 'info',
-        message: 'Switched to Revised Cut (v7, v8): 10 Carried Forward, 2 Stale Claims detected.',
-      });
+    } finally {
+      setIsRunningEvaluation(false);
     }
   };
 
-  // Handler: Full demo reset to pristine V7 baseline
+  // Handler: Full demo reset to pristine V7 baseline calling live backend
   const handleResetDemo = useCallback(async () => {
     if (isResettingDemo) return;
+    if (isMutationDisabled) {
+      setToast({
+        type: 'error',
+        message: 'Cannot reset demo while backend connection is offline or stale (Fail-Closed).',
+      });
+      return;
+    }
     setIsResettingDemo(true);
 
     try {
-      // 1. Call backend demo reset endpoint via Server Action
       const result = await resetDemoAction();
       if (!result.success) {
+        setConnectionState(claims.length > 0 ? 'stale' : 'unavailable');
+        setConnectionError(result.error || 'Failed to reset demo state on server.');
         setToast({
           type: 'error',
           message: result.error || 'Failed to reset demo state on server. Preserving current state.',
@@ -486,123 +558,109 @@ export default function ReviewerDashboardPage() {
         return;
       }
 
-      // 2. Reset UI state to clean V7 baseline (12 claims carried forward, zero drift)
+      // Re-hydrate live server state after reset
+      const [clearanceRes, queueRes, auditRes] = await Promise.all([
+        fetchClearanceStateAction(),
+        fetchReviewQueueAction(),
+        fetchAuditTrailAction(),
+      ]);
+
+      if (clearanceRes.success && clearanceRes.data) {
+        setClaims(clearanceRes.data.claims);
+        setConnectionState(clearanceRes.data.claims.length === 0 ? 'empty' : 'connected');
+      }
+      if (queueRes.success && queueRes.data) {
+        setReviewQueue(queueRes.data);
+      }
+      if (auditRes.success && Array.isArray(auditRes.data)) {
+        setAuditTrail(auditRes.data);
+      }
+
       setTargetVersionId('v7');
       setCurrentDemoMode('baseline');
-
-      const v7BaselineClaims: EvaluatedClaim[] = getGoldenDriftEvaluationResult().claims.map((c) => ({
-        ...c,
-        state: DecisionState.CARRIED_FORWARD,
-        reason_code: 'DEPENDENCIES_SATISFIED_UNCHANGED',
-        revalidation_action: 'carry',
-      }));
-      setClaims(v7BaselineClaims);
       setTraces([]);
       setEvalElapsedMs(0);
       setLastMeasuredElapsedMs(null);
       setHasEvaluated(false);
-      setReviewQueue([]); // Review queue empty under clean baseline
-      setAuditTrail(getGoldenAuditTrail());
-      setSelectedQueueKey('poster_noir_detective_magazine');
-      setSelectedClaimKey('poster_noir_detective_magazine');
 
       setToast({
         type: 'success',
-        message:
-          result.data?.message ||
-          'Demo state successfully reset to clean V7 baseline (12 approved claims).',
+        message: result.data?.message || 'Demo state successfully reset to clean V7 baseline on live server.',
       });
     } catch (err: unknown) {
-      console.error('[handleResetDemo] Error resetting demo state:', err);
+      setConnectionState(claims.length > 0 ? 'stale' : 'unavailable');
+      const msg = err instanceof Error ? err.message : 'Failed to reset demo state on server.';
+      setConnectionError(msg);
       setToast({
         type: 'error',
-        message: err instanceof Error ? err.message : 'Failed to reset demo state on server.',
+        message: msg,
       });
     } finally {
       setIsResettingDemo(false);
     }
-  }, [isResettingDemo]);
+  }, [isResettingDemo, isMutationDisabled, claims.length]);
 
-  // Handler: Seed demo take mode (baseline, drifted, resolved)
+  // Handler: Seed demo take mode (baseline, drifted, resolved) via live backend
   const handleSeedDemoMode = useCallback(
     async (mode: 'baseline' | 'drifted' | 'resolved') => {
-      setIsResettingDemo(true);
-      try {
-        await seedDemoAction(mode);
-        setCurrentDemoMode(mode);
-
-        if (mode === 'baseline') {
-          setTargetVersionId('v7');
-          const v7Claims: EvaluatedClaim[] = getGoldenDriftEvaluationResult().claims.map((c) => ({
-            ...c,
-            state: DecisionState.CARRIED_FORWARD,
-            reason_code: 'DEPENDENCIES_SATISFIED_UNCHANGED',
-            revalidation_action: 'carry',
-          }));
-          setClaims(v7Claims);
-          setReviewQueue([]);
-          setToast({
-            type: 'success',
-            message: 'Seeded Take: Script Cut V7 Baseline (12 approved claims, zero drift).',
-          });
-        } else if (mode === 'drifted') {
-          setTargetVersionId('v8');
-          const golden = getGoldenDriftEvaluationResult();
-          setClaims(golden.claims);
-          setReviewQueue(getGoldenReviewQueue());
-          setToast({
-            type: 'warning',
-            message: 'Seeded Take: V8 Drifted Cut (10 carried forward, 2 stale claims requiring review).',
-          });
-        } else if (mode === 'resolved') {
-          setTargetVersionId('v8');
-          const golden = getGoldenDriftEvaluationResult();
-          const resolvedClaims: EvaluatedClaim[] = golden.claims.map((c) => {
-            if (c.stable_lineage_key === 'poster_noir_detective_magazine') {
-              return {
-                ...c,
-                state: DecisionState.RE_ATTESTED,
-                reason_code: 'COUNSEL_RE_ATTESTED_PUBLIC_DOMAIN',
-                revalidation_action: 're_attest',
-              };
-            }
-            if (c.stable_lineage_key === 'music_cue_midnight_serenade') {
-              return {
-                ...c,
-                state: DecisionState.EXCEPTION,
-                reason_code: 'UNRESOLVED_UNDERWRITING_EXCEPTION',
-                revalidation_action: 'exception',
-              };
-            }
-            return c;
-          });
-          setClaims(resolvedClaims);
-          const resolvedQueue = getGoldenReviewQueue().map((q) => ({
-            ...q,
-            status: 'resolved' as const,
-            current_state:
-              q.stable_lineage_key === 'poster_noir_detective_magazine'
-                ? DecisionState.RE_ATTESTED
-                : DecisionState.EXCEPTION,
-          }));
-          setReviewQueue(resolvedQueue);
-          setToast({
-            type: 'success',
-            message:
-              'Seeded Take: Resolved Production Cut (10 carried forward, 1 re-attested, 1 exception schedule).',
-          });
-        }
-      } catch (err: unknown) {
-        console.error('[handleSeedDemoMode] Error seeding demo mode:', err);
+      if (isMutationDisabled) {
         setToast({
           type: 'error',
-          message: `Failed to seed demo state to ${mode}: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          message: 'Cannot seed demo mode while backend connection is offline or stale (Fail-Closed).',
+        });
+        return;
+      }
+      setIsResettingDemo(true);
+      try {
+        const result = await seedDemoAction(mode);
+        if (!result.success) {
+          setConnectionState(claims.length > 0 ? 'stale' : 'unavailable');
+          setConnectionError(result.error || `Failed to seed demo mode ${mode}`);
+          setToast({
+            type: 'error',
+            message: result.error || `Failed to seed demo mode ${mode}`,
+          });
+          return;
+        }
+
+        setCurrentDemoMode(mode);
+        setTargetVersionId(mode === 'baseline' ? 'v7' : 'v8');
+
+        // Re-hydrate live server state after seeding
+        const [clearanceRes, queueRes, auditRes] = await Promise.all([
+          fetchClearanceStateAction(),
+          fetchReviewQueueAction(),
+          fetchAuditTrailAction(),
+        ]);
+
+        if (clearanceRes.success && clearanceRes.data) {
+          setClaims(clearanceRes.data.claims);
+          setConnectionState(clearanceRes.data.claims.length === 0 ? 'empty' : 'connected');
+        }
+        if (queueRes.success && queueRes.data) {
+          setReviewQueue(queueRes.data);
+        }
+        if (auditRes.success && Array.isArray(auditRes.data)) {
+          setAuditTrail(auditRes.data);
+        }
+
+        setToast({
+          type: 'success',
+          message: result.data?.message || `Seeded Take: ${mode} mode confirmed by live backend.`,
+        });
+      } catch (err: unknown) {
+        setConnectionState(claims.length > 0 ? 'stale' : 'unavailable');
+        const msg = err instanceof Error ? err.message : 'Failed to seed demo mode.';
+        setConnectionError(msg);
+        setToast({
+          type: 'error',
+          message: msg,
         });
       } finally {
         setIsResettingDemo(false);
       }
     },
-    []
+    [isMutationDisabled, claims.length]
   );
 
   // Keyboard shortcut listener for Ctrl+Shift+R (Demo Reset)
@@ -617,8 +675,15 @@ export default function ReviewerDashboardPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleResetDemo]);
 
-  // Handler: Run clearance evaluation with live measured wall-clock telemetry
+  // Handler: Run clearance evaluation with live backend analysis
   const handleRunEvaluation = async () => {
+    if (isMutationDisabled) {
+      setToast({
+        type: 'error',
+        message: 'Clearance evaluation is disabled while backend is offline or stale (Fail-Closed).',
+      });
+      return;
+    }
     setIsRunningEvaluation(true);
     const startWallTime = performance.now();
     startTransition(async () => {
@@ -629,47 +694,37 @@ export default function ReviewerDashboardPage() {
         setLastMeasuredElapsedMs(measuredElapsed);
         setHasEvaluated(true);
 
-        if (targetVersionId === 'v7') {
-          const v7Claims: EvaluatedClaim[] = getGoldenDriftEvaluationResult().claims.map((c) => ({
-            ...c,
-            state: DecisionState.CARRIED_FORWARD,
-            reason_code: 'DEPENDENCIES_SATISFIED_UNCHANGED',
-            revalidation_action: 'carry',
-          }));
-          setClaims(v7Claims);
-          setTraces(response.success && response.data ? response.data.execution_traces : []);
-          setToast({
-            type: 'success',
-            message: '✓ Zero Clearance Drift: Script cut v7 baseline is identical to compared version.',
-          });
-        } else if (response.success && response.data) {
+        if (response.success && response.data) {
           setClaims(response.data.claims);
-          setTraces(response.data.execution_traces);
+          setTraces(response.data.execution_traces || []);
+          const queueRes = await fetchReviewQueueAction();
+          if (queueRes.success && queueRes.data) {
+            setReviewQueue(queueRes.data);
+          }
+          setConnectionState(response.data.claims.length === 0 ? 'empty' : 'connected');
+          setConnectionError(null);
           setToast({
             type: 'success',
-            message: '✓ Clearance delta evaluated: 10 Carried Forward, 2 Reopened for counsel review.',
+            message:
+              targetVersionId === 'v7'
+                ? '✓ Zero Clearance Drift: Script cut v7 baseline verified via live backend.'
+                : '✓ Clearance delta evaluated: Live backend analysis confirmed.',
           });
         } else {
-          const golden = getGoldenDriftEvaluationResult();
-          setClaims(golden.claims);
-          setTraces(golden.execution_traces);
+          setConnectionState(claims.length > 0 ? 'stale' : 'unavailable');
+          setConnectionError(response.error || 'Evaluation failed on live backend');
           setToast({
-            type: 'success',
-            message: '✓ Evaluated using golden baseline: 10 Carried Forward, 2 Reopened for review.',
+            type: 'error',
+            message: `Evaluation failed: ${response.error || 'Backend offline'}. Fail-closed policy active.`,
           });
         }
-      } catch (err) {
-        console.error('Evaluation error:', err);
-        const golden = getGoldenDriftEvaluationResult();
-        setClaims(golden.claims);
-        setTraces(golden.execution_traces);
-        const measuredElapsed = performance.now() - startWallTime;
-        setEvalElapsedMs(measuredElapsed);
-        setLastMeasuredElapsedMs(measuredElapsed);
-        setHasEvaluated(true);
+      } catch (err: unknown) {
+        setConnectionState(claims.length > 0 ? 'stale' : 'unavailable');
+        const msg = err instanceof Error ? err.message : 'Evaluation network error';
+        setConnectionError(msg);
         setToast({
-          type: 'success',
-          message: '✓ Evaluated using deterministic engine: 10 Carried, 2 Reopened.',
+          type: 'error',
+          message: `Evaluation failed: ${msg}. Fail-closed policy active.`,
         });
       } finally {
         setIsRunningEvaluation(false);
@@ -681,6 +736,11 @@ export default function ReviewerDashboardPage() {
   const handleReviewAction = async (
     action: ReviewActionTypeChoice
   ): Promise<{ success: boolean; error?: string }> => {
+    if (isMutationDisabled) {
+      const msg = 'Clearance adjudication is disabled: backend is offline or stale (Fail-Closed).';
+      setToast({ type: 'error', message: msg });
+      return { success: false, error: msg };
+    }
     if (!activeQueueItem || isSubmittingAction) {
       return { success: false, error: 'Review action already in progress or no active item' };
     }
@@ -743,6 +803,8 @@ export default function ReviewerDashboardPage() {
         setClaims(snapshotClaims);
         setReviewQueue(snapshotQueue);
         setAuditTrail(snapshotAudit);
+        setConnectionState(snapshotClaims.length > 0 ? 'stale' : 'unavailable');
+        setConnectionError(result.error || 'Server error recording counsel action.');
         setToast({
           type: 'error',
           message: `Adjudication Failed: ${result.error || 'Server error recording counsel action.'}`,
@@ -799,6 +861,8 @@ export default function ReviewerDashboardPage() {
       setReviewQueue(snapshotQueue);
       setAuditTrail(snapshotAudit);
       const errMsg = err instanceof Error ? err.message : 'Unknown exception occurred.';
+      setConnectionState(snapshotClaims.length > 0 ? 'stale' : 'unavailable');
+      setConnectionError(errMsg);
       setToast({
         type: 'error',
         message: `Adjudication Error: ${errMsg}`,
@@ -996,6 +1060,52 @@ export default function ReviewerDashboardPage() {
         />
       )}
 
+      {/* Fail-Closed Truthfulness Connection Status Banner */}
+      <ConnectionStatusBanner
+        connectionState={connectionState}
+        onRetry={handleRetryConnection}
+        isRetrying={isRetryingConnection}
+        errorMessage={connectionError}
+      />
+
+      {/* Loading State Banner */}
+      {connectionState === 'loading' && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="rounded-2xl border border-sky-500/40 bg-gradient-to-r from-sky-950/60 via-[#101726]/80 to-slate-950/80 p-4 backdrop-blur-md shadow-xl flex items-center justify-between animate-pulse text-sky-200"
+        >
+          <div className="flex items-center gap-3">
+            <Loader2 className="h-5 w-5 animate-spin text-sky-400" aria-hidden="true" />
+            <div>
+              <span className="text-xs font-mono font-bold uppercase tracking-wider text-sky-400">
+                Hydrating Clearance Ledger...
+              </span>
+              <p className="text-xs text-slate-300">
+                Connecting to FastAPI clearance service and verifying live cryptographic state.
+              </p>
+            </div>
+          </div>
+          <span className="text-[11px] font-mono text-slate-400">State: LOADING</span>
+        </div>
+      )}
+
+      {/* Empty State Card (0 claims registered) */}
+      {connectionState === 'empty' && (
+        <div
+          role="status"
+          className="rounded-2xl border border-slate-700 bg-slate-900/60 p-6 text-center backdrop-blur-md space-y-2"
+        >
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-slate-800 text-slate-400">
+            <Layers className="h-6 w-6" aria-hidden="true" />
+          </div>
+          <h4 className="text-sm font-bold text-white">No Rights Claims Registered</h4>
+          <p className="text-xs text-slate-400 max-w-md mx-auto">
+            The active project revision currently has 0 claims registered. Execute a clearance evaluation to ingest and verify claims.
+          </p>
+        </div>
+      )}
+
       {/* 1. Modular Header Component (Pitch Beat 2: Version 7 Baseline) */}
       <section id="pitch-beat-2" data-pitch-beat="2" className="scroll-mt-6">
         <DashboardHeader
@@ -1026,6 +1136,7 @@ export default function ReviewerDashboardPage() {
           currentDemoMode={currentDemoMode}
           userRole={userRole}
           onRoleChange={setUserRole}
+          isMutationDisabled={isMutationDisabled}
         />
       </section>
 
@@ -1329,6 +1440,7 @@ export default function ReviewerDashboardPage() {
                     isPending={isPending}
                     lastConfirmedEvent={lastConfirmedEvent}
                     userRole={userRole}
+                    isMutationDisabled={isMutationDisabled}
                   />
                 </section>
               </div>
@@ -1436,6 +1548,7 @@ export default function ReviewerDashboardPage() {
                 isPending={isPending}
                 lastConfirmedEvent={lastConfirmedEvent}
                 userRole={userRole}
+                isMutationDisabled={isMutationDisabled}
               />
             )}
           </div>

@@ -15,7 +15,7 @@ import tempfile
 from typing import BinaryIO, Iterator, List
 import pytest
 
-from backend.services.hasher import StreamingHasher
+from backend.services.hasher import StreamingHasher, normalize_and_hash_text
 from backend.services.hasher_types import (
     FileAccessError,
     HashAlgorithm,
@@ -188,3 +188,31 @@ def test_semantic_hash_equivalence_pdf_timestamp_delta() -> None:
     assert res1.raw_blake2b != res2.raw_blake2b
     assert res1.semantic_sha256 is not None
     assert res1.semantic_sha256 == res2.semantic_sha256
+
+
+def test_pure_raw_binary_streaming_chunk_hashing() -> None:
+    """Verifies binary PDF stream with invalid UTF-8 bytes hashes raw sha256 and blake2b cleanly."""
+    binary_pdf_stream = b"%PDF-1.4\x00\xff\xfe\xca\xfe\x80\x81\x00" * 500
+    hasher = StreamingHasher(chunk_size_bytes=64)
+    res = hasher.digest_stream(io.BytesIO(binary_pdf_stream), compute_semantic=False)
+
+    assert res.raw_sha256 == hashlib.sha256(binary_pdf_stream).hexdigest()
+    assert res.raw_blake2b == hashlib.blake2b(binary_pdf_stream).hexdigest()
+    assert res.semantic_sha256 is None
+    assert res.byte_size == len(binary_pdf_stream)
+
+
+def test_normalize_and_hash_text_whitespace_headings_dialogue() -> None:
+    """Verifies normalize_and_hash_text normalizes whitespace, scene headings, and dialogue."""
+    script_a = "  SCENE 1 - INT. OFFICE - NIGHT  \n\n\n  SARAH  \n  We verified the deed.  \n"
+    script_b = "scene 1 - int. office - night\nSARAH (CONT'D):\nWe verified the deed."
+
+    hash_a = normalize_and_hash_text(script_a)
+    hash_b = normalize_and_hash_text(script_b)
+
+    assert len(hash_a) == 64
+    assert hash_a == hash_b
+    assert hash_a == StreamingHasher.normalize_and_hash_text(script_a)
+
+    with pytest.raises(TypeError, match="extracted_text must be str"):
+        normalize_and_hash_text(b"not a str")  # type: ignore[arg-type]

@@ -167,6 +167,7 @@ def test_deduplication_cache_hit_latency_benchmark() -> None:
         content_bytes=payload, version_id="v1", claims_count=8,
     )
     assert not res1.is_duplicate
+    store.commit_document_baseline("org_perf", doc1.document_id, "v1")
 
     t_start = time.perf_counter()
     doc2, res2 = store.lookup_or_register(

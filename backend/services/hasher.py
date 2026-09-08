@@ -44,7 +44,7 @@ class StreamingHasher:
         sha256_hasher: hashlib._Hash,
         blake2b_hasher: hashlib._Hash,
     ) -> tuple[int, int]:
-        """Reads raw chunks, updating raw hashes with O(1) memory."""
+        """Reads raw binary chunks, updating raw hashes with O(1) memory without UTF-8 decoding."""
         byte_size = 0
         chunk_count = 0
         while True:
@@ -54,6 +54,8 @@ class StreamingHasher:
                 raise StreamReadError(f"I/O error during stream read: {err}") from err
             if not chunk:
                 break
+            if isinstance(chunk, str):
+                chunk = chunk.encode("utf-8")
             byte_size += len(chunk)
             chunk_count += 1
             sha256_hasher.update(chunk)
@@ -191,12 +193,20 @@ class StreamingHasher:
         return _normalize_text(text)
 
     @staticmethod
+    def normalize_and_hash_text(extracted_text: str) -> str:
+        """Normalizes whitespace, scene headings, dialogue and returns canonical text SHA-256 digest."""
+        if not isinstance(extracted_text, str):
+            raise TypeError(f"extracted_text must be str, got {type(extracted_text).__name__}")
+        normalized = _normalize_text(extracted_text)
+        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+    @staticmethod
     def compute_semantic_digest(raw_text: str) -> str:
         """Returns SHA-256 hex digest of normalized screenplay text stream."""
-        normalized = _normalize_text(raw_text)
-        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+        return StreamingHasher.normalize_and_hash_text(raw_text)
 
 
 # Module-level aliases for direct function imports
 normalize_screenplay_text = StreamingHasher.normalize_screenplay_text
+normalize_and_hash_text = StreamingHasher.normalize_and_hash_text
 compute_semantic_digest = StreamingHasher.compute_semantic_digest

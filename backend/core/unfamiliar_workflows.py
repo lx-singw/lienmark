@@ -323,9 +323,10 @@ def resume_claim_investigation(
     clarification.attached_document_ref = document_uri
     clarification.resolved_at = datetime.now(timezone.utc).isoformat()
 
+    # Document arrival resumes verification; it must NEVER create counsel approval.
     resumed_claim = claim.model_copy(
         update={
-            "disposition": CensusDisposition.APPROVED,
+            "disposition": CensusDisposition.NEEDS_REVIEW,
             "workflow_reason": WorkflowReason.NORMAL_OPERATION,
             "licensor_grant_confirmed": True,
             "notes": f"Resumed via verified document: {document_uri}",

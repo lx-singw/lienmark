@@ -103,7 +103,7 @@ export async function fetchReviewQueueAction(): Promise<ActionResponse<ReviewQue
     return { success: true, data: items };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to retrieve review queue';
-    return { success: false, error: message, data: [] };
+    return { success: false, error: message };
   }
 }
 
@@ -152,7 +152,7 @@ export async function fetchAuditTrailAction(
     return { success: true, data: events };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to retrieve audit trail';
-    return { success: false, error: message, data: [] };
+    return { success: false, error: message };
   }
 }
 

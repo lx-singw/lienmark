@@ -57,6 +57,7 @@ def test_document_store_lookup_by_content_hash() -> None:
     assert res1.matched_document is None
     assert doc1.tenant_id == "org_paramount"
     assert doc1.claims_count == 14
+    store.commit_document_baseline("org_paramount", doc1.document_id, "v1")
 
     # Second upload with identical bytes detects duplicate
     doc2, res2 = store.lookup_or_register(
@@ -95,6 +96,7 @@ def test_rename_invariance_acceptance_gate() -> None:
         claims_count=8,
     )
     assert not res1.is_duplicate
+    store.commit_document_baseline("org_universal", doc1.document_id, "v1")
 
     # 2. Upload identical content under completely renamed path
     start_bench = time.perf_counter()
@@ -158,6 +160,7 @@ def test_semantic_invariance_differing_raw_hashes() -> None:
         claims_count=16,
     )
     assert not res1.is_duplicate
+    store.commit_document_baseline("org_warner", doc1.document_id, "v1")
 
     # Upload script 2: raw hash misses, but semantic hash matches
     doc2, res2 = store.lookup_or_register(

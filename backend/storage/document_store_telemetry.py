@@ -105,3 +105,16 @@ def build_new_document_result(start_time: float) -> DedupLookupResult:
         api_spend_saved_usd=0.0,
         reason="New document registered; no previous match found",
     )
+
+
+def extract_semantic_hash(content_bytes: bytes, filename: str) -> Optional[str]:
+    """Safely extracts text and computes canonical semantic hash without PDF UTF-8 corruption."""
+    if filename.lower().endswith(".pdf"):
+        return None
+    try:
+        text = content_bytes.decode("utf-8")
+        from backend.services.hasher import normalize_and_hash_text
+
+        return normalize_and_hash_text(text)
+    except (UnicodeDecodeError, Exception):
+        return None

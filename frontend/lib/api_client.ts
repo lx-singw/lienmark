@@ -168,7 +168,7 @@ const resolveDefaultBaseUrl = (): string => {
 const DEFAULT_CONFIG: Required<ApiClientConfig> = {
   baseUrl: resolveDefaultBaseUrl(),
   defaultTimeoutMs: 15000,
-  enableFallback: true,
+  enableFallback: false,
   verboseLogging: process.env.NODE_ENV !== 'production',
   counselToken: process.env.NEXT_PUBLIC_COUNSEL_TOKEN || 'sarah_jenkins_token_2026',
 };

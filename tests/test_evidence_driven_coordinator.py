@@ -544,7 +544,7 @@ async def test_execute_action_lifecycle():
     # 4. Execute ACT_07
     res4 = await coordinator.execute_action(CoordinatorAction.ACT_07_PREPARE_REVIEW_BRIEF, claim)
     assert res4["status"] == "SUCCESS"
-    assert claim.disposition == CensusDisposition.APPROVED
+    assert claim.disposition == CensusDisposition.NEEDS_REVIEW
     assert coordinator.claim_states[claim.claim_id] == "ready_for_review"
 
     # Verify audit history captured

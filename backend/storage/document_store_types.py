@@ -9,6 +9,7 @@ Authored strictly under Google AntiGravity architectural guidelines.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Any, Dict, Optional, Set
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -20,6 +21,14 @@ VALID_DOCUMENT_FORMATS: Set[str] = {
     "edl",
     "plaintext",
 }
+
+
+class DocumentProcessingStatus(str, Enum):
+    """Lifecycle processing status of an ingested document."""
+
+    PENDING = "pending"
+    COMMITTED = "committed"
+    FAILED = "failed"
 
 
 class DeduplicationError(Exception):
@@ -57,6 +66,14 @@ class IngestedDocumentRecord(BaseModel):
     scene_count: int = Field(default=0, ge=0, description="Total scenes parsed from screenplay or cutlist")
     version_id: str = Field(default="v1", description="Bound production version or script iteration")
     claims_count: int = Field(default=0, ge=0, description="Extracted legal or clearance claims count")
+    processing_status: DocumentProcessingStatus = Field(
+        default=DocumentProcessingStatus.PENDING,
+        description="Lifecycle processing status: pending, committed, or failed",
+    )
+    linked_baseline_version_id: Optional[str] = Field(
+        default=None,
+        description="Linked downstream investigation baseline version identifier",
+    )
     created_at_utc: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat(),
         description="ISO 8601 UTC creation timestamp",

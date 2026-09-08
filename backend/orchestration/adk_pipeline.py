@@ -1101,8 +1101,10 @@ class EvidenceDrivenCoordinator:
                 source_title=src_title or "Clearance Register",
                 source_url=src_url or "https://copyright.gov",
             )
-            norm_claim.disposition = CensusDisposition.APPROVED
-            norm_claim.approval_origin = ApprovalOrigin.RENEWED_APPROVAL
+            # Preparing an AI review brief provides advisory research synthesis for legal counsel;
+            # only authenticated counsel via the dual-review gate can grant CensusDisposition.APPROVED.
+            norm_claim.disposition = CensusDisposition.NEEDS_REVIEW
+            norm_claim.approval_origin = ApprovalOrigin.NONE
             self.claim_states[cid] = "ready_for_review"
             ctx["counsel_briefing"] = briefing.model_dump()
             self._record_action(cid, action, {"briefing_prepared": True})

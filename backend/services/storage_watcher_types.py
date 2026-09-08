@@ -54,6 +54,10 @@ GCS_LOCKED_PATH_REGEX = re.compile(
     r"^organizations/(?P<org_id>[a-zA-Z0-9_-]+)/productions/(?P<prod_id>[a-zA-Z0-9_-]+)/locked/(?P<filename>[a-zA-Z0-9_.-]+\.pdf)$"
 )
 
+LOCKED_DRAFT_REGEX = re.compile(
+    r"^organizations/[a-zA-Z0-9_-]+/productions/[a-zA-Z0-9_-]+/locked/.*"
+)
+
 SANDBOX_KEYWORDS = ("/sandbox/", "/drafts/", "/temp/", "/scratch/")
 
 

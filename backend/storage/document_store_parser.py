@@ -47,11 +47,15 @@ def parse_document_with_factory(
         if fmt_val not in VALID_DOCUMENT_FORMATS:
             fmt_val = "plaintext"
 
+        meta = dict(parsed.metadata) if parsed.metadata else {}
+        if getattr(parsed, "raw_text", None):
+            meta["raw_text"] = parsed.raw_text
+
         return (
             fmt_val,
             max(1, parsed.page_count),
             max(0, parsed.scene_count),
-            dict(parsed.metadata) if parsed.metadata else {},
+            meta,
         )
     except Exception as exc:
         logger.warning(

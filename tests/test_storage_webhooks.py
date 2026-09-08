@@ -15,6 +15,10 @@ from backend.api.webhooks.storage import (
     storage_webhook_router,
 )
 from backend.main import app as main_app
+from backend.services.ingestion_pipeline import (
+    get_ingestion_pipeline_service,
+    reset_ingestion_pipeline_service,
+)
 from backend.services.storage_watcher import StorageWatcherService
 from backend.storage.locks import DistributedLockManager
 from backend.storage.repository import (
@@ -28,6 +32,7 @@ def webhook_client() -> TestClient:
     """Fixture providing an isolated router client with clean in-memory state."""
     InMemoryTenantRepository.reset_global_storage()
     clear_feed_activity()
+    reset_ingestion_pipeline_service()
     lock_mgr = DistributedLockManager(in_memory=True)
     lock_mgr.clear_memory_state()
 
@@ -160,3 +165,57 @@ def test_main_app_mounts_storage_webhook_router() -> None:
     resp = client.get("/api/webhooks/storage/feed")
     assert resp.status_code == 200
     assert resp.json()["status"] == "ok"
+
+
+def test_eventarc_webhook_enqueues_task_and_returns_run_details(webhook_client: TestClient) -> None:
+    """Verifies valid CloudEvent enqueues run to IngestionPipelineService and returns details."""
+    payload = {
+        "specversion": "1.0",
+        "type": "google.cloud.storage.object.v1.finalized",
+        "source": "//storage.googleapis.com/buckets/pipeline-bkt",
+        "id": "evt_pipe_01",
+        "data": {
+            "bucket": "pipeline-bkt",
+            "name": "organizations/org_webhook/productions/prod_hook/locked/script_v8.pdf",
+            "etag": "etag_pipe_111",
+            "size": 4096,
+        },
+    }
+    resp = webhook_client.post("/api/webhooks/storage/eventarc", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "queued"
+    assert data["run_id"].startswith("run_")
+    assert data["organization_id"] == "org_webhook"
+    assert data["production_id"] == "prod_hook"
+
+    pipe = get_ingestion_pipeline_service()
+    queued = pipe.get_queued_runs()
+    assert len(queued) >= 1
+    assert any(q["run_id"] == data["run_id"] for q in queued)
+
+
+def test_eventarc_webhook_conflict_returns_lease_details(webhook_client: TestClient) -> None:
+    """Verifies that concurrent lease returns HTTP 409 with lease details."""
+    payload = {
+        "specversion": "1.0",
+        "type": "google.cloud.storage.object.v1.finalized",
+        "source": "//storage.googleapis.com/buckets/pipeline-bkt",
+        "id": "evt_conflict_01",
+        "data": {
+            "bucket": "pipeline-bkt",
+            "name": "organizations/org_webhook/productions/prod_hook/locked/script_v8.pdf",
+            "etag": "etag_conflict_222",
+            "size": 2048,
+        },
+    }
+    r1 = webhook_client.post("/api/webhooks/storage/eventarc", json=payload)
+    assert r1.status_code == 200
+
+    r2 = webhook_client.post("/api/webhooks/storage/eventarc", json=payload)
+    assert r2.status_code == 409
+    data = r2.json()
+    assert data["status"] == "conflict"
+    assert "lease_details" in data
+    assert "lock_key" in data["lease_details"]
+

@@ -119,6 +119,16 @@ export const ConnectionStatus = {
 
 export type ConnectionStatus = (typeof ConnectionStatus)[keyof typeof ConnectionStatus];
 
+export type ConnectionState = 'loading' | 'connected' | 'empty' | 'unavailable' | 'stale';
+
+export const ConnectionState = {
+  LOADING: 'loading',
+  CONNECTED: 'connected',
+  EMPTY: 'empty',
+  UNAVAILABLE: 'unavailable',
+  STALE: 'stale',
+} as const;
+
 // ============================================================================
 // Core Domain Entities
 // ============================================================================

@@ -3,6 +3,7 @@
 /**
  * Lienmark Active Clearance Blockers Summary Component
  * Dynamically computes and displays active clearance blockers preventing E&O sign-off.
+ * Specifically tracks key blockers including Item 11 (00:44:12, Re-Attest) and Item 12 (00:19:40, Exception).
  * Authored strictly under Google AntiGravity: files <= 250 lines, functions <= 40 lines, zero any.
  */
 

@@ -1,13 +1,8 @@
 """
 backend/storage/baseline_store.py
-
 Production-ready persistence layer for Production Baseline Snapshots.
-Supports:
-1. Physical Firestore collection hierarchy:
-   /organizations/{org_id}/productions/{prod_id}/baselines/{version_id}
-2. Transparent thread-safe InMemory fallback (InMemoryBaselineStore) for offline/pytest.
-3. Immutability enforcement: Rejects overwrites of already-registered baseline versions.
-Authored strictly under Google AntiGravity architectural guidelines for Sprint 2.3.
+Supports physical Firestore hierarchy, thread-safe InMemory fallback,
+monotonic version progression verification, and transactional writes.
 """
 
 from __future__ import annotations
@@ -17,10 +12,11 @@ import copy
 import logging
 import os
 import threading
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from backend.core.baseline_types import (
     BaselineAlreadyExistsError,
+    BaselineLineageBrokenError,
     ProductionVersion,
     validate_tenant_boundary,
 )
@@ -28,19 +24,48 @@ from backend.core.baseline_types import (
 logger = logging.getLogger("lienmark.storage.baseline")
 
 
+def parse_version_tuple(v: str) -> Optional[Tuple[int, ...]]:
+    """Parse versions like 'v1', 'v2', 'v1.2.3', '1' into integer tuples."""
+    if not v or not isinstance(v, str):
+        return None
+    try:
+        return tuple(int(p) for p in v.strip().lstrip("vV").split("."))
+    except (ValueError, AttributeError):
+        return None
+
+
+def _verify_baseline_progression(
+    baseline: ProductionVersion, latest: Optional[ProductionVersion], has_fn: Callable[[str, str, str], bool],
+) -> None:
+    """Verifies that baseline advances monotonically or validates parent baseline linkage."""
+    if baseline.previous_version_id is not None:
+        if not has_fn(baseline.tenant_id, baseline.production_id, baseline.previous_version_id):
+            raise BaselineLineageBrokenError(f"Lineage broken: parent baseline '{baseline.previous_version_id}' does not exist.")
+    if latest is None:
+        return
+    new_vt, lat_vt = parse_version_tuple(baseline.version_id), parse_version_tuple(latest.version_id)
+    is_monotonic = bool(new_vt and lat_vt and new_vt > lat_vt)
+    has_parent = bool(baseline.previous_version_id and has_fn(baseline.tenant_id, baseline.production_id, baseline.previous_version_id))
+    if not is_monotonic and not has_parent:
+        raise BaselineLineageBrokenError(f"Baseline '{baseline.version_id}' does not advance monotonically from '{latest.version_id}'.")
+
+
 class BaselineStoreInterface(abc.ABC):
     """Abstract persistence interface for Production Baseline Snapshots."""
 
     @abc.abstractmethod
     def save_baseline(self, baseline: ProductionVersion) -> ProductionVersion:
-        """Atomically saves a baseline snapshot. Rejects mutation if version exists."""
+        """Atomically saves a baseline snapshot. Rejects mutation or regression."""
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_baseline(
-        self, tenant_id: str, production_id: str, version_id: str
-    ) -> Optional[ProductionVersion]:
+    def get_baseline(self, tenant_id: str, production_id: str, version_id: str) -> Optional[ProductionVersion]:
         """Retrieves a baseline snapshot by tenant, production, and version ID."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_latest_baseline(self, tenant_id: str, production_id: str) -> Optional[ProductionVersion]:
+        """Retrieves the latest registered baseline snapshot for the production."""
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -55,10 +80,7 @@ class BaselineStoreInterface(abc.ABC):
 
 
 class InMemoryBaselineStore(BaselineStoreInterface):
-    """
-    Thread-safe in-memory baseline store for local development, pytest,
-    and offline execution without live GCP Firestore credentials.
-    """
+    """Thread-safe in-memory baseline store for local development and pytest."""
 
     def __init__(self) -> None:
         self._lock = threading.RLock()
@@ -69,56 +91,52 @@ class InMemoryBaselineStore(BaselineStoreInterface):
         key = (baseline.tenant_id, baseline.production_id, baseline.version_id)
         with self._lock:
             if key in self._baselines:
-                raise BaselineAlreadyExistsError(
-                    f"Baseline '{baseline.version_id}' already exists for production '{baseline.production_id}'."
-                )
+                raise BaselineAlreadyExistsError(f"Baseline '{baseline.version_id}' already exists for '{baseline.production_id}'.")
+            latest = self.get_latest_baseline(baseline.tenant_id, baseline.production_id)
+            _verify_baseline_progression(baseline, latest, lambda t, p, v: (t, p, v) in self._baselines)
             self._baselines[key] = copy.deepcopy(baseline.model_dump())
             return baseline
 
-    def get_baseline(
-        self, tenant_id: str, production_id: str, version_id: str
-    ) -> Optional[ProductionVersion]:
+    def get_baseline(self, tenant_id: str, production_id: str, version_id: str) -> Optional[ProductionVersion]:
         validate_tenant_boundary(tenant_id, production_id)
-        key = (tenant_id, production_id, version_id)
         with self._lock:
-            raw = self._baselines.get(key)
-            if raw is None:
+            raw = self._baselines.get((tenant_id, production_id, version_id))
+            return ProductionVersion.model_validate(copy.deepcopy(raw)) if raw is not None else None
+
+    def get_latest_baseline(self, tenant_id: str, production_id: str) -> Optional[ProductionVersion]:
+        validate_tenant_boundary(tenant_id, production_id)
+        with self._lock:
+            baselines = self.list_baselines(tenant_id, production_id)
+            if not baselines:
                 return None
-            return ProductionVersion.model_validate(copy.deepcopy(raw))
+            return sorted(baselines, key=lambda b: (b.created_at, parse_version_tuple(b.version_id) or ()))[-1]
 
     def list_baselines(self, tenant_id: str, production_id: str) -> List[ProductionVersion]:
         validate_tenant_boundary(tenant_id, production_id)
         with self._lock:
-            results: List[ProductionVersion] = []
-            for (t_id, p_id, _), raw in self._baselines.items():
-                if t_id == tenant_id and p_id == production_id:
-                    results.append(ProductionVersion.model_validate(copy.deepcopy(raw)))
+            results = [
+                ProductionVersion.model_validate(copy.deepcopy(raw))
+                for (t, p, _), raw in self._baselines.items() if t == tenant_id and p == production_id
+            ]
             return sorted(results, key=lambda b: b.created_at)
 
     def has_baseline(self, tenant_id: str, production_id: str, version_id: str) -> bool:
         validate_tenant_boundary(tenant_id, production_id)
-        key = (tenant_id, production_id, version_id)
         with self._lock:
-            return key in self._baselines
+            return (tenant_id, production_id, version_id) in self._baselines
 
     def clear(self) -> None:
-        """Test fixture helper to reset in-memory state."""
         with self._lock:
             self._baselines.clear()
 
 
 class FirestoreBaselineStore(BaselineStoreInterface):
-    """
-    Native Google Cloud Firestore baseline persistence layer.
-    Maps to /organizations/{org_id}/productions/{prod_id}/baselines/{version_id}.
-    Falls back gracefully to InMemoryBaselineStore when Firestore client is unavailable.
-    """
+    """Native Google Cloud Firestore baseline persistence layer."""
 
     def __init__(self, client: Optional[Any] = None) -> None:
-        self._client = client
+        self._lock = threading.RLock()
         self._fallback = InMemoryBaselineStore()
-        if self._client is None:
-            self._client = self._init_gcp_client()
+        self._client = client if client is not None else self._init_gcp_client()
 
     def _init_gcp_client(self) -> Optional[Any]:
         try:
@@ -126,78 +144,69 @@ class FirestoreBaselineStore(BaselineStoreInterface):
             project = os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GCP_PROJECT")
             return firestore.Client(project=project)
         except Exception as exc:
-            logger.info("Native Firestore unavailable; operating in in-memory mode: %s", exc)
+            logger.info("Native Firestore unavailable; operating in fallback mode: %s", exc)
             return None
 
-    def _doc_ref(self, tenant_id: str, production_id: str, version_id: str) -> Any:
-        return (
-            self._client.collection("organizations")
-            .document(tenant_id)
-            .collection("productions")
-            .document(production_id)
-            .collection("baselines")
-            .document(version_id)
-        )
+    def _doc_ref(self, t_id: str, p_id: str, v_id: str) -> Any:
+        return self._client.collection("organizations").document(t_id).collection("productions").document(p_id).collection("baselines").document(v_id)
 
     def save_baseline(self, baseline: ProductionVersion) -> ProductionVersion:
         validate_tenant_boundary(baseline.tenant_id, baseline.production_id)
-        if self._client is None:
-            return self._fallback.save_baseline(baseline)
+        with self._lock:
+            if self._client is None:
+                return self._fallback.save_baseline(baseline)
+            if self.has_baseline(baseline.tenant_id, baseline.production_id, baseline.version_id):
+                raise BaselineAlreadyExistsError(f"Baseline '{baseline.version_id}' already exists for '{baseline.production_id}'.")
+            latest = self.get_latest_baseline(baseline.tenant_id, baseline.production_id)
+            _verify_baseline_progression(baseline, latest, lambda t, p, v: self.has_baseline(t, p, v))
+            from google.cloud import firestore
+            doc_ref = self._doc_ref(baseline.tenant_id, baseline.production_id, baseline.version_id)
+            p_ref = self._doc_ref(baseline.tenant_id, baseline.production_id, baseline.previous_version_id) if baseline.previous_version_id else None
 
-        from google.cloud import firestore
+            @firestore.transactional
+            def _txn(transaction: Any) -> None:
+                if doc_ref.get(transaction=transaction).exists:
+                    raise BaselineAlreadyExistsError(f"Baseline '{baseline.version_id}' already exists for '{baseline.production_id}'.")
+                if p_ref is not None and not p_ref.get(transaction=transaction).exists:
+                    raise BaselineLineageBrokenError(f"Parent baseline '{baseline.previous_version_id}' does not exist.")
+                transaction.set(doc_ref, baseline.model_dump())
 
-        doc_ref = self._doc_ref(baseline.tenant_id, baseline.production_id, baseline.version_id)
+            transaction = self._client.transaction()
+            _txn(transaction)
+            return baseline
 
-        @firestore.transactional
-        def _txn(transaction: Any) -> None:
-            snap = doc_ref.get(transaction=transaction)
-            if snap.exists:
-                raise BaselineAlreadyExistsError(
-                    f"Baseline '{baseline.version_id}' already exists for production '{baseline.production_id}'."
-                )
-            transaction.set(doc_ref, baseline.model_dump())
-
-        transaction = self._client.transaction()
-        _txn(transaction)
-        return baseline
-
-    def get_baseline(
-        self, tenant_id: str, production_id: str, version_id: str
-    ) -> Optional[ProductionVersion]:
+    def get_baseline(self, tenant_id: str, production_id: str, version_id: str) -> Optional[ProductionVersion]:
         validate_tenant_boundary(tenant_id, production_id)
-        if self._client is None:
-            return self._fallback.get_baseline(tenant_id, production_id, version_id)
+        with self._lock:
+            if self._client is None:
+                return self._fallback.get_baseline(tenant_id, production_id, version_id)
+            snap = self._doc_ref(tenant_id, production_id, version_id).get()
+            return ProductionVersion.model_validate(snap.to_dict()) if snap.exists else None
 
-        doc_ref = self._doc_ref(tenant_id, production_id, version_id)
-        snap = doc_ref.get()
-        if not snap.exists:
-            return None
-        return ProductionVersion.model_validate(snap.to_dict() or {})
+    def get_latest_baseline(self, tenant_id: str, production_id: str) -> Optional[ProductionVersion]:
+        validate_tenant_boundary(tenant_id, production_id)
+        with self._lock:
+            if self._client is None:
+                return self._fallback.get_latest_baseline(tenant_id, production_id)
+            baselines = self.list_baselines(tenant_id, production_id)
+            if not baselines:
+                return None
+            return sorted(baselines, key=lambda b: (b.created_at, parse_version_tuple(b.version_id) or ()))[-1]
 
     def list_baselines(self, tenant_id: str, production_id: str) -> List[ProductionVersion]:
         validate_tenant_boundary(tenant_id, production_id)
-        if self._client is None:
-            return self._fallback.list_baselines(tenant_id, production_id)
-
-        coll_ref = (
-            self._client.collection("organizations")
-            .document(tenant_id)
-            .collection("productions")
-            .document(production_id)
-            .collection("baselines")
-        )
-        snaps = coll_ref.stream()
-        results = [
-            ProductionVersion.model_validate(s.to_dict()) for s in snaps if s.exists
-        ]
-        return sorted(results, key=lambda b: b.created_at)
+        with self._lock:
+            if self._client is None:
+                return self._fallback.list_baselines(tenant_id, production_id)
+            coll_ref = self._client.collection("organizations").document(tenant_id).collection("productions").document(production_id).collection("baselines")
+            return sorted([ProductionVersion.model_validate(s.to_dict()) for s in coll_ref.stream() if s.exists], key=lambda b: b.created_at)
 
     def has_baseline(self, tenant_id: str, production_id: str, version_id: str) -> bool:
         validate_tenant_boundary(tenant_id, production_id)
-        if self._client is None:
-            return self._fallback.has_baseline(tenant_id, production_id, version_id)
-        doc_ref = self._doc_ref(tenant_id, production_id, version_id)
-        return bool(doc_ref.get().exists)
+        with self._lock:
+            if self._client is None:
+                return self._fallback.has_baseline(tenant_id, production_id, version_id)
+            return bool(self._doc_ref(tenant_id, production_id, version_id).get().exists)
 
 
 _GLOBAL_STORE: Optional[BaselineStoreInterface] = None
@@ -205,7 +214,7 @@ _GLOBAL_STORE_LOCK = threading.Lock()
 
 
 def get_default_baseline_store(force_in_memory: bool = False) -> BaselineStoreInterface:
-    """Factory retrieving the configured singleton BaselineStoreInterface."""
+    """Factory retrieving configured singleton BaselineStoreInterface."""
     global _GLOBAL_STORE
     with _GLOBAL_STORE_LOCK:
         if force_in_memory:
