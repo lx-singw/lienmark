@@ -98,6 +98,7 @@ from backend.api.routes.ledger import ledger_router
 from backend.api.routes.escalation import escalation_router
 from backend.api.routes.underwriting import underwriting_router
 from backend.api.routes.readiness import readiness_router
+from backend.api.routes import revision_routes
 from backend.middleware.chaos import ChaosMiddleware
 from backend.core.recovery import execute_cold_start_recovery
 from backend.config.settings import settings
@@ -111,10 +112,11 @@ SESSION_COOKIE_NAME = "lienmark_session_id"
 SESSION_SECRET_KEY = os.getenv("SESSION_SECRET_KEY", "lienmark-session-secret-salt-2026")
 
 
+from backend.api.routes.auth_routes import router as auth_router
+
 def sign_session_id(session_id: str) -> str:
     sig = hashlib.sha256(f"{session_id}::{SESSION_SECRET_KEY}".encode("utf-8")).hexdigest()[:16]
     return f"{session_id}.{sig}"
-
 
 def verify_and_extract_session_id(cookie_val: Optional[str]) -> Optional[str]:
     if not cookie_val or not isinstance(cookie_val, str):
@@ -136,7 +138,6 @@ def verify_and_extract_session_id(cookie_val: Optional[str]) -> Optional[str]:
         return val.split(".")[0]
     return None
 
-
 def get_session_id(request: Optional[Request]) -> str:
     """Extracts authenticated or signed session ID from request state, header, or cookie."""
     if not request:
@@ -151,32 +152,45 @@ def get_session_id(request: Optional[Request]) -> str:
         return c.strip()
     return counsel_checkpoint_manager.DEFAULT_SESSION_ID
 
-
 class SessionScopingMiddleware(BaseHTTPMiddleware):
-    """
-    Ensures every HTTP request is bound to a cryptographically verifiable visitor session.
-    Priority order:
-    1. Header: 'X-Session-ID'
-    2. Signed Cookie: 'lienmark_session_id'
-    3. New session generated via uuid4()
-    Inlines session_id into request.state.session_id and injects cookie and header into responses.
-    """
     async def dispatch(self, request: Request, call_next):
         header_sess = request.headers.get("X-Session-ID") or request.headers.get("x-session-id")
         cookie_sess = verify_and_extract_session_id(request.cookies.get(SESSION_COOKIE_NAME))
+        lienmark_session = request.cookies.get("lienmark_session")
 
-        if header_sess and header_sess.strip():
-            session_id = header_sess.strip()
-        elif cookie_sess:
-            session_id = cookie_sess
-        else:
-            ua = (request.headers.get("user-agent") or "").lower()
-            is_browser = any(b in ua for b in ("mozilla", "chrome", "safari", "firefox", "edge")) and "testclient" not in ua
-            has_fetch = bool(request.headers.get("sec-fetch-mode"))
-            if is_browser or has_fetch:
-                session_id = f"sess_{uuid.uuid4().hex[:16]}"
+        session_id = None
+        if lienmark_session:
+            import json, base64, time
+            from backend.storage.invite_store import get_invite_store
+            try:
+                session_data = json.loads(base64.b64decode(lienmark_session.encode('utf-8')).decode('utf-8'))
+                if time.time() > session_data.get("expires_at", 0):
+                    return JSONResponse(status_code=401, content={"detail": "Session expired"})
+                if get_invite_store().is_session_revoked(session_data["session_id"]):
+                    return JSONResponse(status_code=401, content={"detail": "Session revoked"})
+                session_id = session_data["session_id"]
+            except Exception:
+                pass
+        
+        if not session_id:
+            if header_sess and header_sess.strip():
+                session_id = header_sess.strip()
+            elif cookie_sess:
+                session_id = cookie_sess
             else:
-                session_id = counsel_checkpoint_manager.DEFAULT_SESSION_ID
+                ua = (request.headers.get("user-agent") or "").lower()
+                is_browser = any(b in ua for b in ("mozilla", "chrome", "safari", "firefox", "edge")) and "testclient" not in ua
+                has_fetch = bool(request.headers.get("sec-fetch-mode"))
+                if is_browser or has_fetch:
+                    session_id = f"sess_{uuid.uuid4().hex[:16]}"
+                else:
+                    session_id = counsel_checkpoint_manager.DEFAULT_SESSION_ID
+
+        # CSRF check
+        if request.method in ["POST", "PUT", "PATCH", "DELETE"] and lienmark_session:
+            csrf_token = request.headers.get("X-CSRF-Token")
+            if not csrf_token or csrf_token != session_id:
+                return JSONResponse(status_code=403, content={"detail": "CSRF validation failed"})
 
         request.state.session_id = session_id
         response = await call_next(request)
@@ -196,7 +210,6 @@ class SessionScopingMiddleware(BaseHTTPMiddleware):
             path="/",
         )
         return response
-
 
 app = FastAPI(
     title="Lienmark Clearance Change Control API",
@@ -221,6 +234,7 @@ app.add_middleware(PayloadSizeLimitMiddleware)
 app.add_middleware(ChaosMiddleware)
 
 # Mount Webhook, Clarification, & Decision Routers
+app.include_router(auth_router)
 app.include_router(storage_webhook_router)
 app.include_router(clarification_router)
 app.include_router(decision_router)
@@ -234,6 +248,7 @@ app.include_router(ledger_router)
 app.include_router(escalation_router)
 app.include_router(underwriting_router)
 app.include_router(readiness_router)
+app.include_router(revision_routes.router)
 
 
 @app.post("/api/recovery/cold-start")
