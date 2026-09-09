@@ -17,7 +17,7 @@ export function EmptyState({ title, description, children }: { title: string; de
   return <div className="ws-empty"><span className="ws-empty-icon"><SearchX size={24} /></span><h3>{title}</h3><p>{description}</p>{children}</div>;
 }
 export function ReferenceNotice() {
-  return <div className="ws-sample-notice"><LockKeyhole size={16} /><p><strong>Reference comparison.</strong> These are the service’s example Cut v7–v8 records. Submitted audit results appear separately under Investigations.</p></div>;
+  return <div className="ws-sample-notice"><LockKeyhole size={16} /><p><strong>Production records.</strong> Findings support review. Only an authorized reviewer can record a clearance decision.</p></div>;
 }
 export function PanelTitle({ title, description, children }: { title: string; description?: string; children?: ReactNode }) {
   return <div className="ws-panel-heading"><div><h2>{title}</h2>{description && <p>{description}</p>}</div>{children}</div>;

@@ -23,6 +23,7 @@ client = TestClient(app)
 @pytest.fixture(autouse=True)
 def setup_test_env():
     os.environ["USE_LOCAL_STORAGE"] = "true"
+    os.environ["CLEARANCE_SQLITE_PATH"] = ".data/test_auth.sqlite3"
 
 
 def test_invite_redemption_and_signed_cookie():
@@ -94,14 +95,13 @@ def test_producer_decision_forbidden():
 
     # Producer attempting to sign off or reject on decisions endpoint
     dec_res = client.post(
-        "/api/v1/claims/claim_item_11/decision",
+        "/api/clearance/productions/prod_test/claims/claim_item_11/decision",
         json={
             "action": "sign_off",
-            "counsel_id": "counsel_sarah",
-            "counsel_name": "Sarah Jenkins, Esq.",
-            "directive_text": "Producer attempting illegal signoff",
+            "revision_id": "revision_test",
+            "expected_snapshot_id": "snapshot_test",
+            "rationale": "Producer attempting illegal signoff",
         },
-        params={"production_id": "prod_test"},
         cookies=cookies,
         headers={"X-CSRF-Token": sess_id},
     )
@@ -139,4 +139,3 @@ def test_invalid_and_empty_invite_rejection():
     # Empty payload returns 422
     res_empty = client.post("/api/auth/redeem-invite", json={})
     assert res_empty.status_code == 422
-

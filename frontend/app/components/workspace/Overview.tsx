@@ -3,8 +3,10 @@ import Link from 'next/link';
 import { ArrowRight, Plus, RefreshCw, ShieldCheck, GitCompareArrows, Files, CircleAlert, FileCheck2 } from 'lucide-react';
 import { useWorkspace } from './WorkspaceProvider';
 import { countClaims } from './model';
+import { revisionLabel } from './labels';
 import { PageHeading, PanelTitle, SampleNotice, ReferenceNotice } from './Primitives';
 import { ClaimTable } from './ClaimTable';
+import { MissionTimeline, RevisionOutcome } from './AutomationView';
 
 export function SummaryCards() {
   const { claims, sample } = useWorkspace();
@@ -25,11 +27,11 @@ function NextSteps() {
     <section className="ws-delivery-card"><FileCheck2 size={25} /><h2>A clear path<br />to your next delivery.</h2><p>See what remains unresolved before preparing the Exceptions Schedule.</p><Link href="/delivery">Open delivery workspace <ArrowRight size={14} /></Link></section></div>;
 }
 export default function Overview() {
-  const { claims, sample, error, loading, checking, refresh, setAccessOpen, audit } = useWorkspace();
+  const { claims, sample, error, loading, checking, refresh, setAccessOpen, snapshot } = useWorkspace();
   return <><PageHeading eyebrow="PRODUCTION OVERVIEW" title="Every revision. A clear next step." description="See what changed, which approvals carry forward, and what needs attention.">
     <button className="ws-button" disabled={sample || loading} onClick={() => void refresh()}><RefreshCw size={14} />{loading ? 'Refreshing…' : 'Refresh'}</button><Link className="ws-button primary" href="/revisions"><Plus size={15} />New revision</Link></PageHeading>
     {sample ? <SampleNotice onRequest={() => setAccessOpen(true)} /> : <ReferenceNotice />}{error && <div className="ws-error" role="alert">{error}</div>}
-    <div className="ws-revision-strip"><div className="ws-revision-pair"><label>REFERENCE COMPARISON</label><span className="ws-revision-pill">Cut v7 · Baseline</span><ArrowRight size={14} /><span className="ws-revision-pill target">Cut v8 · Revision</span></div><span className="ws-revision-caption">Approval continuity, asset by asset</span></div>
-    {checking ? <div className="ws-loading" role="status">Checking workspace access…</div> : <><SummaryCards /><div className="ws-overview-grid"><ClaimTable claims={claims} /><NextSteps /></div></>}
+    <div className="ws-revision-strip"><div className="ws-revision-pair"><label>{sample ? 'SAMPLE COMPARISON' : 'CURRENT REVISION'}</label><span className="ws-revision-pill target">{sample ? 'Cut v7 → Cut v8' : revisionLabel(snapshot)}</span></div><span className="ws-revision-caption">Approval continuity, asset by asset</span></div>
+    {checking ? <div className="ws-loading" role="status">Checking workspace access…</div> : <><SummaryCards /><RevisionOutcome /><MissionTimeline compact /><div className="ws-overview-grid"><ClaimTable claims={claims} /><NextSteps /></div></>}
   </>;
 }

@@ -1,0 +1,7 @@
+{
+  "indexes": [],
+  "fieldOverrides": [
+    {"collectionGroup": "live_jobs", "fieldPath": "status", "indexes": [{"order": "ASCENDING", "queryScope": "COLLECTION_GROUP"}]},
+    {"collectionGroup": "live_sources", "fieldPath": "status", "indexes": [{"order": "ASCENDING", "queryScope": "COLLECTION_GROUP"}]}
+  ]
+}

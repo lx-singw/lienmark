@@ -8,6 +8,7 @@ import { ArrowUpRight, Activity, Building2, ChevronDown, ChevronRight, Clapperbo
 import { useWorkspace } from './WorkspaceProvider';
 import RequestAccessModal from '../auth/RequestAccessModal';
 import { ClaimDetail } from './ClaimDetail';
+import { productionName, roleLabel } from './labels';
 
 const navigation = [
   { href: '/', label: 'Overview', icon: LayoutDashboard },
@@ -41,7 +42,7 @@ function AccountMenu() {
   };
   return <details className="ws-account">
     <summary><span className="ws-avatar">{user?.display_name.slice(0, 1) || 'G'}</span>
-      <span><strong>{user?.display_name || 'Guest workspace'}</strong><small>{sample ? 'Read-only access' : user?.role}</small></span><ChevronDown size={15} /></summary>
+      <span><strong>{user?.display_name || 'Guest workspace'}</strong><small>{sample ? 'Read-only access' : roleLabel(user?.role)}</small></span><ChevronDown size={15} /></summary>
     <div className="ws-dropdown"><p>{sample ? 'Explore the sample. An invitation unlocks your assigned production.' : user?.email || 'Invited production member'}</p>
       {sample ? <button onClick={() => setAccessOpen(true)}><ArrowUpRight size={15} />Request access</button>
         : <button onClick={() => void logout()}><LogOut size={15} />Sign out</button>}
@@ -55,7 +56,7 @@ function TopBar({ toggle }: { toggle: () => void }) {
   const current = navigation.find(item => item.href === pathname)?.label || ({ '/inbox': 'Action inbox', '/productions': 'Productions', '/policy': 'Workspace settings' }[pathname]) || 'Workspace';
   return <header className="ws-topbar no-print">
     <div className="ws-breadcrumb"><button className="ws-icon-button ws-mobile-toggle" onClick={toggle} aria-label="Open navigation"><Menu size={21} /></button>
-      <span className="ws-breadcrumb-production">{sample ? 'The Noir Protocol' : user?.production_id}</span><ChevronRight size={14} /><strong>{current}</strong></div>
+      <span className="ws-breadcrumb-production">{sample ? 'The Noir Protocol' : productionName(user)}</span><ChevronRight size={14} /><strong>{current}</strong></div>
     <div className="ws-topbar-end"><span className="ws-mode"><span />{checking ? 'Checking access' : sample ? 'Sample · Read-only' : 'Authenticated workspace'}</span><AccountMenu /></div>
   </header>;
 }
@@ -69,7 +70,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
       <Link className="ws-brand" href="/" onClick={() => setMobileOpen(false)}><span className="ws-brand-icon"><ShieldCheck size={23} /></span><span>lienmark<span className="ws-brand-period">.</span></span></Link>
       <button className="ws-icon-button ws-sidebar-close" aria-label="Close navigation" onClick={() => setMobileOpen(false)}><X size={20} /></button>
       <Link href="/productions" className="ws-production-switch" onClick={() => setMobileOpen(false)}><span className="ws-production-icon"><Clapperboard size={18} /></span>
-        <span><strong>{sample ? 'The Noir Protocol' : user?.production_id || 'Production'}</strong><small>{sample ? 'Fictional feature production' : 'Production workspace'}</small></span><ChevronDown size={14} /></Link>
+        <span><strong>{sample ? 'The Noir Protocol' : productionName(user)}</strong><small>{sample ? 'Fictional feature production' : 'Production workspace'}</small></span><ChevronDown size={14} /></Link>
       <Navigation close={() => setMobileOpen(false)} />
       <div className="ws-sidebar-bottom"><ShieldCheck size={18} /><div><strong>Clarity through every cut.</strong><p>Clearance change control for E&O.</p></div></div>
     </aside>

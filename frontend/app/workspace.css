@@ -32,3 +32,22 @@
 @media(max-width:680px){.ws-table th:nth-child(3),.ws-table td:nth-child(3){display:none}.ws-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.ws-metric-top{font-size:11px}.ws-metric small{font-size:10px}.ws-mode{display:none}.ws-metric-icon{display:none}.ws-sample-notice{flex-wrap:wrap}.ws-sample-notice button{margin-left:auto}.ws-table th,.ws-table td{padding-left:12px;padding-right:12px}.ws-asset-button{gap:8px}.ws-table{white-space:normal}.ws-table td:last-child{padding-left:0;padding-right:8px}.ws-status{font-size:10px}.ws-asset-icon{width:28px}.ws-asset-button strong{font-size:12px}.ws-table th:first-child{width:54%}}
 @media(max-width:680px){.ws-sidebar{visibility:hidden}.ws-sidebar.is-open{visibility:visible}}
 @media print{.ws-native-dialog{display:none!important}.ws-table th,.ws-table td{padding:8px;font-size:10px}.ws-form-layout{display:block}.ws-panel{margin-bottom:15px}}
+.ws-agent-timeline { list-style:none; margin:24px 0; padding:0; display:grid; gap:14px; }
+.ws-agent-timeline li { border-left:3px solid #c8d7d3; background:#f6f9f8; padding:16px 20px; border-radius:0 8px 8px 0; }
+.ws-agent-timeline li.working { border-color:#147d69; background:#edf7f3; }
+.ws-agent-timeline li.blocked { border-color:#b76d23; }
+.ws-agent-task-heading { display:flex; justify-content:space-between; gap:16px; }
+.ws-agent-task-heading span { font-size:12px; color:#496962; }
+.ws-agent-timeline p { margin:8px 0; line-height:1.6; font-size:13px; }
+.ws-agent-timeline small { color:#687f79; }
+.ws-agent-outcome { color:#294f45; }
+.ws-automation-form { display:grid; gap:20px; }
+.ws-automation-form > label { display:flex; align-items:center; gap:10px; }
+.ws-automation-form .ws-field, .ws-document-arrival .ws-field { display:grid; gap:8px; font-size:13px; }
+.ws-automation-form input:not([type=checkbox]), .ws-document-arrival select { padding:10px 12px; border:1px solid #ccdcd7; border-radius:6px; background:white; color:#193d34; width:100%; }
+.ws-automation-limits { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+.ws-document-arrival { display:grid; gap:16px; }
+.ws-upload-zone { display:grid; justify-items:center; text-align:center; gap:12px; border:1px dashed #80a99d; background:#f5faf8; padding:28px; border-radius:8px; cursor:pointer; }
+.ws-upload-zone span { font-size:12px; color:#637f75; }
+.ws-upload-zone input { max-width:100%; font-size:13px; }
+@media(max-width:700px) { .ws-automation-limits { grid-template-columns:1fr; } .ws-agent-task-heading { flex-direction:column; gap:6px; } }

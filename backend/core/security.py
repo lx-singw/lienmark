@@ -619,19 +619,20 @@ class PayloadSizeLimitMiddleware(BaseHTTPMiddleware):
         self.max_size = max_size
 
     async def dispatch(self, request: Request, call_next):
+        limit = 4_000_000 if re.fullmatch(r"/api/clearance/productions/[A-Za-z0-9_-]+/documents", request.url.path) else self.max_size
         content_length = request.headers.get("content-length")
         corr_id = request.headers.get("X-Correlation-ID") or get_correlation_id()
 
         if content_length:
             try:
-                if int(content_length) > self.max_size:
-                    logger.warning(f"Payload too large: Content-Length {content_length} > {self.max_size}")
+                if int(content_length) > limit:
+                    logger.warning(f"Payload too large: Content-Length {content_length} > {limit}")
                     return JSONResponse(
                         status_code=413,
                         content={
-                            "detail": f"Payload Too Large: Request body ({content_length} bytes) exceeds maximum limit of {self.max_size} bytes (1 MB).",
+                            "detail": f"Payload Too Large: Request body ({content_length} bytes) exceeds maximum limit of {limit} bytes.",
                             "status_code": 413,
-                            "max_allowed_bytes": self.max_size,
+                            "max_allowed_bytes": limit,
                         },
                         headers={"X-Correlation-ID": corr_id},
                     )
@@ -641,14 +642,14 @@ class PayloadSizeLimitMiddleware(BaseHTTPMiddleware):
         if request.method in ("POST", "PUT", "PATCH"):
             try:
                 body = await request.body()
-                if len(body) > self.max_size:
-                    logger.warning(f"Payload too large: Stream read size {len(body)} > {self.max_size}")
+                if len(body) > limit:
+                    logger.warning(f"Payload too large: Stream read size {len(body)} > {limit}")
                     return JSONResponse(
                         status_code=413,
                         content={
-                            "detail": f"Payload Too Large: Request body ({len(body)} bytes) exceeds maximum limit of {self.max_size} bytes (1 MB).",
+                            "detail": f"Payload Too Large: Request body ({len(body)} bytes) exceeds maximum limit of {limit} bytes.",
                             "status_code": 413,
-                            "max_allowed_bytes": self.max_size,
+                            "max_allowed_bytes": limit,
                         },
                         headers={"X-Correlation-ID": corr_id},
                     )
@@ -950,3 +951,4 @@ def configure_security_logging():
             log.addFilter(redacting_filter)
         if not any(isinstance(f, CorrelationIdFilter) for f in log.filters):
             log.addFilter(correlation_filter)
+

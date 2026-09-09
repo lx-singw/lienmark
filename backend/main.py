@@ -161,7 +161,7 @@ class SessionScopingMiddleware(BaseHTTPMiddleware):
         session_id = None
         authenticated_record = None
 
-        if lienmark_session_raw:
+        if lienmark_session_raw and request.url.path not in ("/api/auth/redeem-invite", "/api/auth/logout"):
             from backend.api.routes.auth_routes import verify_session_cookie
             from backend.storage.session_store import get_session_store
             from backend.middleware.tenant import TenantContext
@@ -268,6 +268,18 @@ app.include_router(escalation_router)
 app.include_router(underwriting_router)
 app.include_router(readiness_router)
 app.include_router(revision_routes.router)
+from backend.clearance.routes import router as live_clearance_router
+app.include_router(live_clearance_router)
+
+
+@app.middleware("http")
+async def retire_fixture_workspace_apis(request: Request, call_next):
+    path = request.url.path
+    retired = path.startswith(("/api/revisions/", "/api/review/", "/api/reports/", "/api/v1/claims/", "/report/"))
+    retired = retired or (path.startswith("/api/tenants/") and "/snapshots/" in path)
+    if retired:
+        return JSONResponse(status_code=410, content={"detail": "This fixture-backed workspace API is retired. Use /api/clearance for persisted revisions, evidence, decisions and exports."})
+    return await call_next(request)
 
 
 @app.post("/api/recovery/cold-start")
@@ -1639,35 +1651,9 @@ def get_dashboard_claims(
     Form E&O-2026 Exceptions Schedule (/api/reports/form-eo-2026).
     Enforces identical counts, session isolation, and status mappings.
     """
-    sess_id = get_session_id(http_req)
-    schedule = _get_reconciled_schedule(
-        project_id=production_id,
-        auto_reconcile_demo=auto_reconcile_demo,
-        session_id=sess_id,
-    )
-    return {
-        "total_claims": schedule.total_claims,
-        "carried_forward_count": schedule.carried_forward_count,
-        "re_attested_count": schedule.re_attested_count,
-        "unresolved_exception_count": schedule.unresolved_exception_count,
-        "reopened_count": schedule.reopened_count,
-        "claims": [
-            {
-                "stable_lineage_key": item.stable_lineage_key,
-                "asset_type": item.asset_type,
-                "description": item.description,
-                "scene": item.scene_or_timecode,
-                "state": item.v8_evaluation_state,
-                "status": "APPROVED" if item.v8_evaluation_state in ("carried_forward", "re_attested") else "REJECTED",
-                "counsel_action": item.counsel_action,
-                "evidence_citations": item.evidence_citations,
-            }
-            for item in schedule.items
-        ],
-        "policy_version": schedule.policy_version,
-        "policy_number": schedule.policy_number,
-        "session_id": sess_id,
-    }
+    from backend.clearance.routes import workspace
+    from backend.clearance.store import get_store
+    return workspace(production_id, get_tenant_context(http_req), get_store())
 
 
 @app.get("/report/{production_id}", response_class=HTMLResponse)

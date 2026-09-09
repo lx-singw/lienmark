@@ -3,7 +3,7 @@ import { record, type WorkspaceUser } from './model';
 let csrfToken = '';
 export async function requestJson(path: string, init?: RequestInit): Promise<unknown> {
   const headers = new Headers(init?.headers);
-  if (init?.body) headers.set('Content-Type', 'application/json');
+  if (init?.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
   if (csrfToken && init?.method && init.method !== 'GET') headers.set('X-CSRF-Token', csrfToken);
   const response = await fetch(path, { ...init, signal: init?.signal || AbortSignal.timeout(20000), headers, credentials: 'same-origin', cache: 'no-store' });
   const token = response.headers.get('X-CSRF-Token') || response.headers.get('X-Session-ID');
@@ -24,6 +24,8 @@ export function parseUser(value: unknown): WorkspaceUser | null {
     role: String(source.role), tenant_id: String(source.tenant_id), production_id: String(source.production_id),
     display_name: typeof source.display_name === 'string' ? source.display_name : 'Invited member',
     email: typeof source.email === 'string' ? source.email : '',
+    production_name: typeof source.production_name === 'string' ? source.production_name : undefined,
+    organization_name: typeof source.organization_name === 'string' ? source.organization_name : undefined,
   };
 }
 let sessionRequest: Promise<WorkspaceUser | null> | undefined;
