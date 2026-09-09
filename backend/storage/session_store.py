@@ -129,6 +129,11 @@ def get_session_store() -> SessionStoreInterface:
     )
     use_local = os.getenv("USE_LOCAL_STORAGE", "").lower() in ("true", "1")
 
+    if use_local and os.getenv('SESSION_SQLITE_PATH'):
+        from .sqlite_session_store import SQLiteSessionStore
+        _GLOBAL_SESSION_STORE = SQLiteSessionStore(os.environ['SESSION_SQLITE_PATH'])
+        return _GLOBAL_SESSION_STORE
+
     if is_cloud_run and not use_local:
         try:
             _GLOBAL_SESSION_STORE = FirestoreSessionStore()

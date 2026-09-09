@@ -7,6 +7,7 @@ import { revisionLabel } from './labels';
 import { PageHeading, PanelTitle, SampleNotice, ReferenceNotice } from './Primitives';
 import { ClaimTable } from './ClaimTable';
 import { MissionTimeline, RevisionOutcome } from './AutomationView';
+import { ProductionOutcome } from './ProductionOutcome';
 
 export function SummaryCards() {
   const { claims, sample } = useWorkspace();
@@ -32,6 +33,6 @@ export default function Overview() {
     <button className="ws-button" disabled={sample || loading} onClick={() => void refresh()}><RefreshCw size={14} />{loading ? 'Refreshing…' : 'Refresh'}</button><Link className="ws-button primary" href="/revisions"><Plus size={15} />New revision</Link></PageHeading>
     {sample ? <SampleNotice onRequest={() => setAccessOpen(true)} /> : <ReferenceNotice />}{error && <div className="ws-error" role="alert">{error}</div>}
     <div className="ws-revision-strip"><div className="ws-revision-pair"><label>{sample ? 'SAMPLE COMPARISON' : 'CURRENT REVISION'}</label><span className="ws-revision-pill target">{sample ? 'Cut v7 → Cut v8' : revisionLabel(snapshot)}</span></div><span className="ws-revision-caption">Approval continuity, asset by asset</span></div>
-    {checking ? <div className="ws-loading" role="status">Checking workspace access…</div> : <><SummaryCards /><RevisionOutcome /><MissionTimeline compact /><div className="ws-overview-grid"><ClaimTable claims={claims} /><NextSteps /></div></>}
+    {checking ? <div className="ws-loading" role="status">Checking workspace access…</div> : <><ProductionOutcome />{sample && <SummaryCards />}<RevisionOutcome /><MissionTimeline compact /><div className="ws-overview-grid"><ClaimTable claims={claims} /><NextSteps /></div></>}
   </>;
 }

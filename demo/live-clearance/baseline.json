@@ -1,0 +1,7 @@
+{
+  "uses": [
+    {"stable_lineage_key":"rehearsal_piano","description":"A live piano performance of Beethoven's Moonlight Sonata, first movement","asset_type":"music","scene_or_timecode":"Scene 1 — rehearsal room","duration_or_prominence":"2 seconds background","context":"A fictional production films a new piano performance; no commercial recording is used.","intended_territory":["United States"],"intended_media":["theatrical exhibition"],"dependency_keys":[]},
+    {"stable_lineage_key":"reading_room","description":"Jane Austen's Pride and Prejudice, original English text","asset_type":"literary work","scene_or_timecode":"Scene 2 — reading room","duration_or_prominence":"one spoken sentence","context":"A character reads from the original text, not a modern adaptation or translation.","intended_territory":["United States"],"intended_media":["theatrical exhibition"],"dependency_keys":[]},
+    {"stable_lineage_key":"poetry_class","description":"Percy Bysshe Shelley's Ozymandias, original English poem","asset_type":"literary work","scene_or_timecode":"Scene 3 — classroom","duration_or_prominence":"one spoken line","context":"A character recites a line from the original poem.","intended_territory":["United States"],"intended_media":["theatrical exhibition"],"dependency_keys":[]}
+  ]
+}

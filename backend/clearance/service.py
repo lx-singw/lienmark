@@ -33,7 +33,7 @@ def current(store, root):
 
 
 def public_job(job):
-    return {**{k: job.get(k) for k in ("audit_id", "revision_id", "status", "outcome", "status_url", "error", "reserved_usd", "tasks", "trigger", "created_at", "completed_at")},
+    return {**{k: job.get(k) for k in ("audit_id", "revision_id", "status", "outcome", "status_url", "error", "reserved_usd", "tasks", "trigger", "recoveries", "created_at", "completed_at")},
             "calls": call_traces(job["calls"])}
 
 

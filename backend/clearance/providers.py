@@ -98,6 +98,10 @@ class Providers:
             "request_sha256": digest(payload), "response_sha256": digest(data), "retrieved_at": now()}
 
     def search(self, query):
+        from .adk_runtime import search
+        return search(query, self._search)
+
+    def _search(self, query):
         payload = {"search_queries": [query], "mode": "fast", "max_chars_total": 6000}
         data, trace = self.post("https://api.parallel.ai/v1/search", os.getenv("PARALLEL_API_KEY"), payload)
         if not data.get("search_id") or not isinstance(data.get("results"), list):
@@ -136,7 +140,12 @@ class Providers:
                 raise ProviderError("Vertex AI project is not configured.")
             host = "aiplatform.googleapis.com" if region == "global" else region + "-aiplatform.googleapis.com"
             url = f"https://{host}/v1/projects/{project}/locations/{region}/publishers/google/models/{model}:generateContent"
-        data, trace = self.post(url, key, payload)
+        from .adk_runtime import generate
+        role = {ExtractedUses: "document_intake", ResearchPlan: "investigation_planner",
+            Assessment: "rights_researcher", EvidenceReview: "evidence_reviewer",
+            EvidenceChange: "source_monitor", AgreementMatch: "agreement_matcher"}[schema]
+        data, trace = generate(payload["systemInstruction"]["parts"][0]["text"], data,
+            response_schema, role, lambda request: self.post(url, key, request))
         try:
             candidate = data["candidates"][0]
             if candidate["finishReason"] != "STOP":

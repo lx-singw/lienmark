@@ -24,6 +24,7 @@ export function MissionTimeline({ compact = false }: { compact?: boolean }) {
       <p className="ws-muted">{automation.worker_available ? 'Worker connected' : 'Worker heartbeat unavailable'}{automation.worker_seen_at ? ` · Last seen ${savedDate(automation.worker_seen_at)}` : ''}</p>
       {Boolean(mission.status) && <p className="ws-muted">{stateName(mission.outcome || mission.status)} · {savedDate(mission.created_at)}</p>}
       {Boolean(mission.error) && <p className="ws-error" role="alert">{String(mission.error)}</p>}
+      {rows(mission.recoveries).map((recovery, i) => <p key={i} className="ws-soft-box">Worker recovery: {String(recovery.completed_calls_reused)} completed call results retained. {String(recovery.reason)} {savedDate(recovery.recovered_at)}</p>)}
       {visible.length ? <ol className="ws-agent-timeline" aria-label="Recorded task handoffs">{visible.map(task => <li key={String(task.task_id)} className={String(task.status).toLowerCase()}>
         <div className="ws-agent-task-heading"><strong>{String(task.agent)}</strong><span>{stateName(task.status)}</span></div>
         <p>{String(task.objective)}</p>{Boolean(task.outcome) && <p className="ws-agent-outcome">{String(task.outcome)}</p>}

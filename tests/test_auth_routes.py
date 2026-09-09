@@ -17,13 +17,18 @@ from backend.main import app
 from backend.storage.invite_store import get_invite_store
 from backend.storage.session_store import get_session_store
 
+from backend.clearance.store import get_store, SQLiteStore
+
 client = TestClient(app)
 
 
 @pytest.fixture(autouse=True)
-def setup_test_env():
+def setup_test_env(tmp_path):
     os.environ["USE_LOCAL_STORAGE"] = "true"
-    os.environ["CLEARANCE_SQLITE_PATH"] = ".data/test_auth.sqlite3"
+    store = SQLiteStore(tmp_path / "auth_clearance.db")
+    app.dependency_overrides[get_store] = lambda: store
+    yield
+    app.dependency_overrides.pop(get_store, None)
 
 
 def test_invite_redemption_and_signed_cookie():

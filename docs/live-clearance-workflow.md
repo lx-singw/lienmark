@@ -5,6 +5,7 @@
 The frontend calls `/api/clearance`. Both the API and worker must use the same store:
 
 - Local: `CLEARANCE_SQLITE_PATH=.data/clearance.sqlite3`, `BUDGET_STORE_MODE=local_disk`, `USE_LOCAL_STORAGE=true`.
+- For persistent local authentication, also set `SESSION_SQLITE_PATH=.data/sessions.sqlite3`; this preserves session expiry and revocation across preview restarts. It does not enable local session storage in cloud mode.
 - Cloud: `CLEARANCE_STORE=firestore`, `GOOGLE_CLOUD_PROJECT`, workload credentials. A store failure never silently selects an in-memory alternative.
 - Live providers: `CLEARANCE_LIVE_ENABLED=true`, `PARALLEL_API_KEY`, and either `GEMINI_API_KEY` or `GOOGLE_GENAI_USE_VERTEXAI=true` with `GOOGLE_CLOUD_PROJECT`, region and application-default credentials. Do not commit credentials.
 
@@ -39,6 +40,8 @@ No cloud resources are created by importing or testing these modules. The curren
 
 ## Tasks, decisions and recovery
 
+Each canonical Gemini role executes through Google ADK LlmAgent/Runner using the guarded HTTP model adapter in `backend/clearance/adk_runtime.py`. Parallel executes through an ADK FunctionTool. ADK events are recorded with audit/call correlation in the durable ledger. Per-invocation ADK sessions are transient; durable job checkpoints remain the recovery authority. A recovered completed call reuses its stored result instead of starting a new ADK invocation. This local SDK integration does not establish a managed Agent Engine deployment.
+
 Intake hands extracted uses to the deterministic change coordinator. A planner sets a public research query and a stop condition for each affected claim. The rights researcher searches Parallel and assesses the findings with Gemini. A separate evidence reviewer challenges source relevance, support and contradictions; it may hand the task back for a targeted follow-up. Three rounds and the job allowance bound the loop. Completed provider responses and task outcomes are persisted, so a recovered worker reuses completed calls. A started call with unknown outcome is not automatically charged again; it remains an operational exception. Explicit transient provider responses (429/5xx) receive one budgeted retry. Invalid model output can receive one budgeted repair. Both attempts remain in the call ledger, and model citations are constrained to the attached evidence IDs. The planner can also choose to request private information directly or assess an arriving document against retained evidence without another web search.
 
 Missing private facts become pinned clarification records. They survive restarts and are not silently deleted by TTL. Replacement investigations supersede old questions in the same claim scope. Agreement arrivals resume only the matching claim and explicit transitive dependents. Unaffected unresolved claims are not restarted by that resumption. Reviewer rejection similarly creates a durable directive event; processing follows the saved policy and allowance.
@@ -63,7 +66,7 @@ The UI leaves raw identifiers in technical references, not production headings. 
 ## Verification
 
 ```bash
-BUDGET_STORE_MODE=local_disk USE_LOCAL_STORAGE=true python -m pytest tests/test_clearance_workflow.py tests/test_clearance_automation.py tests/test_auth_routes.py -q
+BUDGET_STORE_MODE=local_disk USE_LOCAL_STORAGE=true python -m pytest tests/test_clearance_workflow.py tests/test_clearance_automation.py tests/test_clearance_adk.py tests/test_auth_routes.py -q
 cd frontend
 npx --no-install tsx --test tests/*.test.ts
 npm run build
@@ -72,4 +75,3 @@ npm run build
 These mounted-app tests replace external provider HTTP. They cover authority, CSRF, selective invalidation, source dispatch, agreement matching/resumption, adaptive evidence-review handoffs, exact evidence materiality, budget concurrency, duplicate arrivals, durable recovery and PDF parity.
 
 Separately, `python -m scripts.verify_autonomous_live --allowance 0.70` runs actual provider calls in an isolated temporary production. The September 9 run completed two jobs, ten provider calls and seven task roles, with $0.42 reserved. Its scope note explicitly grants no rights; zero legal decisions were recorded. The resulting `.data/autonomous-live-verification.json` separates this live evidence from mocked acceptance tests. No reviewer sign-off or deployed cloud event delivery is implied.
-

@@ -1,4 +1,5 @@
 import io
+import json
 import re
 from xml.sax.saxutils import escape
 
@@ -124,18 +125,39 @@ def snapshot(production_id: str, revision_id: str, snapshot_id: str,
     return read_snapshot(store, scope(ctx, production_id), revision_id, snapshot_id)
 
 
+@router.get("/productions/{production_id}/revisions/{revision_id}/snapshots/{snapshot_id}/execution-record")
+def execution_record(production_id: str, revision_id: str, snapshot_id: str,
+                     ctx: TenantContext = Depends(get_tenant_context), store=Depends(get_store)):
+    from .models import digest, now
+    root = scope(ctx, production_id)
+    data = read_snapshot(store, root, revision_id, snapshot_id)
+    job = store.get(f"{root}/live_jobs/{valid_id(data['audit_id'])}")
+    if not job or job['revision_id'] != revision_id:
+        raise HTTPException(409, "The snapshot's execution record is unavailable.")
+    body = {"format": "lienmark-execution-record-v1", "exported_at": now(), "snapshot": data,
+        "execution": public_job(job), "limitations": ["This record contains production evidence; review before sharing.",
+            "Dispatch reservations are not reconciled billing.", "An ADK trace proves local SDK execution, not a managed cloud deployment.",
+            "Reviewer decisions are recorded actions, not underwriter acceptance."]}
+    body['record_sha256'] = digest(body)
+    return Response(json.dumps(body, indent=2), media_type="application/json",
+        headers={"Content-Disposition": 'attachment; filename="clearance-execution-record.json"',
+                 "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
+
+
 @router.get("/productions/{production_id}/revisions/{revision_id}/snapshots/{snapshot_id}/pdf")
 def export(production_id: str, revision_id: str, snapshot_id: str,
            ctx: TenantContext = Depends(get_tenant_context), store=Depends(get_store)):
     from reportlab.lib.styles import getSampleStyleSheet
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, KeepTogether
     data = read_snapshot(store, scope(ctx, production_id), revision_id, snapshot_id)
     output = io.BytesIO()
     styles = getSampleStyleSheet()
     story = []
     def paragraph(text, style="BodyText"):
         story.append(Paragraph(escape(str(text)), styles[style]))
-        story.append(Spacer(1, 8))
+        gap = Spacer(1, 8)
+        gap.keepWithNext = style.startswith('Heading') or style == 'Title'
+        story.append(gap)
     paragraph("Draft Exceptions Schedule", "Title")
     for text in (data.get("production_name", "Production workspace"), "Prepared: " + data["created_at"], revision_id, snapshot_id, "Snapshot SHA-256: " + data["content_sha256"],
                  "This draft records the decisions and unresolved matters in this snapshot. It is not an insurance certificate."):
@@ -147,11 +169,12 @@ def export(production_id: str, revision_id: str, snapshot_id: str,
         paragraph(f"Blockers before: {comparison['blockers_before']} | Blockers in this snapshot: {sum(c['state'] not in ('carried_forward', 're_attested', 'removed') for c in data['claims'])}")
         paragraph(f"Missing facts resolved during investigation: {comparison['missing_facts_resolved']} | Elapsed seconds: {comparison['elapsed_seconds']}")
     for claim in data["claims"]:
-        paragraph(claim["description"], "Heading2")
-        paragraph(f'{claim["scene"]} | {claim["prominence"]} | {claim["state"]}')
+        story.append(KeepTogether([Paragraph(escape(claim["description"]), styles['Heading2']), Spacer(1, 8),
+            Paragraph(escape(f'{claim["scene"]} | {claim["prominence"]} | {claim["state"]}'), styles['BodyText']), Spacer(1, 8)]))
         paragraph(claim["reason_code"])
         for missing in (claim.get("investigation") or {}).get("missing_facts", []):
-            paragraph("Unresolved: " + missing)
+            label = "Research question recorded before reviewer decision: " if claim.get("decision") else "Unresolved: "
+            paragraph(label + missing)
         decision = claim.get("decision")
         if decision:
             paragraph(f'Reviewer: {decision["actor_id"]} | Recorded: {decision["created_at"]}')
@@ -159,7 +182,14 @@ def export(production_id: str, revision_id: str, snapshot_id: str,
         for evidence in claim["evidence_citations"]:
             paragraph(f'{evidence["evidence_id"]}: {evidence["title"]} - {evidence["url"]}')
             paragraph("Retrieved: " + evidence["retrieved_at"] + " | Response SHA-256: " + evidence["response_sha256"])
-    SimpleDocTemplate(output, title="Lienmark Draft Exceptions Schedule").build(story)
+    def footer(canvas, document):
+        canvas.saveState()
+        canvas.setFont('Helvetica', 8)
+        canvas.setFillColorRGB(.3, .4, .37)
+        canvas.drawString(document.leftMargin, 32, 'Lienmark | Draft for authorized review')
+        canvas.drawRightString(document.pagesize[0] - document.rightMargin, 32, f'Page {document.page}')
+        canvas.restoreState()
+    SimpleDocTemplate(output, title="Lienmark Draft Exceptions Schedule").build(story, onFirstPage=footer, onLaterPages=footer)
     return Response(output.getvalue(), media_type="application/pdf", headers={
         "Content-Disposition": f'attachment; filename="lienmark-{snapshot_id}.pdf"',
         "X-Snapshot-SHA256": data["content_sha256"], "Cache-Control": "private, no-store"})

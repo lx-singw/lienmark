@@ -27,6 +27,10 @@ class Worker:
             job = tx.get(path)
             if not job or job["status"] not in ("QUEUED", "PROCESSING") or job["lease_until"] > time.time():
                 return None
+            if job["status"] == "PROCESSING":
+                job.setdefault("recoveries", []).append({"recovered_at": now(), "previous_fence": job["fence"],
+                    "completed_calls_reused": sum(c["status"] == "COMPLETED" for c in job["calls"].values()),
+                    "reason": "Previous worker lease expired; completed results retained."})
             job.update(status="PROCESSING", fence=job["fence"] + 1, lease_until=time.time() + LEASE_SECONDS)
             tx.put(path, job)
             return job
@@ -67,6 +71,7 @@ class Worker:
             if isinstance(exc, TransientResponse) and not key.endswith(":retry"):
                 return self.retry_call(path, fence, key, reservation, callback)
             raise
+        result.setdefault("trace", {})["correlation"] = {"audit_id": path.rsplit("/", 1)[1], "call_id": key, "fence": fence}
         self.update(path, fence, lambda j: j["calls"][key].update(status="COMPLETED", result=result, completed_at=now()))
         return result
 

@@ -10,6 +10,8 @@ Lienmark watches a production's incoming documents, compares creative uses again
 
 The workflow records tasks for document intake, deterministic change scoping, Gemini research planning, Parallel-backed research, independent Gemini evidence review, agreement matching, and delivery preparation. The evidence reviewer can return a task for another targeted search. All provider calls have durable checkpoints and bounded reservations. Agents never grant legal clearance.
 
+The canonical provider boundary now runs each model role through a Google ADK `LlmAgent` and `Runner`. Parallel executes as an ADK `FunctionTool` inside the research agent. The guarded Gemini model adapter retains explicit single-attempt HTTP behavior; the durable worker owns routing, reservations and recovery. Each completed call records actual ADK event IDs correlated to its audit and call. This is local ADK execution, not evidence of a deployed managed Agent Engine instance.
+
 ## Run and verify
 
 See [the workflow guide](docs/live-clearance-workflow.md) for credentials, worker configuration, watched folders, permissions and a complete demonstration sequence.
@@ -28,7 +30,7 @@ npm run dev -- --port 3100
 Authenticate through a private production invitation. In Workspace settings, authorize automatic processing and its allowance. The worker must have the live provider credentials configured; the UI does not simulate successful calls when they are absent.
 
 ```bash
-BUDGET_STORE_MODE=local_disk USE_LOCAL_STORAGE=true python -m pytest tests/test_clearance_workflow.py tests/test_clearance_automation.py tests/test_auth_routes.py -q
+BUDGET_STORE_MODE=local_disk USE_LOCAL_STORAGE=true python -m pytest tests/test_clearance_workflow.py tests/test_clearance_automation.py tests/test_clearance_adk.py tests/test_auth_routes.py -q
 cd frontend
 npx --no-install tsx --test tests/*.test.ts
 npm run build
@@ -47,6 +49,12 @@ The September 9 local live verification completed two jobs and ten provider call
 Start with a baseline that an authorized human has actually reviewed. Introduce an unfamiliar changed cut into the watched folder with the workspace closed. Open the workspace to see the trigger, task handoffs, preserved decisions, targeted evidence and specific unresolved facts. Supply the requested agreement, observe automatic resumption, then have the assigned reviewer decide. Export the resulting draft schedule.
 
 Counts come from stored records. A sample screenplay can be fictional, but source results, task traces and decisions must be identified honestly. Historical fixture scripts and reports under `demo/` and `output/` are not evidence of current live execution. Fixed 12-to-10/2 narratives, universal 83.3% savings and attorney-hour savings are not measured product results.
+
+The [editable demonstration packet](demo/live-clearance/README.md) includes a baseline, changed revision and a fictional performance scope note. `python -m scripts.prepare_local_rehearsal --allowance 2 --start` creates a separate local production, private single-use invitations and an incoming baseline; it records no decisions. Use an existing differently named rehearsal through `--production` if needed; the command refuses to reset one.
+
+`python -m scripts.verify_clearance_outcome --allowance 2` verifies the complete lifecycle with real providers and explicitly simulated reviewer actions in temporary storage. The verified run preserved two approvals, reopened two claims, resumed a clarification, and ended with one unresolved claim after a simulated decision. It completed 24 provider calls with $0.96 reserved. This is automated integration evidence, not practitioner validation or human sign-off. Delivery exports the actual snapshot's draft PDF and execution record.
+
+See [release evidence](docs/release-verification.md) for checked boundaries and [the practitioner worksheet](docs/practitioner-evaluation.md) for the remaining external validation.
 
 ## Operational boundaries
 

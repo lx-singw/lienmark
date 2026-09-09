@@ -146,28 +146,32 @@ test('apiClient: getAuditTrail throws genuine error without returning golden fal
   );
 });
 
-test('actions: fetchClearanceStateAction returns success: false on failure without masking disconnection', async () => {
+test('actions: fetchClearanceStateAction returns success: false on failure without masking disconnection', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => { throw new TypeError('Controlled offline transport'); });
   const res = await fetchClearanceStateAction();
   assert.equal(res.success, false);
   assert.ok(typeof res.error === 'string' && res.error.length > 0);
   assert.equal(res.data, undefined);
 });
 
-test('actions: evaluateClearanceDeltaAction returns success: false on failure', async () => {
+test('actions: evaluateClearanceDeltaAction returns success: false on failure', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => { throw new TypeError('Controlled offline transport'); });
   const res = await evaluateClearanceDeltaAction('v8');
   assert.equal(res.success, false);
   assert.ok(typeof res.error === 'string' && res.error.length > 0);
   assert.equal(res.data, undefined);
 });
 
-test('actions: fetchReviewQueueAction returns success: false without synthesizing mock data arrays', async () => {
+test('actions: fetchReviewQueueAction returns success: false without synthesizing mock data arrays', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => { throw new TypeError('Controlled offline transport'); });
   const res = await fetchReviewQueueAction();
   assert.equal(res.success, false);
   assert.ok(typeof res.error === 'string' && res.error.length > 0);
   assert.equal(res.data, undefined);
 });
 
-test('actions: fetchAuditTrailAction returns success: false without synthesizing mock data arrays', async () => {
+test('actions: fetchAuditTrailAction returns success: false without synthesizing mock data arrays', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => { throw new TypeError('Controlled offline transport'); });
   const res = await fetchAuditTrailAction();
   assert.equal(res.success, false);
   assert.ok(typeof res.error === 'string' && res.error.length > 0);
