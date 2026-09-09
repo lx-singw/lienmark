@@ -135,7 +135,8 @@ class LocalRevisionStore(RevisionStoreInterface):
 class FirestoreRevisionStore(RevisionStoreInterface):
     def __init__(self) -> None:
         from backend.storage.firestore_client import get_firestore_client
-        self.db = get_firestore_client()
+        client = get_firestore_client()
+        self.db = getattr(client, "db", client)
 
     def _prod_ref(self, t_id: str, p_id: str) -> Any:
         return self.db.collection("organizations").document(t_id).collection("productions").document(p_id)

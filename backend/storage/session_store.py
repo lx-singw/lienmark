@@ -83,35 +83,52 @@ class LocalSessionStore(SessionStoreInterface):
 class FirestoreSessionStore(SessionStoreInterface):
     def __init__(self) -> None:
         from backend.storage.firestore_client import get_firestore_client
-        self.db = get_firestore_client()
+        client = get_firestore_client()
+        self.db = getattr(client, "db", client)
 
     def create_session(self, record: SessionRecord) -> bool:
-        doc_ref = self.db.collection("sessions").document(record.session_id)
-        doc_ref.set(asdict(record))
-        return True
+        try:
+            doc_ref = self.db.collection("sessions").document(record.session_id)
+            doc_ref.set(asdict(record))
+            return True
+        except Exception as exc:
+            logger.error(f"Error creating session in Firestore: {exc}", exc_info=True)
+            return False
 
     def get_session(self, session_id: str) -> Optional[SessionRecord]:
-        doc_ref = self.db.collection("sessions").document(session_id)
-        snapshot = doc_ref.get()
-        if not snapshot.exists:
+        try:
+            doc_ref = self.db.collection("sessions").document(session_id)
+            snapshot = doc_ref.get()
+            if not snapshot.exists:
+                return None
+            data = snapshot.to_dict() or {}
+            if data.get("revoked", False) or time.time() > data.get("expires_at", 0):
+                return None
+            return SessionRecord(**data)
+        except Exception as exc:
+            logger.error(f"Error getting session from Firestore: {exc}", exc_info=True)
             return None
-        data = snapshot.to_dict() or {}
-        if data.get("revoked", False) or time.time() > data.get("expires_at", 0):
-            return None
-        return SessionRecord(**data)
 
     def revoke_session(self, session_id: str) -> bool:
-        doc_ref = self.db.collection("sessions").document(session_id)
-        doc_ref.update({"revoked": True})
-        return True
+        try:
+            doc_ref = self.db.collection("sessions").document(session_id)
+            doc_ref.update({"revoked": True})
+            return True
+        except Exception as exc:
+            logger.error(f"Error revoking session in Firestore: {exc}", exc_info=True)
+            return False
 
     def is_revoked(self, session_id: str) -> bool:
-        doc_ref = self.db.collection("sessions").document(session_id)
-        snapshot = doc_ref.get()
-        if not snapshot.exists:
+        try:
+            doc_ref = self.db.collection("sessions").document(session_id)
+            snapshot = doc_ref.get()
+            if not snapshot.exists:
+                return True
+            data = snapshot.to_dict() or {}
+            return bool(data.get("revoked", False))
+        except Exception as exc:
+            logger.error(f"Error checking session revocation in Firestore: {exc}", exc_info=True)
             return True
-        data = snapshot.to_dict() or {}
-        return bool(data.get("revoked", False))
 
 
 _GLOBAL_SESSION_STORE: Optional[SessionStoreInterface] = None

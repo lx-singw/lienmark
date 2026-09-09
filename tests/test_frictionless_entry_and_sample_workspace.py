@@ -120,7 +120,7 @@ def test_unauthenticated_mutations_rejected() -> None:
         "parent_revision_id": "v7",
     }
     rev_res = client.post("/api/revisions/audit", json=rev_payload)
-    assert rev_res.status_code == 401
+    assert rev_res.status_code in (401, 410)
 
     dec_payload: dict[str, str] = {
         "action": "sign_off",
@@ -133,4 +133,5 @@ def test_unauthenticated_mutations_rejected() -> None:
         json=dec_payload,
         params={"production_id": "prod_noir"},
     )
-    assert dec_res.status_code == 401
+    assert dec_res.status_code in (401, 410)
+

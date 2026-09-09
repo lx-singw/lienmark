@@ -483,6 +483,21 @@ class NativeFirestoreClient(FirestoreClientInterface):
         self.db = firestore.Client(project=proj, database=db_name)
         logger.info(f"Initialized NativeFirestoreClient for project '{proj}', database '{db_name}'.")
 
+    def collection(self, *args, **kwargs):
+        return self.db.collection(*args, **kwargs)
+
+    def collection_group(self, *args, **kwargs):
+        return self.db.collection_group(*args, **kwargs)
+
+    def document(self, *args, **kwargs):
+        return self.db.document(*args, **kwargs)
+
+    def batch(self, *args, **kwargs):
+        return self.db.batch(*args, **kwargs)
+
+    def transaction(self, *args, **kwargs):
+        return self.db.transaction(*args, **kwargs)
+
     def _session_ref(self, session_id: str):
         return self.db.collection("sessions").document(session_id)
 

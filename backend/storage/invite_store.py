@@ -30,59 +30,72 @@ class InviteStoreInterface(ABC):
 
 class FirestoreInviteStore(InviteStoreInterface):
     def __init__(self):
-        self.db = get_firestore_client()
+        client = get_firestore_client()
+        self.db = getattr(client, "db", client)
 
     def create_invite(self, hashed_token: str, role: str, tenant_id: str, production_id: str, max_uses: int = 1, expires_in: int = 86400) -> bool:
-        doc_ref = self.db.collection("invites").document(hashed_token)
-        doc_ref.set({
-            "role": role,
-            "tenant_id": tenant_id,
-            "production_id": production_id,
-            "max_uses": max_uses,
-            "uses": 0,
-            "expires_at": time.time() + expires_in
-        })
-        return True
+        try:
+            doc_ref = self.db.collection("invites").document(hashed_token)
+            doc_ref.set({
+                "role": role,
+                "tenant_id": tenant_id,
+                "production_id": production_id,
+                "max_uses": max_uses,
+                "uses": 0,
+                "expires_at": time.time() + expires_in
+            })
+            return True
+        except Exception as e:
+            logger.error(f"Error creating invite: {e}", exc_info=True)
+            return False
 
     def consume_invite(self, hashed_token: str) -> Optional[Dict[str, Any]]:
-        doc_ref = self.db.collection("invites").document(hashed_token)
-        
-        @firestore.transactional
-        def consume_tx(transaction, ref):
-            snapshot = ref.get(transaction=transaction)
-            if not snapshot.exists:
-                return None
-            data = snapshot.to_dict()
-            if time.time() > data.get("expires_at", 0):
-                return None
-            if data.get("uses", 0) >= data.get("max_uses", 1):
-                return None
-            transaction.update(ref, {"uses": data["uses"] + 1})
-            return data
-
-        transaction = self.db.transaction()
         try:
+            doc_ref = self.db.collection("invites").document(hashed_token)
+            
+            @firestore.transactional
+            def consume_tx(transaction, ref):
+                snapshot = ref.get(transaction=transaction)
+                if not snapshot.exists:
+                    return None
+                data = snapshot.to_dict()
+                if time.time() > data.get("expires_at", 0):
+                    return None
+                if data.get("uses", 0) >= data.get("max_uses", 1):
+                    return None
+                transaction.update(ref, {"uses": data["uses"] + 1})
+                return data
+
+            transaction = self.db.transaction()
             return consume_tx(transaction, doc_ref)
         except Exception as e:
-            logger.error(f"Error consuming invite: {e}")
+            logger.error(f"Error consuming invite: {e}", exc_info=True)
             return None
 
     def revoke_session(self, session_id: str, expires_in: int = 86400) -> bool:
-        doc_ref = self.db.collection("revoked_sessions").document(session_id)
-        doc_ref.set({
-            "revoked_at": time.time(),
-            "expires_at": time.time() + expires_in
-        })
-        return True
+        try:
+            doc_ref = self.db.collection("revoked_sessions").document(session_id)
+            doc_ref.set({
+                "revoked_at": time.time(),
+                "expires_at": time.time() + expires_in
+            })
+            return True
+        except Exception as e:
+            logger.error(f"Error revoking session: {e}", exc_info=True)
+            return False
 
     def is_session_revoked(self, session_id: str) -> bool:
-        doc_ref = self.db.collection("revoked_sessions").document(session_id)
-        doc = doc_ref.get()
-        if not doc.exists:
+        try:
+            doc_ref = self.db.collection("revoked_sessions").document(session_id)
+            doc = doc_ref.get()
+            if not doc.exists:
+                return False
+            if time.time() > doc.to_dict().get("expires_at", 0):
+                return False
+            return True
+        except Exception as e:
+            logger.error(f"Error checking session revocation: {e}", exc_info=True)
             return False
-        if time.time() > doc.to_dict().get("expires_at", 0):
-            return False
-        return True
 
 class LocalInviteStore(InviteStoreInterface):
     def __init__(self, path: str = ".data"):
