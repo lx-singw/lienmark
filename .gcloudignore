@@ -1,4 +1,4 @@
-﻿.gcloudignore
+.gcloudignore
 .git
 .gitignore
 .env
@@ -21,3 +21,4 @@ output/
 venv/
 .codex/
 .legacy_archive/
+.data/
